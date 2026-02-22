@@ -19,18 +19,18 @@ Progress: [##########] 100%
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 3
 - Average duration: 4min
-- Total execution time: 0.13 hours
+- Total execution time: 0.20 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 2 | 8min | 4min |
+| 01-foundation | 3 | 12min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min
+- Last 5 plans: 4min, 4min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - 01-02: DynamoDB client injected as parameter to is_duplicate for moto testability; module-level client in handler for Lambda cold start
 - 01-02: Signature validation before delivery ID check (reject invalid requests earliest possible)
 - 01-02: Dedup tests use local fixture for isolation instead of shared conftest.py
+- 01-03: GitHubClient uses mutable _headers dict for auth switching (app_auth vs installation_auth)
+- 01-03: get_installation_token takes GitHubClient (not raw httpx.Client) for consistent header management
+- 01-03: TYPE_CHECKING import for GitHubClient in tokens.py to satisfy ruff TC001
 
 ### Pending Todos
 
@@ -62,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-02-PLAN.md (webhook handler + dedup)
+Stopped at: Completed 01-03-PLAN.md (GitHub App auth + GitHub client) -- Phase 1 complete
 Resume file: None

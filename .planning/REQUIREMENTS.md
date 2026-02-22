@@ -30,7 +30,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: Ferry App authenticates as GitHub App (JWT generation + installation token exchange) to read repos and trigger dispatches
+- [x] **AUTH-01**: Ferry App authenticates as GitHub App (JWT generation + installation token exchange) to read repos and trigger dispatches
 - [ ] **AUTH-02**: Ferry Action authenticates to AWS via OIDC (user provides role ARN as action input, action handles the exchange)
 
 ### Build
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DETECT-02 | Phase 2 | Pending |
 | ORCH-01 | Phase 2 | Pending |
 | ORCH-02 | Phase 2 | Pending |
-| AUTH-01 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 3 | Pending |
 | BUILD-01 | Phase 3 | Pending |
 | BUILD-02 | Phase 3 | Pending |
