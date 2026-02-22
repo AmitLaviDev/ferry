@@ -5,7 +5,7 @@ to the action. It uses a Pydantic discriminated union for type-safe resource
 validation. One dispatch per resource TYPE (not per resource).
 """
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,7 +44,7 @@ class ApiGatewayResource(BaseModel):
 
 
 Resource = Annotated[
-    Union[LambdaResource, StepFunctionResource, ApiGatewayResource],
+    LambdaResource | StepFunctionResource | ApiGatewayResource,
     Field(discriminator="resource_type"),
 ]
 

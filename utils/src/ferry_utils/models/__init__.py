@@ -8,8 +8,8 @@ from ferry_utils.models.dispatch import (
     StepFunctionResource,
 )
 from ferry_utils.models.webhook import (
-    PushEvent,
     Pusher,
+    PushEvent,
     Repository,
     WebhookHeaders,
 )

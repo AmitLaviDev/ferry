@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from ferry_utils.models.webhook import PushEvent, Pusher, Repository, WebhookHeaders
+from ferry_utils.models.webhook import Pusher, PushEvent, Repository, WebhookHeaders
 
 
 class TestWebhookHeaders:
