@@ -1,6 +1,5 @@
-"""Ferry shared utilities and data contracts."""
+"""Ferry shared Pydantic models - re-exported for convenient imports."""
 
-from ferry_utils.constants import SCHEMA_VERSION, ResourceType
 from ferry_utils.models.dispatch import (
     ApiGatewayResource,
     DispatchPayload,
@@ -8,18 +7,21 @@ from ferry_utils.models.dispatch import (
     Resource,
     StepFunctionResource,
 )
-from ferry_utils.models.webhook import PushEvent, WebhookHeaders
+from ferry_utils.models.webhook import (
+    PushEvent,
+    Pusher,
+    Repository,
+    WebhookHeaders,
+)
 
 __all__ = [
-    "SCHEMA_VERSION",
     "ApiGatewayResource",
     "DispatchPayload",
     "LambdaResource",
     "PushEvent",
+    "Pusher",
+    "Repository",
     "Resource",
-    "ResourceType",
     "StepFunctionResource",
     "WebhookHeaders",
 ]
-
-__version__ = "0.1.0"
