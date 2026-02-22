@@ -29,11 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Sending the same webhook delivery twice results in exactly one processing — the duplicate returns 200 but is not processed again
   3. Ferry App can generate a valid GitHub App JWT and exchange it for a scoped installation token that successfully calls the GitHub API
   4. The monorepo contains three packages (ferry-app, ferry-action, ferry-shared) managed by uv workspace, with shared Pydantic models importable by both app and action
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Monorepo scaffolding + shared Pydantic data contract + backend settings
+- [ ] 01-02-PLAN.md — Webhook signature validation + DynamoDB dedup + handler (TDD)
+- [ ] 01-03-PLAN.md — GitHub App JWT generation + installation token exchange (TDD)
 
 ### Phase 2: App Core Logic
 **Goal**: When a developer pushes code, Ferry App reads the repo configuration, identifies which serverless resources changed, triggers the correct dispatches, and shows affected resources on the PR before merge
@@ -100,7 +101,7 @@ Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Shared Contract | 0/? | Not started | - |
+| 1. Foundation and Shared Contract | 0/3 | Planned | - |
 | 2. App Core Logic | 0/? | Not started | - |
 | 3. Build and Lambda Deploy | 0/? | Not started | - |
 | 4. Extended Resource Types | 0/? | Not started | - |
