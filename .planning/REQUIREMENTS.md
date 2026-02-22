@@ -52,7 +52,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Action Structure
 
 - [ ] **ACT-01**: Ferry Action is a composite GitHub Action with Python scripts for build/deploy logic (not inline bash)
-- [ ] **ACT-02**: Ferry Action, Ferry App, and shared models live in one monorepo managed by uv workspace
+- [x] **ACT-02**: Ferry Action, Ferry App, and shared models live in one monorepo managed by uv workspace
 
 ## v2 Requirements
 
@@ -126,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-04 | Phase 3 | Pending |
 | DEPLOY-05 | Phase 3 | Pending |
 | ACT-01 | Phase 3 | Pending |
-| ACT-02 | Phase 1 | Pending |
+| ACT-02 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total
