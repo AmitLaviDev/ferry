@@ -47,10 +47,7 @@ def is_duplicate(
 
     # Try event-level dedup (catches re-queued events with new delivery IDs)
     event_key = _build_event_key(payload)
-    if event_key and not _try_record(client, table_name, event_key, expires_at):
-        return True  # Duplicate event
-
-    return False  # New, process it
+    return bool(event_key and not _try_record(client, table_name, event_key, expires_at))
 
 
 def _try_record(client: object, table_name: str, pk: str, expires_at: int) -> bool:
