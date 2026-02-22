@@ -86,7 +86,7 @@ class TestGenerateAppJwt:
 
     def test_invalid_pem_key_raises_error(self):
         """Invalid/malformed PEM key should raise a clear error."""
-        with pytest.raises(Exception):
+        with pytest.raises((jwt.exceptions.PyJWTError, ValueError)):
             generate_app_jwt("Iv1.abc123", "not-a-valid-pem-key")
 
     def test_different_app_ids_produce_different_iss(self, rsa_key_pair):

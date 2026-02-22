@@ -1,6 +1,7 @@
 """Tests for installation token exchange and GitHub API client."""
 
-import httpx
+import json
+
 import pytest
 
 from ferry_backend.auth.tokens import get_installation_token
@@ -29,7 +30,7 @@ class TestGitHubClient:
         )
         client = GitHubClient()
         client.app_auth("fake-jwt-token")
-        resp = client.get("/app")
+        client.get("/app")
         request = httpx_mock.get_request()
         assert request.headers["authorization"] == "Bearer fake-jwt-token"
 
@@ -41,7 +42,7 @@ class TestGitHubClient:
         )
         client = GitHubClient()
         client.installation_auth("ghs_abc123")
-        resp = client.get("/repos/owner/repo")
+        client.get("/repos/owner/repo")
         request = httpx_mock.get_request()
         assert request.headers["authorization"] == "token ghs_abc123"
 
@@ -53,7 +54,7 @@ class TestGitHubClient:
         )
         client = GitHubClient()
         client.app_auth("fake-jwt")
-        resp = client.get("/app")
+        client.get("/app")
         request = httpx_mock.get_request()
         assert request.headers["accept"] == "application/vnd.github+json"
         assert request.headers["x-github-api-version"] == "2022-11-28"
@@ -79,7 +80,7 @@ class TestGitHubClient:
         )
         client = GitHubClient()
         client.app_auth("fake-jwt")
-        resp = client.post(
+        client.post(
             "/app/installations/123/access_tokens",
             json={"permissions": {"contents": "read"}},
         )
@@ -127,8 +128,6 @@ class TestGetInstallationToken:
         client.app_auth("fake-jwt")
         get_installation_token(client, "fake-jwt", 12345)
         request = httpx_mock.get_request()
-        import json
-
         body = json.loads(request.content)
         assert body["permissions"]["contents"] == "read"
         assert body["permissions"]["checks"] == "write"
@@ -164,11 +163,11 @@ class TestGetInstallationToken:
     def test_bad_installation_id_raises_github_auth_error(self, httpx_mock):
         """404 response (bad installation ID) should raise GitHubAuthError."""
         httpx_mock.add_response(
-            url="https://api.github.com/app/installations/00000/access_tokens",
+            url="https://api.github.com/app/installations/99998/access_tokens",
             json={"message": "Not Found"},
             status_code=404,
         )
         client = GitHubClient()
         client.app_auth("fake-jwt")
         with pytest.raises(GitHubAuthError, match="404"):
-            get_installation_token(client, "fake-jwt", 0)
+            get_installation_token(client, "fake-jwt", 99998)
