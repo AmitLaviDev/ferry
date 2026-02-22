@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Webhook & Security
 
-- [ ] **WHOOK-01**: Ferry App validates webhook signature (HMAC-SHA256) against raw body bytes before any JSON parsing
-- [ ] **WHOOK-02**: Ferry App deduplicates webhook deliveries via DynamoDB conditional write (delivery ID + event content composite key)
+- [x] **WHOOK-01**: Ferry App validates webhook signature (HMAC-SHA256) against raw body bytes before any JSON parsing
+- [x] **WHOOK-02**: Ferry App deduplicates webhook deliveries via DynamoDB conditional write (delivery ID + event content composite key)
 - [ ] **WHOOK-03**: Build and deploy failures are surfaced in GitHub PR status checks and GHA workflow logs
 
 ### Configuration
@@ -104,8 +104,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WHOOK-01 | Phase 1 | Pending |
-| WHOOK-02 | Phase 1 | Pending |
+| WHOOK-01 | Phase 1 | Complete |
+| WHOOK-02 | Phase 1 | Complete |
 | WHOOK-03 | Phase 5 | Pending |
 | CONF-01 | Phase 2 | Pending |
 | CONF-02 | Phase 2 | Pending |
