@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 2 of 5 (App Core Logic)
-Plan: 2 of 3 in current phase
-Status: In Progress
-Last activity: 2026-02-24 -- Completed 02-02 (Change detection)
+Plan: 3 of 3 in current phase
+Status: Phase Complete
+Last activity: 2026-02-24 -- Completed 02-03 (Dispatch & orchestration)
 
-Progress: [######----] 67%
+Progress: [########--] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 4min
-- Total execution time: 0.33 hours
+- Total plans completed: 6
+- Average duration: 5min
+- Total execution time: 0.48 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
-| 02-app-core | 2 | 8min | 4min |
+| 02-app-core | 3 | 17min | 6min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 4min, 3min, 5min
-- Trend: stable
+- Last 5 plans: 4min, 4min, 3min, 5min, 9min
+- Trend: stable (9min for complex orchestration plan with 100 tests)
 
 *Updated after each plan completion*
 
@@ -58,6 +58,11 @@ Recent decisions affecting current work:
 - 02-02: Trailing slash normalization on source_dir prevents partial-prefix false matches
 - 02-02: detect_config_changes uses model_dump() dict comparison for field-level diffing
 - 02-02: TYPE_CHECKING import for FerryConfig and GitHubClient to avoid circular imports
+- 02-03: GitHubClient at module level for Lambda cold start; auth methods called per-invocation
+- 02-03: Merge-base comparison (default_branch...head) for PR branches; before...after for default branch
+- 02-03: find_open_prs used for both PR identification and merged-PR number lookup on default branch
+- 02-03: Config diff triggered only when ferry.yaml is in changed_files list
+- 02-03: Payload size check (65535) with skip-and-log-error behavior
 
 ### Pending Todos
 
@@ -72,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 02-02-PLAN.md (Change detection)
+Stopped at: Completed 02-03-PLAN.md (Dispatch & orchestration) -- Phase 2 complete
 Resume file: None

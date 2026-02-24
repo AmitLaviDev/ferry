@@ -21,12 +21,12 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Change Detection
 
 - [x] **DETECT-01**: Ferry App compares commit diff (via GitHub Compare API) against ferry.yaml path mappings to identify changed resources
-- [ ] **DETECT-02**: Ferry App posts a GitHub Check Run on PRs showing which resources will be affected before merge
+- [x] **DETECT-02**: Ferry App posts a GitHub Check Run on PRs showing which resources will be affected before merge
 
 ### Orchestration
 
-- [ ] **ORCH-01**: Ferry App triggers one workflow_dispatch per affected resource type with a versioned payload contract
-- [ ] **ORCH-02**: Dispatch payload includes resource type, resource list, trigger SHA, deployment tag, and PR number
+- [x] **ORCH-01**: Ferry App triggers one workflow_dispatch per affected resource type with a versioned payload contract
+- [x] **ORCH-02**: Dispatch payload includes resource type, resource list, trigger SHA, deployment tag, and PR number
 
 ### Authentication
 
@@ -110,9 +110,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-01 | Phase 2 | Complete |
 | CONF-02 | Phase 2 | Complete |
 | DETECT-01 | Phase 2 | Complete |
-| DETECT-02 | Phase 2 | Pending |
-| ORCH-01 | Phase 2 | Pending |
-| ORCH-02 | Phase 2 | Pending |
+| DETECT-02 | Phase 2 | Complete |
+| ORCH-01 | Phase 2 | Complete |
+| ORCH-02 | Phase 2 | Complete |
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 3 | Pending |
 | BUILD-01 | Phase 3 | Pending |
