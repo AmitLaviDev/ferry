@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 2 of 5 (App Core Logic)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In Progress
-Last activity: 2026-02-24 -- Completed 02-01 (Config loading + schema validation)
+Last activity: 2026-02-24 -- Completed 02-02 (Change detection)
 
-Progress: [###-------] 33%
+Progress: [######----] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 4min
-- Total execution time: 0.25 hours
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
-| 02-app-core | 1 | 3min | 3min |
+| 02-app-core | 2 | 8min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 4min, 3min
+- Last 5 plans: 4min, 4min, 4min, 3min, 5min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -54,6 +54,10 @@ Recent decisions affecting current work:
 - 01-03: TYPE_CHECKING import for GitHubClient in tokens.py to satisfy ruff TC001
 - 02-01: object.__setattr__ for frozen model validator default (function_name defaults to name)
 - 02-01: ConfigError wraps both HTTP errors and ValidationError for uniform fail-fast behavior
+- 02-02: AffectedResource uses frozen dataclass (not Pydantic) with tuple[str, ...] for immutable changed_files
+- 02-02: Trailing slash normalization on source_dir prevents partial-prefix false matches
+- 02-02: detect_config_changes uses model_dump() dict comparison for field-level diffing
+- 02-02: TYPE_CHECKING import for FerryConfig and GitHubClient to avoid circular imports
 
 ### Pending Todos
 
@@ -68,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 02-01-PLAN.md (Config loading + schema validation)
+Stopped at: Completed 02-02-PLAN.md (Change detection)
 Resume file: None
