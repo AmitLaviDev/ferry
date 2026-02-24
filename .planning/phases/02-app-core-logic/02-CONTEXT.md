@@ -26,7 +26,8 @@ Dispatches fire only on default branch pushes. PR pushes get preview Check Runs 
 ### Change Detection
 - **source_dir only**: Only files under a resource's `source_dir` trigger that resource. No additional watch paths or shared dependency tracking in v1.
 - **ferry.yaml config diffing**: When ferry.yaml itself changes, compare old vs new config — only dispatch resources whose config entry actually changed (not all resources).
-- **GitHub Compare API**: Use the Compare API (base...head) for change detection. One API call, reliable diff.
+- **GitHub Compare API**: Use the Compare API for change detection. One API call, reliable diff.
+- **Merge-base for PR branches**: PR branch pushes use three-dot compare (`default_branch...head_sha`) which gives the merge-base diff — the full set of changes relative to where the branch diverged from main. This ensures every push to a PR shows the complete picture, not just the incremental diff since the last push. Default branch pushes use `before...after` from the push payload (the merge commit landing on main).
 - **Branch behavior**: Default branch pushes trigger dispatches (actual deploys). PR branch pushes trigger Check Runs only (preview, no deploy).
 
 ### Dispatch (Locked from Architecture)
