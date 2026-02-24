@@ -15,8 +15,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Configuration
 
-- [ ] **CONF-01**: Ferry App reads and validates ferry.yaml from user's repo at the pushed commit SHA via GitHub Contents API
-- [ ] **CONF-02**: ferry.yaml supports lambdas, step_functions, and api_gateways as top-level resource types with type-specific fields
+- [x] **CONF-01**: Ferry App reads and validates ferry.yaml from user's repo at the pushed commit SHA via GitHub Contents API
+- [x] **CONF-02**: ferry.yaml supports lambdas, step_functions, and api_gateways as top-level resource types with type-specific fields
 
 ### Change Detection
 
@@ -107,8 +107,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WHOOK-01 | Phase 1 | Complete |
 | WHOOK-02 | Phase 1 | Complete |
 | WHOOK-03 | Phase 5 | Pending |
-| CONF-01 | Phase 2 | Pending |
-| CONF-02 | Phase 2 | Pending |
+| CONF-01 | Phase 2 | Complete |
+| CONF-02 | Phase 2 | Complete |
 | DETECT-01 | Phase 2 | Pending |
 | DETECT-02 | Phase 2 | Pending |
 | ORCH-01 | Phase 2 | Pending |

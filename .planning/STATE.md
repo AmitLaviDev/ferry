@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 1: Foundation and Shared Contract
+**Current focus:** Phase 2: App Core Logic
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation and Shared Contract)
-Plan: 3 of 3 in current phase
-Status: Phase Complete
-Last activity: 2026-02-22 -- Completed 01-03 (GitHub App auth + GitHub client)
+Phase: 2 of 5 (App Core Logic)
+Plan: 1 of 3 in current phase
+Status: In Progress
+Last activity: 2026-02-24 -- Completed 02-01 (Config loading + schema validation)
 
-Progress: [##########] 100%
+Progress: [###-------] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 4min
-- Total execution time: 0.20 hours
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
+| 02-app-core | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 4min
+- Last 5 plans: 4min, 4min, 4min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -51,6 +52,8 @@ Recent decisions affecting current work:
 - 01-03: GitHubClient uses mutable _headers dict for auth switching (app_auth vs installation_auth)
 - 01-03: get_installation_token takes GitHubClient (not raw httpx.Client) for consistent header management
 - 01-03: TYPE_CHECKING import for GitHubClient in tokens.py to satisfy ruff TC001
+- 02-01: object.__setattr__ for frozen model validator default (function_name defaults to name)
+- 02-01: ConfigError wraps both HTTP errors and ValidationError for uniform fail-fast behavior
 
 ### Pending Todos
 
@@ -64,6 +67,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 01-03-PLAN.md (GitHub App auth + GitHub client) -- Phase 1 complete
+Last session: 2026-02-24
+Stopped at: Completed 02-01-PLAN.md (Config loading + schema validation)
 Resume file: None
