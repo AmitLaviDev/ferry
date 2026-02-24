@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 
-import httpx
 import pytest
 
 from ferry_backend.config.loader import fetch_ferry_config, parse_config
