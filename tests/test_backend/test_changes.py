@@ -12,6 +12,7 @@ from ferry_backend.config.schema import (
 )
 from ferry_backend.detect.changes import (
     AffectedResource,
+    detect_config_changes,
     get_changed_files,
     match_resources,
     merge_affected,
@@ -240,3 +241,149 @@ class TestMergeAffected:
         assert len(result) == 2
         names = {r.name for r in result}
         assert names == {"order-processor", "payment-handler"}
+
+
+# ---------------------------------------------------------------------------
+# detect_config_changes
+# ---------------------------------------------------------------------------
+
+
+class TestDetectConfigChanges:
+    """Tests for ferry.yaml config diff detection via detect_config_changes."""
+
+    def test_config_change_new_resource(self):
+        """Resource in new but not old is marked as 'new'."""
+        old_config = FerryConfig(lambdas=[], step_functions=[], api_gateways=[])
+        new_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                )
+            ],
+        )
+        result = detect_config_changes(old_config, new_config)
+        assert len(result) == 1
+        assert result[0].name == "order-processor"
+        assert result[0].resource_type == "lambda"
+        assert result[0].change_kind == "new"
+
+    def test_config_change_removed_resource(self):
+        """Resource in old but not new is not in affected list (removal = no dispatch)."""
+        old_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                )
+            ],
+        )
+        new_config = FerryConfig(lambdas=[], step_functions=[], api_gateways=[])
+        result = detect_config_changes(old_config, new_config)
+        assert result == []
+
+    def test_config_change_modified_resource(self):
+        """Same name, different runtime produces AffectedResource(change_kind='modified')."""
+        old_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                    runtime="python3.10",
+                )
+            ],
+        )
+        new_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                    runtime="python3.12",
+                )
+            ],
+        )
+        result = detect_config_changes(old_config, new_config)
+        assert len(result) == 1
+        assert result[0].name == "order-processor"
+        assert result[0].change_kind == "modified"
+        assert result[0].changed_files == ("ferry.yaml",)
+
+    def test_config_change_identical(self):
+        """Same config in old and new produces empty affected list."""
+        config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                )
+            ],
+        )
+        result = detect_config_changes(config, config)
+        assert result == []
+
+    def test_config_change_no_old_config(self):
+        """old_config is None means all resources in new_config are 'new'."""
+        new_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                )
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout-flow",
+                    source_dir="workflows/checkout",
+                )
+            ],
+        )
+        result = detect_config_changes(None, new_config)
+        assert len(result) == 2
+        assert all(r.change_kind == "new" for r in result)
+        names = {r.name for r in result}
+        assert names == {"order-processor", "checkout-flow"}
+
+    def test_config_change_multiple_types(self):
+        """Changes across lambdas and step_functions are both detected."""
+        old_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                    runtime="python3.10",
+                )
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout-flow",
+                    source_dir="workflows/checkout",
+                )
+            ],
+        )
+        new_config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order-processor",
+                    source_dir="services/order-processor",
+                    ecr_repo="ferry/order-processor",
+                    runtime="python3.12",
+                )
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout-flow",
+                    source_dir="workflows/checkout-v2",
+                )
+            ],
+        )
+        result = detect_config_changes(old_config, new_config)
+        assert len(result) == 2
+        types = {r.resource_type for r in result}
+        assert types == {"lambda", "step_function"}

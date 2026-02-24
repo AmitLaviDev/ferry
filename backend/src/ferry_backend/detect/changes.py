@@ -154,3 +154,78 @@ def merge_affected(
             merged[key] = resource
 
     return list(merged.values())
+
+
+def detect_config_changes(
+    old_config: FerryConfig | None,
+    new_config: FerryConfig,
+) -> list[AffectedResource]:
+    """Diff old vs new ferry.yaml to identify resources whose config changed.
+
+    Compares resource entries between old and new config by name within
+    each resource type section:
+    - Resource in new but not old -> "new"
+    - Resource in old but not new -> ignored (removal, no dispatch)
+    - Resource in both but fields differ -> "modified" (changed_files=("ferry.yaml",))
+    - Resource in both and identical -> not affected
+
+    Args:
+        old_config: Previous ferry.yaml config (None if ferry.yaml didn't exist before).
+        new_config: Current ferry.yaml config.
+
+    Returns:
+        List of AffectedResource entries for config-level changes.
+    """
+    affected: list[AffectedResource] = []
+
+    for section_attr, resource_type in _SECTION_TYPE_MAP.items():
+        new_resources = getattr(new_config, section_attr)
+
+        if old_config is None:
+            # No previous config: all resources are new
+            for resource in new_resources:
+                affected.append(
+                    AffectedResource(
+                        name=resource.name,
+                        resource_type=resource_type,
+                        change_kind="new",
+                        changed_files=("ferry.yaml",),
+                    )
+                )
+            continue
+
+        old_resources = getattr(old_config, section_attr)
+
+        # Build name -> resource dicts for comparison
+        old_by_name = {r.name: r for r in old_resources}
+        new_by_name = {r.name: r for r in new_resources}
+
+        old_names = set(old_by_name.keys())
+        new_names = set(new_by_name.keys())
+
+        # New resources (in new but not old)
+        for name in new_names - old_names:
+            affected.append(
+                AffectedResource(
+                    name=name,
+                    resource_type=resource_type,
+                    change_kind="new",
+                    changed_files=("ferry.yaml",),
+                )
+            )
+
+        # Removed resources (in old but not new): skip (no dispatch)
+
+        # Common resources: compare model_dump() dicts
+        for name in new_names & old_names:
+            if old_by_name[name].model_dump() != new_by_name[name].model_dump():
+                affected.append(
+                    AffectedResource(
+                        name=name,
+                        resource_type=resource_type,
+                        change_kind="modified",
+                        changed_files=("ferry.yaml",),
+                    )
+                )
+
+    return affected
