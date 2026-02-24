@@ -13,7 +13,7 @@ Ferry delivers serverless AWS deployment automation through two components: a th
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation and Shared Contract** - Monorepo structure, shared Pydantic models, webhook receiver, GitHub App auth
-- [ ] **Phase 2: App Core Logic** - ferry.yaml parsing, change detection, dispatch triggering, PR status checks
+- [x] **Phase 2: App Core Logic** - ferry.yaml parsing, change detection, dispatch triggering, PR status checks (completed 2026-02-24)
 - [ ] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
 - [ ] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment
 - [ ] **Phase 5: Integration and Error Reporting** - End-to-end flow, error surfacing in PR status and workflow logs
@@ -103,7 +103,7 @@ Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Shared Contract | 0/3 | Planned | - |
-| 2. App Core Logic | 0/? | Not started | - |
+| 2. App Core Logic | 0/? | Complete    | 2026-02-24 |
 | 3. Build and Lambda Deploy | 0/? | Not started | - |
 | 4. Extended Resource Types | 0/? | Not started | - |
 | 5. Integration and Error Reporting | 0/? | Not started | - |
