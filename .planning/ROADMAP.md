@@ -45,11 +45,12 @@ Plans:
   2. A push that changes files under a Lambda's source directory triggers a workflow_dispatch with that Lambda in the resource list, while unchanged resources are not dispatched
   3. A push affecting multiple resource types (e.g., 2 Lambdas and 1 Step Function) triggers exactly 2 dispatches — one per resource type — each with a versioned payload containing resource list, trigger SHA, deployment tag, and PR number
   4. A PR shows a GitHub Check Run listing which resources will be affected by merge, before the developer merges
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Config loading (GitHub Contents API fetch + YAML parse) and Pydantic v2 schema validation (TDD)
+- [ ] 02-02-PLAN.md — Change detection via Compare API + source_dir prefix matching + config diffing (TDD)
+- [ ] 02-03-PLAN.md — Dispatch triggering + Check Run creation + handler pipeline wiring
 
 ### Phase 3: Build and Lambda Deploy
 **Goal**: The Ferry Action receives a dispatch, authenticates to AWS via OIDC, builds Lambda containers with the Magic Dockerfile, pushes to ECR, and deploys Lambda functions with version and alias management
