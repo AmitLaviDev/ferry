@@ -1,7 +1,7 @@
 """Lambda Function URL entry point for GitHub webhook processing.
 
-Wires together signature validation, deduplication, and event parsing.
-Phase 1: Only processes push events. Phase 2 adds PR event routing.
+Wires together signature validation, deduplication, config loading,
+change detection, dispatch triggering, and Check Run creation.
 
 Response format follows Lambda Function URL payload format v2:
 {statusCode: int, headers: dict, body: str (JSON)}
@@ -13,16 +13,34 @@ import json
 import boto3
 import structlog
 
+from ferry_backend.auth.jwt import generate_app_jwt
+from ferry_backend.auth.tokens import get_installation_token
+from ferry_backend.checks.runs import create_check_run, find_open_prs
+from ferry_backend.config.loader import fetch_ferry_config, parse_config
+from ferry_backend.config.schema import validate_config
+from ferry_backend.detect.changes import (
+    detect_config_changes,
+    get_changed_files,
+    match_resources,
+    merge_affected,
+)
+from ferry_backend.dispatch.trigger import (
+    build_deployment_tag,
+    trigger_dispatches,
+)
+from ferry_backend.github.client import GitHubClient
 from ferry_backend.logging import configure_logging
 from ferry_backend.settings import Settings
 from ferry_backend.webhook.dedup import is_duplicate
 from ferry_backend.webhook.signature import verify_signature
+from ferry_utils.errors import ConfigError
 
 # Module-level initialization for Lambda cold start optimization
 settings = Settings()
 configure_logging(settings.log_level)
 log = structlog.get_logger()
 dynamodb_client = boto3.client("dynamodb", region_name="us-east-1")
+github_client = GitHubClient()
 
 
 def handler(event: dict, context: object) -> dict:
@@ -35,11 +53,14 @@ def handler(event: dict, context: object) -> dict:
     4. Check for required headers
     5. Filter non-push events
     6. Deduplicate
-    7. Return accepted (Phase 1 stub)
+    7. Authenticate as GitHub App installation
+    8. Fetch and validate config
+    9. Detect changes
+    10. Dispatch or create Check Run
 
     Args:
         event: Lambda Function URL event (payload format v2).
-        context: Lambda context object (unused in Phase 1).
+        context: Lambda context object (unused).
 
     Returns:
         Lambda Function URL response dict with statusCode, headers, body.
@@ -52,7 +73,7 @@ def handler(event: dict, context: object) -> dict:
     # 2. Normalize headers to lowercase (Pitfall 5)
     headers = {k.lower(): v for k, v in event.get("headers", {}).items()}
 
-    # 3. Validate signature BEFORE any JSON parsing (anti-pattern from RESEARCH.md)
+    # 3. Validate signature BEFORE any JSON parsing
     signature = headers.get("x-hub-signature-256", "")
     if not verify_signature(body, signature, settings.webhook_secret):
         log.warning("webhook_signature_invalid")
@@ -72,7 +93,7 @@ def handler(event: dict, context: object) -> dict:
         event_type=event_type,
     )
 
-    # 5. Filter non-push events (Phase 1: push only)
+    # 5. Filter non-push events
     if event_type != "push":
         log.info("webhook_event_ignored", reason="non-push event")
         return _response(200, {"status": "ignored"})
@@ -85,14 +106,113 @@ def handler(event: dict, context: object) -> dict:
     structlog.contextvars.bind_contextvars(repo=repo)
 
     # 7. Deduplicate
-    if is_duplicate(delivery_id, payload, settings.table_name, dynamodb_client):
+    if is_duplicate(
+        delivery_id, payload, settings.table_name, dynamodb_client,
+    ):
         log.info("webhook_duplicate_delivery")
         return _response(200, {"status": "duplicate"})
 
-    # 8. Phase 1 stub: accept and return
-    # Phase 2 adds: config read, change detection, dispatch
-    log.info("webhook_accepted")
-    return _response(200, {"status": "accepted"})
+    # --- Phase 2: Auth -> Config -> Detect -> Dispatch/Check Run ---
+
+    # 8. Authenticate as GitHub App installation
+    jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
+    github_client.app_auth(jwt_token)
+    inst_token = get_installation_token(
+        github_client, jwt_token, settings.installation_id,
+    )
+    github_client.installation_auth(inst_token)
+
+    # 9. Extract push context
+    before_sha = payload.get("before", "")
+    after_sha = payload.get("after", "")
+    ref = payload.get("ref", "")
+    default_branch = payload["repository"]["default_branch"]
+    branch = ref.removeprefix("refs/heads/")
+    is_default_branch = branch == default_branch
+
+    structlog.contextvars.bind_contextvars(
+        branch=branch,
+        is_default_branch=is_default_branch,
+        after_sha=after_sha[:7],
+    )
+
+    # 10. Fetch and validate config (fail-fast)
+    try:
+        raw_yaml = fetch_ferry_config(github_client, repo, after_sha)
+        parsed = parse_config(raw_yaml)
+        config = validate_config(parsed)
+    except ConfigError as exc:
+        log.error("config_error", error=str(exc))
+        # Post failed Check Run if this is a PR push
+        prs = find_open_prs(github_client, repo, after_sha)
+        if prs:
+            create_check_run(
+                github_client, repo, after_sha, [], error=str(exc),
+            )
+        return _response(
+            200, {"status": "config_error", "error": str(exc)},
+        )
+
+    # 11. Detect changes
+    is_initial_push = before_sha == "0" * 40
+    if is_initial_push:
+        # All resources affected on initial push
+        affected = detect_config_changes(None, config)
+    else:
+        # PR branches: merge-base diff (default_branch...head)
+        # Default branch: before...after (the merge commit landing)
+        # Three-dot compare uses merge-base automatically for PR branches
+        compare_base = before_sha if is_default_branch else default_branch
+        changed_files = get_changed_files(
+            github_client, repo, compare_base, after_sha,
+        )
+        affected = match_resources(config, changed_files)
+
+        # Config diff if ferry.yaml itself changed
+        if "ferry.yaml" in changed_files:
+            try:
+                old_raw = fetch_ferry_config(
+                    github_client, repo, before_sha,
+                )
+                old_parsed = parse_config(old_raw)
+                old_config = validate_config(old_parsed)
+            except ConfigError:
+                old_config = None  # Old config invalid -> all new
+            config_affected = detect_config_changes(
+                old_config, config,
+            )
+            affected = merge_affected(affected, config_affected)
+
+    log.info("changes_detected", affected_count=len(affected))
+
+    # 12. Branch-dependent behavior
+    # Default branch pushes: trigger dispatches
+    if is_default_branch and affected:
+        # For default branch, find merged PR number
+        prs = find_open_prs(github_client, repo, after_sha)
+        pr_number = str(prs[0]["number"]) if prs else ""
+        tag = build_deployment_tag(pr_number, branch, after_sha)
+        trigger_dispatches(
+            github_client, repo, config, affected,
+            after_sha, tag, pr_number,
+            default_branch=default_branch,
+        )
+        log.info(
+            "dispatches_triggered",
+            count=len({r.resource_type for r in affected}),
+        )
+
+    # 13. Check Run for PRs (always, even with no changes)
+    if not is_default_branch:
+        prs = find_open_prs(github_client, repo, after_sha)
+        if prs:
+            create_check_run(
+                github_client, repo, after_sha, affected,
+            )
+
+    return _response(
+        200, {"status": "processed", "affected": len(affected)},
+    )
 
 
 def _response(status_code: int, body: dict) -> dict:
