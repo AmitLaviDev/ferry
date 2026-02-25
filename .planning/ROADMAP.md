@@ -62,12 +62,12 @@ Plans:
   3. Built images are pushed to the correct pre-existing ECR repo with deployment tags (git SHA, PR number), and Lambda functions are updated, versioned, and aliased — with the action waiting for LastUpdateStatus: Successful before publishing
   4. When the built image digest matches the currently deployed image, deployment is skipped entirely
   5. The Ferry Action is a composite GitHub Action with Python scripts for build/deploy logic, not inline bash
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Composite action scaffolding + payload parsing + OIDC auth + GHA logging helpers
+- [ ] 03-02-PLAN.md — Magic Dockerfile + Docker build/ECR push logic (TDD)
+- [ ] 03-03-PLAN.md — Lambda deploy + digest-based skip + main orchestrator (TDD)
 
 ### Phase 4: Extended Resource Types
 **Goal**: Ferry Action deploys Step Functions and API Gateways using the same dispatch and auth foundation as Lambda
@@ -104,6 +104,6 @@ Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
 |-------|----------------|--------|-----------|
 | 1. Foundation and Shared Contract | 0/3 | Planned | - |
 | 2. App Core Logic | 0/? | Complete    | 2026-02-24 |
-| 3. Build and Lambda Deploy | 0/? | Not started | - |
+| 3. Build and Lambda Deploy | 0/3 | Planned | - |
 | 4. Extended Resource Types | 0/? | Not started | - |
 | 5. Integration and Error Reporting | 0/? | Not started | - |
