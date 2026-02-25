@@ -65,9 +65,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Composite action scaffolding + payload parsing + OIDC auth + GHA logging helpers
-- [ ] 03-02-PLAN.md — Magic Dockerfile + Docker build/ECR push logic (TDD)
-- [ ] 03-03-PLAN.md — Lambda deploy + digest-based skip + main orchestrator (TDD)
+- [ ] 03-01-PLAN.md — Three-action scaffolding (setup/build/deploy action.yml) + payload parsing + OIDC auth + GHA helpers
+- [ ] 03-02-PLAN.md — Magic Dockerfile + Docker build + ECR push logic (TDD)
+- [ ] 03-03-PLAN.md — Lambda deploy + version/alias management + digest-based skip (TDD)
 
 ### Phase 4: Extended Resource Types
 **Goal**: Ferry Action deploys Step Functions and API Gateways using the same dispatch and auth foundation as Lambda
