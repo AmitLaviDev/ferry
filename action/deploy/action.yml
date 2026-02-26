@@ -1,0 +1,61 @@
+name: "Ferry Deploy"
+description: "Deploy Lambda function from ECR image"
+
+inputs:
+  resource-name:
+    description: "Name of the Lambda resource"
+    required: true
+  function-name:
+    description: "Lambda function name in AWS"
+    required: true
+  image-uri:
+    description: "Full ECR image URI with tag"
+    required: true
+  image-digest:
+    description: "Image digest (sha256) for skip detection"
+    required: true
+  deployment-tag:
+    description: "Deployment tag (e.g. pr-42)"
+    required: true
+  aws-role-arn:
+    description: "IAM role ARN for OIDC authentication"
+    required: true
+  aws-region:
+    description: "AWS region"
+    required: false
+    default: "us-east-1"
+
+outputs:
+  skipped:
+    description: "Whether deploy was skipped (image unchanged)"
+    value: ${{ steps.deploy.outputs.skipped }}
+  lambda-version:
+    description: "Published Lambda version number"
+    value: ${{ steps.deploy.outputs.lambda-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install ferry-action package
+      shell: bash
+      run: uv pip install --system "${{ github.action_path }}/.."
+
+    - name: Deploy Lambda function
+      id: deploy
+      shell: bash
+      env:
+        INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
+        INPUT_FUNCTION_NAME: ${{ inputs.function-name }}
+        INPUT_IMAGE_URI: ${{ inputs.image-uri }}
+        INPUT_IMAGE_DIGEST: ${{ inputs.image-digest }}
+        INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+      run: python -m ferry_action.deploy

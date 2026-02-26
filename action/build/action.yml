@@ -1,0 +1,71 @@
+name: "Ferry Build"
+description: "Build Lambda container and push to ECR"
+
+inputs:
+  resource-name:
+    description: "Name of the Lambda resource"
+    required: true
+  source-dir:
+    description: "Path to the Lambda source directory"
+    required: true
+  ecr-repo:
+    description: "ECR repository name (e.g. ferry/order-processor)"
+    required: true
+  aws-role-arn:
+    description: "IAM role ARN for OIDC authentication"
+    required: true
+  aws-region:
+    description: "AWS region"
+    required: false
+    default: "us-east-1"
+  trigger-sha:
+    description: "Git commit SHA that triggered the build"
+    required: true
+  deployment-tag:
+    description: "ECR image tag (e.g. pr-42)"
+    required: true
+  runtime:
+    description: "Python runtime version (e.g. python3.12)"
+    required: false
+    default: "python3.12"
+  github-token:
+    description: "GitHub token for private repo dependencies"
+    required: false
+    default: ""
+
+outputs:
+  image-uri:
+    description: "Full ECR image URI with tag"
+    value: ${{ steps.build.outputs.image-uri }}
+  image-digest:
+    description: "Image digest (sha256)"
+    value: ${{ steps.build.outputs.image-digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install ferry-action package
+      shell: bash
+      run: uv pip install --system "${{ github.action_path }}/.."
+
+    - name: Build and push container
+      id: build
+      shell: bash
+      env:
+        INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
+        INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
+        INPUT_ECR_REPO: ${{ inputs.ecr-repo }}
+        INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}
+        INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+        INPUT_RUNTIME: ${{ inputs.runtime }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python -m ferry_action.build

@@ -325,11 +325,15 @@ name = "ferry-action"
 version = "0.1.0"
 source = { editable = "action" }
 dependencies = [
+    { name = "boto3" },
     { name = "ferry-utils" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "ferry-utils", editable = "utils" }]
+requires-dist = [
+    { name = "boto3" },
+    { name = "ferry-utils", editable = "utils" },
+]
 
 [[package]]
 name = "ferry-backend"
