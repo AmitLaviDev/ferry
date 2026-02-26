@@ -1,0 +1,65 @@
+name: "Ferry Deploy Step Functions"
+description: "Deploy Step Functions state machine definition"
+
+inputs:
+  resource-name:
+    description: "Name of the Step Functions resource"
+    required: true
+  state-machine-name:
+    description: "State machine name in AWS"
+    required: true
+  definition-file:
+    description: "Definition file name relative to source-dir"
+    required: true
+  source-dir:
+    description: "Source directory containing the definition file"
+    required: true
+  trigger-sha:
+    description: "Git SHA that triggered the deployment"
+    required: true
+  deployment-tag:
+    description: "Deployment tag (e.g. pr-42)"
+    required: true
+  aws-role-arn:
+    description: "IAM role ARN for OIDC authentication"
+    required: true
+  aws-region:
+    description: "AWS region"
+    required: false
+    default: "us-east-1"
+
+outputs:
+  skipped:
+    description: "Whether deploy was skipped (definition unchanged)"
+    value: ${{ steps.deploy.outputs.skipped }}
+  version-arn:
+    description: "Published state machine version ARN"
+    value: ${{ steps.deploy.outputs.version-arn }}
+
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install ferry-action package
+      shell: bash
+      run: uv pip install --system "${{ github.action_path }}/.."
+
+    - name: Deploy Step Functions
+      id: deploy
+      shell: bash
+      env:
+        INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
+        INPUT_STATE_MACHINE_NAME: ${{ inputs.state-machine-name }}
+        INPUT_DEFINITION_FILE: ${{ inputs.definition-file }}
+        INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
+        INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}
+        INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+      run: python -m ferry_action.deploy_stepfunctions
