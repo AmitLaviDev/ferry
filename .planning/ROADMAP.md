@@ -17,6 +17,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
 - [x] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment (completed 2026-02-26)
 - [ ] **Phase 5: Integration and Error Reporting** - End-to-end flow, error surfacing in PR status and workflow logs
+- [ ] **Phase 6: Fix Lambda function_name Pipeline** - Close DEPLOY-01 integration break (function_name dropped in dispatch pipeline)
+- [ ] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter
 
 ## Phase Details
 
@@ -96,11 +98,41 @@ Plans:
 Plans:
 - [ ] 05-01: TBD
 
+### Phase 6: Fix Lambda function_name Pipeline
+**Goal:** Lambda `function_name` flows correctly from `ferry.yaml` through the dispatch pipeline to the deploy action, closing the DEPLOY-01 integration break
+**Depends on**: Phase 3
+**Requirements**: DEPLOY-01
+**Gap Closure:** Closes gaps from audit — DEPLOY-01 partial, integration (Phase 2→3), flow (Lambda E2E deploy)
+**Success Criteria** (what must be TRUE):
+  1. `LambdaResource` model includes `function_name` field that carries through from `LambdaConfig`
+  2. `_build_resource` in `trigger.py` passes `function_name` when constructing `LambdaResource`
+  3. `parse_payload.py` includes `function_name` in the GHA matrix output for Lambda resources
+  4. `deploy.py` receives `INPUT_FUNCTION_NAME` env var from the matrix and deploys to the correct function
+**Plans**: TBD
+
+Plans:
+- [ ] 06-01: TBD
+
+### Phase 7: Tech Debt Cleanup
+**Goal:** Resolve low-severity tech debt items identified by the milestone audit
+**Depends on**: Phase 6
+**Requirements**: None (tech debt)
+**Gap Closure:** Closes tech debt items from audit
+**Success Criteria** (what must be TRUE):
+  1. Runtime default is consistent — `LambdaConfig.runtime` and `parse_payload.py` use the same default value
+  2. User-facing documentation exists for workflow file naming convention (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`)
+  3. SUMMARY.md files include `requirements-completed` frontmatter field for 3-source cross-reference
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
+Note: Phase 6 (gap closure) should be executed before Phase 5 — it fixes a deploy pipeline break that Phase 5 E2E testing depends on.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -109,3 +141,5 @@ Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
 | 3. Build and Lambda Deploy | 3/3 | Complete | 2026-02-26 |
 | 4. Extended Resource Types | 0/? | Not started | - |
 | 5. Integration and Error Reporting | 0/? | Not started | - |
+| 6. Fix Lambda function_name Pipeline | 0/? | Not started | - |
+| 7. Tech Debt Cleanup | 0/? | Not started | - |

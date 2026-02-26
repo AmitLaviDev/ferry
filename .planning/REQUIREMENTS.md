@@ -43,7 +43,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Deploy
 
-- [x] **DEPLOY-01**: Ferry Action deploys Lambda functions (update-function-code, wait for LastUpdateStatus: Successful, publish version, update alias)
+- [ ] **DEPLOY-01**: Ferry Action deploys Lambda functions (update-function-code, wait for LastUpdateStatus: Successful, publish version, update alias)
 - [x] **DEPLOY-02**: Ferry Action deploys Step Functions (update state machine definition with variable substitution for account ID and region)
 - [x] **DEPLOY-03**: Ferry Action deploys API Gateways (put-rest-api with OpenAPI spec, create-deployment to push to stage)
 - [x] **DEPLOY-04**: Ferry Action skips deployment when built image digest matches currently deployed image (digest-based skip)
@@ -120,7 +120,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUILD-03 | Phase 3 | Complete |
 | BUILD-04 | Phase 3 | Complete |
 | BUILD-05 | Phase 3 | Complete |
-| DEPLOY-01 | Phase 3 | Complete |
+| DEPLOY-01 | Phase 6 | Pending |
 | DEPLOY-02 | Phase 4 | Complete |
 | DEPLOY-03 | Phase 4 | Complete |
 | DEPLOY-04 | Phase 3 | Complete |
@@ -132,7 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1 requirements: 23 total
 - Mapped to phases: 23
 - Unmapped: 0
+- Complete: 21 (WHOOK-03 pending Phase 5, DEPLOY-01 pending Phase 6)
 
 ---
 *Requirements defined: 2026-02-21*
-*Last updated: 2026-02-21 after roadmap creation*
+*Last updated: 2026-02-26 after gap closure phase creation*
