@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 2: App Core Logic
+**Current focus:** Phase 3: Build and Lambda Deploy
 
 ## Current Position
 
-Phase: 2 of 5 (App Core Logic)
-Plan: 3 of 3 in current phase
-Status: Phase Complete
-Last activity: 2026-02-24 -- Completed 02-03 (Dispatch & orchestration)
+Phase: 3 of 5 (Build and Lambda Deploy)
+Plan: 1 of 3 in current phase
+Status: In Progress
+Last activity: 2026-02-26 -- Completed 03-01 (Composite action architecture)
 
-Progress: [########--] 80%
+Progress: [########--] 82%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 5min
-- Total execution time: 0.48 hours
+- Total plans completed: 7
+- Average duration: 4min
+- Total execution time: 0.53 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [########--] 80%
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
 | 02-app-core | 3 | 17min | 6min |
+| 03-build-and-lambda-deploy | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 3min, 5min, 9min
-- Trend: stable (9min for complex orchestration plan with 100 tests)
+- Last 5 plans: 4min, 3min, 5min, 9min, 3min
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -63,6 +64,9 @@ Recent decisions affecting current work:
 - 02-03: find_open_prs used for both PR identification and merged-PR number lookup on default branch
 - 02-03: Config diff triggered only when ferry.yaml is in changed_files list
 - 02-03: Payload size check (65535) with skip-and-log-error behavior
+- 03-01: Default runtime python3.12 in matrix (dispatch payload intentionally lean, runtime is a build concern)
+- 03-01: Each composite action installs ferry-action via uv (matrix jobs run on separate runners)
+- 03-01: gha.py uses file-based GITHUB_OUTPUT with stdout fallback for local testing
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 02-03-PLAN.md (Dispatch & orchestration) -- Phase 2 complete
+Last session: 2026-02-26
+Stopped at: Completed 03-01-PLAN.md (Composite action architecture)
 Resume file: None

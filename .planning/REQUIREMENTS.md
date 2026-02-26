@@ -31,7 +31,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Authentication
 
 - [x] **AUTH-01**: Ferry App authenticates as GitHub App (JWT generation + installation token exchange) to read repos and trigger dispatches
-- [ ] **AUTH-02**: Ferry Action authenticates to AWS via OIDC (user provides role ARN as action input, action handles the exchange)
+- [x] **AUTH-02**: Ferry Action authenticates to AWS via OIDC (user provides role ARN as action input, action handles the exchange)
 
 ### Build
 
@@ -51,7 +51,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Action Structure
 
-- [ ] **ACT-01**: Ferry Action is a composite GitHub Action with Python scripts for build/deploy logic (not inline bash)
+- [x] **ACT-01**: Ferry Action is a composite GitHub Action with Python scripts for build/deploy logic (not inline bash)
 - [x] **ACT-02**: Ferry Action, Ferry App, and shared models live in one monorepo managed by uv workspace
 
 ## v2 Requirements
@@ -114,7 +114,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ORCH-01 | Phase 2 | Complete |
 | ORCH-02 | Phase 2 | Complete |
 | AUTH-01 | Phase 1 | Complete |
-| AUTH-02 | Phase 3 | Pending |
+| AUTH-02 | Phase 3 | Complete |
 | BUILD-01 | Phase 3 | Pending |
 | BUILD-02 | Phase 3 | Pending |
 | BUILD-03 | Phase 3 | Pending |
@@ -125,7 +125,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-03 | Phase 4 | Pending |
 | DEPLOY-04 | Phase 3 | Pending |
 | DEPLOY-05 | Phase 3 | Pending |
-| ACT-01 | Phase 3 | Pending |
+| ACT-01 | Phase 3 | Complete |
 | ACT-02 | Phase 1 | Complete |
 
 **Coverage:**
