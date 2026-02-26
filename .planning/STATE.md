@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 3 of 5 (Build and Lambda Deploy)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In Progress
-Last activity: 2026-02-26 -- Completed 03-01 (Composite action architecture)
+Last activity: 2026-02-26 -- Completed 03-02 (Magic Dockerfile and build module)
 
-Progress: [########--] 82%
+Progress: [#########-] 88%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 4min
-- Total execution time: 0.53 hours
+- Total execution time: 0.56 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [########--] 82%
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
 | 02-app-core | 3 | 17min | 6min |
-| 03-build-and-lambda-deploy | 1 | 3min | 3min |
+| 03-build-and-lambda-deploy | 2 | 5min | 2.5min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 3min, 5min, 9min, 3min
+- Last 5 plans: 3min, 5min, 9min, 3min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -67,6 +67,9 @@ Recent decisions affecting current work:
 - 03-01: Default runtime python3.12 in matrix (dispatch payload intentionally lean, runtime is a build concern)
 - 03-01: Each composite action installs ferry-action via uv (matrix jobs run on separate runners)
 - 03-01: gha.py uses file-based GITHUB_OUTPUT with stdout fallback for local testing
+- 03-02: Dockerfile path resolved relative to build.py module (Path(__file__).parent.parent.parent / Dockerfile)
+- 03-02: ECR registry domain extracted from URI by splitting on first slash for docker login
+- 03-02: Error handling with common failure hints (missing docker, bad requirements, ECR auth)
 
 ### Pending Todos
 
@@ -81,5 +84,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 03-01-PLAN.md (Composite action architecture)
+Stopped at: Completed 03-02-PLAN.md (Magic Dockerfile and build module)
 Resume file: None

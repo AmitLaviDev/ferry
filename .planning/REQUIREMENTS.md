@@ -35,11 +35,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Build
 
-- [ ] **BUILD-01**: Ferry Action builds Lambda containers using the Magic Dockerfile pattern (one generic Dockerfile for all Lambda functions)
-- [ ] **BUILD-02**: Magic Dockerfile supports configurable Python runtime versions via ferry.yaml (not hardcoded to one version)
-- [ ] **BUILD-03**: Magic Dockerfile supports private GitHub repo dependencies via Docker build secrets (user provides token)
-- [ ] **BUILD-04**: Magic Dockerfile handles optional system-requirements.txt and system-config.sh without failing when absent
-- [ ] **BUILD-05**: Ferry Action pushes built images to pre-existing ECR repos with deployment tags (git SHA, PR number)
+- [x] **BUILD-01**: Ferry Action builds Lambda containers using the Magic Dockerfile pattern (one generic Dockerfile for all Lambda functions)
+- [x] **BUILD-02**: Magic Dockerfile supports configurable Python runtime versions via ferry.yaml (not hardcoded to one version)
+- [x] **BUILD-03**: Magic Dockerfile supports private GitHub repo dependencies via Docker build secrets (user provides token)
+- [x] **BUILD-04**: Magic Dockerfile handles optional system-requirements.txt and system-config.sh without failing when absent
+- [x] **BUILD-05**: Ferry Action pushes built images to pre-existing ECR repos with deployment tags (git SHA, PR number)
 
 ### Deploy
 
@@ -115,11 +115,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ORCH-02 | Phase 2 | Complete |
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 3 | Complete |
-| BUILD-01 | Phase 3 | Pending |
-| BUILD-02 | Phase 3 | Pending |
-| BUILD-03 | Phase 3 | Pending |
-| BUILD-04 | Phase 3 | Pending |
-| BUILD-05 | Phase 3 | Pending |
+| BUILD-01 | Phase 3 | Complete |
+| BUILD-02 | Phase 3 | Complete |
+| BUILD-03 | Phase 3 | Complete |
+| BUILD-04 | Phase 3 | Complete |
+| BUILD-05 | Phase 3 | Complete |
 | DEPLOY-01 | Phase 3 | Pending |
 | DEPLOY-02 | Phase 4 | Pending |
 | DEPLOY-03 | Phase 4 | Pending |
