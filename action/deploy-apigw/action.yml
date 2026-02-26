@@ -1,0 +1,69 @@
+name: "Ferry Deploy API Gateway"
+description: "Deploy API Gateway from OpenAPI spec"
+
+inputs:
+  resource-name:
+    description: "Name of the API Gateway resource"
+    required: true
+  rest-api-id:
+    description: "REST API ID in AWS"
+    required: true
+  stage-name:
+    description: "Stage name to deploy to"
+    required: true
+  spec-file:
+    description: "OpenAPI spec file name relative to source-dir"
+    required: true
+  source-dir:
+    description: "Source directory containing the spec file"
+    required: true
+  trigger-sha:
+    description: "Git SHA that triggered the deployment"
+    required: true
+  deployment-tag:
+    description: "Deployment tag (e.g. pr-42)"
+    required: true
+  aws-role-arn:
+    description: "IAM role ARN for OIDC authentication"
+    required: true
+  aws-region:
+    description: "AWS region"
+    required: false
+    default: "us-east-1"
+
+outputs:
+  skipped:
+    description: "Whether deploy was skipped (spec unchanged)"
+    value: ${{ steps.deploy.outputs.skipped }}
+  deployment-id:
+    description: "API Gateway deployment ID"
+    value: ${{ steps.deploy.outputs.deployment-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install ferry-action package
+      shell: bash
+      run: uv pip install --system "${{ github.action_path }}/.."
+
+    - name: Deploy API Gateway
+      id: deploy
+      shell: bash
+      env:
+        INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
+        INPUT_REST_API_ID: ${{ inputs.rest-api-id }}
+        INPUT_STAGE_NAME: ${{ inputs.stage-name }}
+        INPUT_SPEC_FILE: ${{ inputs.spec-file }}
+        INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
+        INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}
+        INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+      run: python -m ferry_action.deploy_apigw
