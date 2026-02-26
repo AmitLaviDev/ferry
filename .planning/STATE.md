@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 3: Build and Lambda Deploy
+**Current focus:** Phase 4: Extended Resource Types
 
 ## Current Position
 
-Phase: 3 of 5 (Build and Lambda Deploy)
-Plan: 3 of 3 in current phase
-Status: Phase Complete
-Last activity: 2026-02-26 -- Completed 03-03 (Lambda deploy module)
+Phase: 4 of 5 (Extended Resource Types)
+Plan: 1 of 3 in current phase
+Status: In Progress
+Last activity: 2026-02-26 -- Completed 04-01 (Shared utilities and deploy field pipeline)
 
 Progress: [##########] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 4min
-- Total execution time: 0.61 hours
+- Total execution time: 0.71 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [##########] 95%
 | 01-foundation | 3 | 12min | 4min |
 | 02-app-core | 3 | 17min | 6min |
 | 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
+| 04-extended-resource-types | 1 | 6min | 6min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 9min, 3min, 2min, 3min
+- Last 5 plans: 9min, 3min, 2min, 3min, 6min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - 03-03: Fixture-based mock_aws instead of per-test decorator (avoids fixture-outside-mock-context issue)
 - 03-03: Digest normalization strips URI prefix before comparison (handles both raw sha256: and full URI@sha256: formats)
 - 03-03: Alias fallback: try update_alias first, catch ResourceNotFoundException, fall back to create_alias
+- 04-01: Strict regex pattern for envsubst: only matches ${ACCOUNT_ID} and ${AWS_REGION}, safe for JSONPath
+- 04-01: get_content_hash_tag handles both SF list-of-dicts and APIGW flat-dict tag formats via isinstance check
+- 04-01: _MATRIX_BUILDERS dispatch dict pattern for type-based matrix construction in parse_payload
 
 ### Pending Todos
 
@@ -87,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 03-03-PLAN.md (Lambda deploy module)
+Stopped at: Completed 04-01-PLAN.md (Shared utilities and deploy field pipeline)
 Resume file: None
