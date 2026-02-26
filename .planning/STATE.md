@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 4 of 5 (Extended Resource Types)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In Progress
-Last activity: 2026-02-26 -- Completed 04-01 (Shared utilities and deploy field pipeline)
+Last activity: 2026-02-26 -- Completed 04-02 (Step Functions deploy module)
 
 Progress: [##########] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 4min
-- Total execution time: 0.71 hours
+- Total execution time: 0.76 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [##########] 95%
 | 01-foundation | 3 | 12min | 4min |
 | 02-app-core | 3 | 17min | 6min |
 | 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
-| 04-extended-resource-types | 1 | 6min | 6min |
+| 04-extended-resource-types | 2 | 9min | 4.5min |
 
 **Recent Trend:**
-- Last 5 plans: 9min, 3min, 2min, 3min, 6min
+- Last 5 plans: 3min, 2min, 3min, 6min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -77,6 +77,9 @@ Recent decisions affecting current work:
 - 04-01: Strict regex pattern for envsubst: only matches ${ACCOUNT_ID} and ${AWS_REGION}, safe for JSONPath
 - 04-01: get_content_hash_tag handles both SF list-of-dicts and APIGW flat-dict tag formats via isinstance check
 - 04-01: _MATRIX_BUILDERS dispatch dict pattern for type-based matrix construction in parse_payload
+- 04-02: ARN constructed from STS GetCallerIdentity account_id + AWS_REGION env var + state_machine_name
+- 04-02: update_state_machine called with publish=True and versionDescription for deployment traceability
+- 04-02: Content-hash skip reads ferry:content-hash tag via list_tags_for_resource before deploying
 
 ### Pending Todos
 
@@ -91,5 +94,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 04-01-PLAN.md (Shared utilities and deploy field pipeline)
+Stopped at: Completed 04-02-PLAN.md (Step Functions deploy module)
 Resume file: None
