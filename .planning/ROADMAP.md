@@ -12,10 +12,10 @@ Ferry delivers serverless AWS deployment automation through two components: a th
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation and Shared Contract** - Monorepo structure, shared Pydantic models, webhook receiver, GitHub App auth
+- [x] **Phase 1: Foundation and Shared Contract** - Monorepo structure, shared Pydantic models, webhook receiver, GitHub App auth
 - [x] **Phase 2: App Core Logic** - ferry.yaml parsing, change detection, dispatch triggering, PR status checks (completed 2026-02-24)
-- [ ] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
-- [ ] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment
+- [x] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
+- [x] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment (completed 2026-02-26)
 - [ ] **Phase 5: Integration and Error Reporting** - End-to-end flow, error surfacing in PR status and workflow logs
 
 ## Phase Details
@@ -79,9 +79,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Shared utilities (envsubst, content hash) + config/dispatch model updates for SF/APIGW fields
-- [ ] 04-02-PLAN.md — Step Functions deploy module with envsubst, content-hash skip, version publishing (TDD)
-- [ ] 04-03-PLAN.md — API Gateway deploy module with spec parsing, field stripping, content-hash skip (TDD)
+- [x] 04-01-PLAN.md — Shared utilities (envsubst, content hash) + config/dispatch model updates for SF/APGW fields
+- [x] 04-02-PLAN.md — Step Functions deploy module with envsubst, content-hash skip, version publishing (TDD)
+- [x] 04-03-PLAN.md — API Gateway deploy module with spec parsing, field stripping, content-hash skip (TDD)
 
 ### Phase 5: Integration and Error Reporting
 **Goal**: The full Ferry pipeline works end-to-end (push to deploy) with build and deploy failures clearly surfaced to the developer in PR status checks and workflow logs
