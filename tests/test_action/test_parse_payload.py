@@ -20,8 +20,18 @@ def _make_payload(
     """Build a valid dispatch payload JSON string."""
     if resources is None:
         resources = [
-            {"resource_type": "lambda", "name": "order-processor", "source": "services/order-processor", "ecr": "ferry/order-processor"},
-            {"resource_type": "lambda", "name": "email-sender", "source": "services/email-sender", "ecr": "ferry/email-sender"},
+            {
+                "resource_type": "lambda",
+                "name": "order-processor",
+                "source": "services/order-processor",
+                "ecr": "ferry/order-processor",
+            },
+            {
+                "resource_type": "lambda",
+                "name": "email-sender",
+                "source": "services/email-sender",
+                "ecr": "ferry/email-sender",
+            },
         ]
     payload = {
         "v": 1,
@@ -60,7 +70,12 @@ class TestBuildMatrix:
     def test_parse_single_resource(self) -> None:
         """Single Lambda resource produces matrix with one include entry."""
         resources = [
-            {"resource_type": "lambda", "name": "my-func", "source": "src/my-func", "ecr": "ferry/my-func"},
+            {
+                "resource_type": "lambda",
+                "name": "my-func",
+                "source": "src/my-func",
+                "ecr": "ferry/my-func",
+            },
         ]
         payload_str = _make_payload(resources=resources)
         result = build_matrix(payload_str)
@@ -90,10 +105,21 @@ class TestBuildMatrix:
         assert isinstance(parsed["include"], list)
 
     def test_filters_non_lambda_resources(self) -> None:
-        """Non-Lambda resources are filtered out of the matrix."""
+        """Non-Lambda resources are filtered out of lambda matrix."""
         resources = [
-            {"resource_type": "lambda", "name": "my-lambda", "source": "src/lambda", "ecr": "ferry/lambda"},
-            {"resource_type": "step_function", "name": "my-sfn", "source": "src/sfn"},
+            {
+                "resource_type": "lambda",
+                "name": "my-lambda",
+                "source": "src/lambda",
+                "ecr": "ferry/lambda",
+            },
+            {
+                "resource_type": "step_function",
+                "name": "my-sfn",
+                "source": "src/sfn",
+                "state_machine_name": "my-sm",
+                "definition_file": "def.json",
+            },
         ]
         payload_str = _make_payload(resources=resources)
         result = build_matrix(payload_str)
@@ -124,6 +150,94 @@ class TestBuildMatrix:
         for entry in result["include"]:
             assert entry["trigger_sha"] == "deadbeef12345678"
             assert entry["deployment_tag"] == "pr-99"
+
+    def test_step_function_matrix(self) -> None:
+        """Step Function resources produce correct matrix entries."""
+        resources = [
+            {
+                "resource_type": "step_function",
+                "name": "checkout-flow",
+                "source": "workflows/checkout",
+                "state_machine_name": "checkout-sm",
+                "definition_file": "stepfunction.json",
+            },
+        ]
+        payload_str = _make_payload(
+            resources=resources,
+            resource_type="step_function",
+        )
+        result = build_matrix(payload_str)
+
+        assert len(result["include"]) == 1
+        entry = result["include"][0]
+        assert entry["name"] == "checkout-flow"
+        assert entry["source"] == "workflows/checkout"
+        assert entry["state_machine_name"] == "checkout-sm"
+        assert entry["definition_file"] == "stepfunction.json"
+        assert entry["trigger_sha"] == "abc1234def5678"
+        assert entry["deployment_tag"] == "pr-42"
+        # Lambda-specific fields must NOT be present
+        assert "ecr" not in entry
+        assert "runtime" not in entry
+
+    def test_api_gateway_matrix(self) -> None:
+        """API Gateway resources produce correct matrix entries."""
+        resources = [
+            {
+                "resource_type": "api_gateway",
+                "name": "public-api",
+                "source": "apis/public",
+                "rest_api_id": "abc123",
+                "stage_name": "prod",
+                "spec_file": "openapi.yaml",
+            },
+        ]
+        payload_str = _make_payload(
+            resources=resources,
+            resource_type="api_gateway",
+        )
+        result = build_matrix(payload_str)
+
+        assert len(result["include"]) == 1
+        entry = result["include"][0]
+        assert entry["name"] == "public-api"
+        assert entry["source"] == "apis/public"
+        assert entry["rest_api_id"] == "abc123"
+        assert entry["stage_name"] == "prod"
+        assert entry["spec_file"] == "openapi.yaml"
+        assert entry["trigger_sha"] == "abc1234def5678"
+        assert entry["deployment_tag"] == "pr-42"
+        # Lambda-specific fields must NOT be present
+        assert "ecr" not in entry
+        assert "runtime" not in entry
+
+    def test_step_function_matrix_multiple_resources(self) -> None:
+        """Multiple SF resources produce multiple matrix entries."""
+        resources = [
+            {
+                "resource_type": "step_function",
+                "name": "flow-a",
+                "source": "wf/a",
+                "state_machine_name": "sm-a",
+                "definition_file": "def-a.json",
+            },
+            {
+                "resource_type": "step_function",
+                "name": "flow-b",
+                "source": "wf/b",
+                "state_machine_name": "sm-b",
+                "definition_file": "def-b.json",
+            },
+        ]
+        payload_str = _make_payload(
+            resources=resources,
+            resource_type="step_function",
+        )
+        result = build_matrix(payload_str)
+
+        assert len(result["include"]) == 2
+        names = {e["name"] for e in result["include"]}
+        assert names == {"flow-a", "flow-b"}
 
 
 class TestMain:

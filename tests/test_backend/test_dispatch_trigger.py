@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 
 from ferry_backend.config.schema import (
+    ApiGatewayConfig,
     FerryConfig,
     LambdaConfig,
     StepFunctionConfig,
 )
 from ferry_backend.detect.changes import AffectedResource
 from ferry_backend.dispatch.trigger import (
+    _build_resource,
     build_deployment_tag,
     trigger_dispatches,
 )
@@ -44,10 +46,12 @@ class TestTriggerDispatches:
         self,
         lambdas: list[LambdaConfig] | None = None,
         step_functions: list[StepFunctionConfig] | None = None,
+        api_gateways: list[ApiGatewayConfig] | None = None,
     ) -> FerryConfig:
         return FerryConfig(
             lambdas=lambdas or [],
             step_functions=step_functions or [],
+            api_gateways=api_gateways or [],
         )
 
     def _make_affected(
@@ -144,6 +148,8 @@ class TestTriggerDispatches:
                 StepFunctionConfig(
                     name="checkout",
                     source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
                 ),
             ],
         )
@@ -254,6 +260,8 @@ class TestTriggerDispatches:
                 StepFunctionConfig(
                     name="checkout",
                     source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
                 ),
             ],
         )
@@ -316,3 +324,66 @@ class TestTriggerDispatches:
         resource = payload_data["resources"][0]
         assert resource["source"] == "services/order-processor"
         assert resource["ecr"] == "ferry/order-proc"
+
+
+# ---------------------------------------------------------------------------
+# _build_resource field mapping
+# ---------------------------------------------------------------------------
+
+
+class TestBuildResource:
+    """Tests for _build_resource passing type-specific config fields."""
+
+    def test_build_resource_step_function_fields(self) -> None:
+        """SF config fields map to dispatch resource fields."""
+        config = FerryConfig(
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+        )
+        resource = _build_resource("step_function", "checkout", config)
+        assert resource.name == "checkout"
+        assert resource.source == "workflows/checkout"
+        assert resource.state_machine_name == "checkout-sm"
+        assert resource.definition_file == "stepfunction.json"
+
+    def test_build_resource_api_gateway_fields(self) -> None:
+        """APIGW config fields map to dispatch resource fields."""
+        config = FerryConfig(
+            api_gateways=[
+                ApiGatewayConfig(
+                    name="public-api",
+                    source_dir="apis/public",
+                    rest_api_id="abc123",
+                    stage_name="prod",
+                    spec_file="openapi.yaml",
+                ),
+            ],
+        )
+        resource = _build_resource("api_gateway", "public-api", config)
+        assert resource.name == "public-api"
+        assert resource.source == "apis/public"
+        assert resource.rest_api_id == "abc123"
+        assert resource.stage_name == "prod"
+        assert resource.spec_file == "openapi.yaml"
+
+    def test_build_resource_lambda_fields(self) -> None:
+        """Lambda config fields still map correctly."""
+        config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+        )
+        resource = _build_resource("lambda", "order", config)
+        assert resource.name == "order"
+        assert resource.source == "services/order"
+        assert resource.ecr == "ferry/order"

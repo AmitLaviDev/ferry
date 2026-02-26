@@ -38,6 +38,8 @@ class StepFunctionConfig(BaseModel):
 
     name: str
     source_dir: str
+    state_machine_name: str
+    definition_file: str
 
 
 class ApiGatewayConfig(BaseModel):
@@ -47,6 +49,9 @@ class ApiGatewayConfig(BaseModel):
 
     name: str
     source_dir: str
+    rest_api_id: str
+    stage_name: str
+    spec_file: str
 
 
 class FerryConfig(BaseModel):

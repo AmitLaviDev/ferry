@@ -36,10 +36,14 @@ class TestStepFunctionResource:
         resource = StepFunctionResource(
             name="my-workflow",
             source="workflows/my-workflow",
+            state_machine_name="my-sm",
+            definition_file="stepfunction.json",
         )
         assert resource.resource_type == "step_function"
         assert resource.name == "my-workflow"
         assert resource.source == "workflows/my-workflow"
+        assert resource.state_machine_name == "my-sm"
+        assert resource.definition_file == "stepfunction.json"
 
 
 class TestApiGatewayResource:
@@ -47,9 +51,15 @@ class TestApiGatewayResource:
         resource = ApiGatewayResource(
             name="my-api",
             source="apis/my-api",
+            rest_api_id="abc123",
+            stage_name="prod",
+            spec_file="openapi.yaml",
         )
         assert resource.resource_type == "api_gateway"
         assert resource.name == "my-api"
+        assert resource.rest_api_id == "abc123"
+        assert resource.stage_name == "prod"
+        assert resource.spec_file == "openapi.yaml"
 
 
 class TestDispatchPayload:
@@ -135,7 +145,12 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="step_functions",
             resources=[
-                StepFunctionResource(name="wf-a", source="workflows/wf-a"),
+                StepFunctionResource(
+                    name="wf-a",
+                    source="workflows/wf-a",
+                    state_machine_name="sm-a",
+                    definition_file="def.json",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -147,7 +162,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="api_gateways",
             resources=[
-                ApiGatewayResource(name="api-a", source="apis/api-a"),
+                ApiGatewayResource(
+                    name="api-a",
+                    source="apis/api-a",
+                    rest_api_id="id123",
+                    stage_name="prod",
+                    spec_file="spec.yaml",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -164,7 +185,12 @@ class TestDispatchPayload:
             resource_type="lambdas",
             resources=[
                 LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
-                StepFunctionResource(name="wf", source="workflows/wf"),
+                StepFunctionResource(
+                    name="wf",
+                    source="workflows/wf",
+                    state_machine_name="sm",
+                    definition_file="def.json",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",

@@ -61,20 +61,84 @@ class TestStepFunctionConfig:
     """Tests for StepFunctionConfig model."""
 
     def test_step_function_config_valid(self) -> None:
-        """name + source_dir -> valid model."""
-        cfg = StepFunctionConfig(name="workflow", source_dir="src/workflow")
+        """All required fields -> valid model."""
+        cfg = StepFunctionConfig(
+            name="workflow",
+            source_dir="src/workflow",
+            state_machine_name="my-state-machine",
+            definition_file="stepfunction.json",
+        )
         assert cfg.name == "workflow"
         assert cfg.source_dir == "src/workflow"
+        assert cfg.state_machine_name == "my-state-machine"
+        assert cfg.definition_file == "stepfunction.json"
+
+    def test_step_function_config_missing_state_machine_name(self) -> None:
+        """Missing state_machine_name raises ValidationError."""
+        with pytest.raises(ValidationError, match="state_machine_name"):
+            StepFunctionConfig(
+                name="workflow",
+                source_dir="src/workflow",
+                definition_file="stepfunction.json",
+            )  # type: ignore[call-arg]
+
+    def test_step_function_config_missing_definition_file(self) -> None:
+        """Missing definition_file raises ValidationError."""
+        with pytest.raises(ValidationError, match="definition_file"):
+            StepFunctionConfig(
+                name="workflow",
+                source_dir="src/workflow",
+                state_machine_name="my-sm",
+            )  # type: ignore[call-arg]
 
 
 class TestApiGatewayConfig:
     """Tests for ApiGatewayConfig model."""
 
     def test_api_gateway_config_valid(self) -> None:
-        """name + source_dir -> valid model."""
-        cfg = ApiGatewayConfig(name="api", source_dir="src/api")
+        """All required fields -> valid model."""
+        cfg = ApiGatewayConfig(
+            name="api",
+            source_dir="src/api",
+            rest_api_id="abc123def",
+            stage_name="prod",
+            spec_file="openapi.yaml",
+        )
         assert cfg.name == "api"
         assert cfg.source_dir == "src/api"
+        assert cfg.rest_api_id == "abc123def"
+        assert cfg.stage_name == "prod"
+        assert cfg.spec_file == "openapi.yaml"
+
+    def test_api_gateway_config_missing_rest_api_id(self) -> None:
+        """Missing rest_api_id raises ValidationError."""
+        with pytest.raises(ValidationError, match="rest_api_id"):
+            ApiGatewayConfig(
+                name="api",
+                source_dir="src/api",
+                stage_name="prod",
+                spec_file="openapi.yaml",
+            )  # type: ignore[call-arg]
+
+    def test_api_gateway_config_missing_stage_name(self) -> None:
+        """Missing stage_name raises ValidationError."""
+        with pytest.raises(ValidationError, match="stage_name"):
+            ApiGatewayConfig(
+                name="api",
+                source_dir="src/api",
+                rest_api_id="abc123def",
+                spec_file="openapi.yaml",
+            )  # type: ignore[call-arg]
+
+    def test_api_gateway_config_missing_spec_file(self) -> None:
+        """Missing spec_file raises ValidationError."""
+        with pytest.raises(ValidationError, match="spec_file"):
+            ApiGatewayConfig(
+                name="api",
+                source_dir="src/api",
+                rest_api_id="abc123def",
+                stage_name="prod",
+            )  # type: ignore[call-arg]
 
 
 class TestFerryConfig:
@@ -87,10 +151,21 @@ class TestFerryConfig:
                 LambdaConfig(name="a", source_dir="s/a", ecr_repo="e/a"),
             ],
             step_functions=[
-                StepFunctionConfig(name="b", source_dir="s/b"),
+                StepFunctionConfig(
+                    name="b",
+                    source_dir="s/b",
+                    state_machine_name="sm-b",
+                    definition_file="def.json",
+                ),
             ],
             api_gateways=[
-                ApiGatewayConfig(name="c", source_dir="s/c"),
+                ApiGatewayConfig(
+                    name="c",
+                    source_dir="s/c",
+                    rest_api_id="api123",
+                    stage_name="prod",
+                    spec_file="spec.yaml",
+                ),
             ],
         )
         assert len(cfg.lambdas) == 1

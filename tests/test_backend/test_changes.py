@@ -145,6 +145,8 @@ class TestMatchResources:
                 StepFunctionConfig(
                     name="checkout-flow",
                     source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="definition.json",
                 )
             ],
         )
@@ -340,6 +342,8 @@ class TestDetectConfigChanges:
                 StepFunctionConfig(
                     name="checkout-flow",
                     source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="definition.json",
                 )
             ],
         )
@@ -364,6 +368,8 @@ class TestDetectConfigChanges:
                 StepFunctionConfig(
                     name="checkout-flow",
                     source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="definition.json",
                 )
             ],
         )
@@ -380,6 +386,8 @@ class TestDetectConfigChanges:
                 StepFunctionConfig(
                     name="checkout-flow",
                     source_dir="workflows/checkout-v2",
+                    state_machine_name="checkout-sm",
+                    definition_file="definition.json",
                 )
             ],
         )

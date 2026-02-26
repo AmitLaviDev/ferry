@@ -31,6 +31,8 @@ class StepFunctionResource(BaseModel):
     resource_type: Literal["step_function"] = "step_function"
     name: str
     source: str
+    state_machine_name: str
+    definition_file: str
 
 
 class ApiGatewayResource(BaseModel):
@@ -41,6 +43,9 @@ class ApiGatewayResource(BaseModel):
     resource_type: Literal["api_gateway"] = "api_gateway"
     name: str
     source: str
+    rest_api_id: str
+    stage_name: str
+    spec_file: str
 
 
 Resource = Annotated[

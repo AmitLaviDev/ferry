@@ -73,11 +73,22 @@ def _build_resource(
     elif resource_type == "step_function":
         for sf in config.step_functions:
             if sf.name == name:
-                return StepFunctionResource(name=name, source=sf.source_dir)
+                return StepFunctionResource(
+                    name=name,
+                    source=sf.source_dir,
+                    state_machine_name=sf.state_machine_name,
+                    definition_file=sf.definition_file,
+                )
     elif resource_type == "api_gateway":
         for ag in config.api_gateways:
             if ag.name == name:
-                return ApiGatewayResource(name=name, source=ag.source_dir)
+                return ApiGatewayResource(
+                    name=name,
+                    source=ag.source_dir,
+                    rest_api_id=ag.rest_api_id,
+                    stage_name=ag.stage_name,
+                    spec_file=ag.spec_file,
+                )
 
     msg = f"Resource '{name}' of type '{resource_type}' not found in config"
     raise ValueError(msg)
