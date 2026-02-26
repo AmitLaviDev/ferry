@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 3 of 5 (Build and Lambda Deploy)
-Plan: 2 of 3 in current phase
-Status: In Progress
-Last activity: 2026-02-26 -- Completed 03-02 (Magic Dockerfile and build module)
+Plan: 3 of 3 in current phase
+Status: Phase Complete
+Last activity: 2026-02-26 -- Completed 03-03 (Lambda deploy module)
 
-Progress: [#########-] 88%
+Progress: [##########] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 4min
-- Total execution time: 0.56 hours
+- Total execution time: 0.61 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [#########-] 88%
 |-------|-------|-------|----------|
 | 01-foundation | 3 | 12min | 4min |
 | 02-app-core | 3 | 17min | 6min |
-| 03-build-and-lambda-deploy | 2 | 5min | 2.5min |
+| 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 5min, 9min, 3min, 2min
+- Last 5 plans: 5min, 9min, 3min, 2min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -70,6 +70,9 @@ Recent decisions affecting current work:
 - 03-02: Dockerfile path resolved relative to build.py module (Path(__file__).parent.parent.parent / Dockerfile)
 - 03-02: ECR registry domain extracted from URI by splitting on first slash for docker login
 - 03-02: Error handling with common failure hints (missing docker, bad requirements, ECR auth)
+- 03-03: Fixture-based mock_aws instead of per-test decorator (avoids fixture-outside-mock-context issue)
+- 03-03: Digest normalization strips URI prefix before comparison (handles both raw sha256: and full URI@sha256: formats)
+- 03-03: Alias fallback: try update_alias first, catch ResourceNotFoundException, fall back to create_alias
 
 ### Pending Todos
 
@@ -84,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 03-02-PLAN.md (Magic Dockerfile and build module)
+Stopped at: Completed 03-03-PLAN.md (Lambda deploy module)
 Resume file: None
