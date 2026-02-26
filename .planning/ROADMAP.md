@@ -76,10 +76,12 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A dispatch for Step Functions updates the state machine definition with correct variable substitution for account ID and region, without corrupting JSONPath expressions or other non-variable content
   2. A dispatch for API Gateways uploads the OpenAPI spec via put-rest-api and creates a deployment to push changes to the target stage
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — Shared utilities (envsubst, content hash) + config/dispatch model updates for SF/APIGW fields
+- [ ] 04-02-PLAN.md — Step Functions deploy module with envsubst, content-hash skip, version publishing (TDD)
+- [ ] 04-03-PLAN.md — API Gateway deploy module with spec parsing, field stripping, content-hash skip (TDD)
 
 ### Phase 5: Integration and Error Reporting
 **Goal**: The full Ferry pipeline works end-to-end (push to deploy) with build and deploy failures clearly surfaced to the developer in PR status checks and workflow logs
