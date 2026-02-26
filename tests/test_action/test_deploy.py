@@ -1,21 +1,19 @@
 """Tests for Lambda deployment module.
 
-TDD RED phase: all tests written before implementation.
-Uses moto for AWS Lambda mocking.
+TDD tests using moto for AWS Lambda mocking.
 """
 
 from __future__ import annotations
 
 import json
-import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import boto3
 import pytest
 from moto import mock_aws
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Constants
 # ---------------------------------------------------------------------------
 
 ECR_BASE = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
@@ -25,8 +23,13 @@ IMAGE_URI = f"{ECR_BASE}/{REPO}:{IMAGE_TAG}"
 IMAGE_URI_V2 = f"{ECR_BASE}/{REPO}:pr-43"
 
 
+# ---------------------------------------------------------------------------
+# Fixtures — all wrapped inside mock_aws context
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture
-def _aws_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def aws_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set dummy AWS credentials for moto."""
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
@@ -36,7 +39,14 @@ def _aws_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def lambda_role(_aws_credentials: None) -> str:
+def moto_aws(aws_env: None):  # noqa: ANN201
+    """Activate moto mock for all AWS services."""
+    with mock_aws():
+        yield
+
+
+@pytest.fixture
+def lambda_role(moto_aws: None) -> str:
     """Create a dummy IAM role and return its ARN."""
     iam = boto3.client("iam", region_name="us-east-1")
     iam.create_role(
@@ -50,7 +60,7 @@ def lambda_role(_aws_credentials: None) -> str:
 
 
 @pytest.fixture
-def lambda_client(_aws_credentials: None) -> boto3.client:
+def lambda_client(moto_aws: None) -> boto3.client:
     """Return a moto-backed Lambda client."""
     return boto3.client("lambda", region_name="us-east-1")
 
@@ -96,7 +106,6 @@ class TestShouldSkipDeploy:
 
 
 class TestGetCurrentImageDigest:
-    @mock_aws
     def test_returns_digest(
         self,
         lambda_client: boto3.client,
@@ -109,7 +118,6 @@ class TestGetCurrentImageDigest:
         assert digest is not None
         assert digest.startswith("sha256:")
 
-    @mock_aws
     def test_returns_none_for_missing_function(
         self,
         lambda_client: boto3.client,
@@ -126,7 +134,6 @@ class TestGetCurrentImageDigest:
 
 
 class TestDeployLambda:
-    @mock_aws
     def test_updates_function_code(
         self,
         lambda_client: boto3.client,
@@ -141,7 +148,6 @@ class TestDeployLambda:
         gf = lambda_client.get_function(FunctionName=lambda_function)
         assert IMAGE_URI_V2 in gf["Code"]["ImageUri"]
 
-    @mock_aws
     def test_publishes_version(
         self,
         lambda_client: boto3.client,
@@ -163,7 +169,6 @@ class TestDeployLambda:
         assert "Ferry" in published[0]["Description"]
         assert "pr-43" in published[0]["Description"]
 
-    @mock_aws
     def test_updates_alias(
         self,
         lambda_client: boto3.client,
@@ -188,7 +193,6 @@ class TestDeployLambda:
         )
         assert alias["FunctionVersion"] == result["version"]
 
-    @mock_aws
     def test_creates_alias_if_not_exists(
         self,
         lambda_client: boto3.client,
@@ -207,7 +211,6 @@ class TestDeployLambda:
         assert alias["Name"] == "live"
         assert alias["FunctionVersion"] == result["version"]
 
-    @mock_aws
     def test_returns_result_dict(
         self,
         lambda_client: boto3.client,
@@ -233,7 +236,6 @@ class TestDeployLambda:
 
 
 class TestMain:
-    @mock_aws
     def test_skips_when_digest_matches(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -267,7 +269,6 @@ class TestMain:
         outputs = output_file.read_text()
         assert "skipped=true" in outputs
 
-    @mock_aws
     def test_deploys_when_digest_differs(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -303,7 +304,6 @@ class TestMain:
                 version = line.split("=", 1)[1]
                 assert version.isdigit()
 
-    @mock_aws
     def test_writes_job_summary(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -335,7 +335,6 @@ class TestMain:
         assert "Deployed" in summary or "deployed" in summary
         assert "pr-43" in summary
 
-    @mock_aws
     def test_no_unnecessary_masking(
         self,
         monkeypatch: pytest.MonkeyPatch,
