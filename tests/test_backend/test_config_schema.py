@@ -26,10 +26,10 @@ class TestLambdaConfig:
         assert cfg.ecr_repo == "ferry/proc"
 
     def test_lambda_config_defaults(self) -> None:
-        """function_name defaults to name, runtime defaults to python3.10."""
+        """function_name defaults to name, runtime defaults to python3.14."""
         cfg = LambdaConfig(name="proc", source_dir="src/proc", ecr_repo="ferry/proc")
         assert cfg.function_name == "proc"
-        assert cfg.runtime == "python3.10"
+        assert cfg.runtime == "python3.14"
 
     def test_lambda_config_explicit_function_name(self) -> None:
         """Explicit function_name overrides default."""

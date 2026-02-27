@@ -430,6 +430,8 @@ class TestBuildResource:
         assert resource.ecr == "ferry/order"
         # function_name defaults to name when not set
         assert resource.function_name == "order"
+        # runtime defaults to python3.14 (from LambdaConfig)
+        assert resource.runtime == "python3.14"
 
     def test_build_resource_lambda_explicit_function_name(self) -> None:
         """Lambda config with explicit function_name carries through."""
@@ -446,3 +448,18 @@ class TestBuildResource:
         resource = _build_resource("lambda", "order", config)
         assert resource.name == "order"
         assert resource.function_name == "order-processor-prod"
+
+    def test_build_resource_lambda_runtime_override(self) -> None:
+        """Explicit runtime in config flows through to dispatch resource."""
+        config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="legacy",
+                    source_dir="services/legacy",
+                    ecr_repo="ferry/legacy",
+                    runtime="python3.12",
+                ),
+            ],
+        )
+        resource = _build_resource("lambda", "legacy", config)
+        assert resource.runtime == "python3.12"

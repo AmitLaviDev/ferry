@@ -19,16 +19,19 @@ class TestLambdaResource:
             source="services/my-function",
             ecr="my-function-repo",
             function_name="my-function",
+            runtime="python3.14",
         )
         assert resource.resource_type == "lambda"
         assert resource.name == "my-function"
         assert resource.source == "services/my-function"
         assert resource.ecr == "my-function-repo"
         assert resource.function_name == "my-function"
+        assert resource.runtime == "python3.14"
 
     def test_lambda_resource_default_type(self):
         resource = LambdaResource(
-            name="fn", source="src/fn", ecr="fn-repo", function_name="fn"
+            name="fn", source="src/fn", ecr="fn-repo", function_name="fn",
+            runtime="python3.14",
         )
         assert resource.resource_type == "lambda"
 
@@ -39,6 +42,7 @@ class TestLambdaResource:
             source="services/order",
             ecr="ferry/order",
             function_name="order-processor-prod",
+            runtime="python3.14",
         )
         assert resource.name == "order"
         assert resource.function_name == "order-processor-prod"
@@ -48,6 +52,19 @@ class TestLambdaResource:
         assert data["function_name"] == "order-processor-prod"
         restored = LambdaResource.model_validate(data)
         assert restored.function_name == "order-processor-prod"
+
+    def test_lambda_resource_missing_runtime_fails(self):
+        """Missing runtime raises ValidationError (required field)."""
+        with pytest.raises(ValidationError, match="runtime"):
+            LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn")  # type: ignore[call-arg]
+
+    def test_lambda_resource_custom_runtime(self):
+        """Runtime can be any string value (e.g. different Python version)."""
+        resource = LambdaResource(
+            name="fn", source="src/fn", ecr="fn-repo", function_name="fn",
+            runtime="python3.12",
+        )
+        assert resource.runtime == "python3.12"
 
 
 class TestStepFunctionResource:
@@ -89,10 +106,12 @@ class TestDispatchPayload:
                 LambdaResource(
                     name="fn-a", source="services/fn-a",
                     ecr="fn-a-repo", function_name="fn-a",
+                    runtime="python3.14",
                 ),
                 LambdaResource(
                     name="fn-b", source="services/fn-b",
                     ecr="fn-b-repo", function_name="fn-b",
+                    runtime="python3.14",
                 ),
             ],
             trigger_sha="abc123def456",
@@ -118,7 +137,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -130,7 +149,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -141,7 +160,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -153,7 +172,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -162,7 +181,7 @@ class TestDispatchPayload:
             payload.trigger_sha = "new-sha"
 
     def test_frozen_resource_rejects_mutation(self):
-        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn")
+        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14")
         with pytest.raises(ValidationError):
             resource.name = "new-name"
 
@@ -209,7 +228,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
                 StepFunctionResource(
                     name="wf",
                     source="workflows/wf",
@@ -225,8 +244,8 @@ class TestDispatchPayload:
 
     def test_lambda_resource_missing_ecr_fails(self):
         with pytest.raises(ValidationError, match="ecr"):
-            LambdaResource(name="fn", source="src/fn", function_name="fn")  # type: ignore[call-arg]
+            LambdaResource(name="fn", source="src/fn", function_name="fn", runtime="python3.14")  # type: ignore[call-arg]
 
     def test_lambda_resource_missing_function_name_fails(self):
         with pytest.raises(ValidationError, match="function_name"):
-            LambdaResource(name="fn", source="src/fn", ecr="fn-repo")  # type: ignore[call-arg]
+            LambdaResource(name="fn", source="src/fn", ecr="fn-repo", runtime="python3.14")  # type: ignore[call-arg]

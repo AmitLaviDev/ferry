@@ -26,6 +26,7 @@ def _make_payload(
                 "source": "services/order-processor",
                 "ecr": "ferry/order-processor",
                 "function_name": "order-processor",
+                "runtime": "python3.14",
             },
             {
                 "resource_type": "lambda",
@@ -33,6 +34,7 @@ def _make_payload(
                 "source": "services/email-sender",
                 "ecr": "ferry/email-sender",
                 "function_name": "email-sender",
+                "runtime": "python3.14",
             },
         ]
     payload = {
@@ -63,7 +65,7 @@ class TestBuildMatrix:
         assert first["function_name"] == "order-processor"
         assert first["trigger_sha"] == "abc1234def5678"
         assert first["deployment_tag"] == "pr-42"
-        assert first["runtime"] == "python3.12"
+        assert first["runtime"] == "python3.14"
 
         second = result["include"][1]
         assert second["name"] == "email-sender"
@@ -80,6 +82,7 @@ class TestBuildMatrix:
                 "source": "src/my-func",
                 "ecr": "ferry/my-func",
                 "function_name": "my-func",
+                "runtime": "python3.14",
             },
         ]
         payload_str = _make_payload(resources=resources)
@@ -118,6 +121,7 @@ class TestBuildMatrix:
                 "source": "src/lambda",
                 "ecr": "ferry/lambda",
                 "function_name": "my-lambda",
+                "runtime": "python3.14",
             },
             {
                 "resource_type": "step_function",
@@ -149,6 +153,7 @@ class TestBuildMatrix:
                 "source": "src/a",
                 "ecr": "ferry/a",
                 "function_name": "a",
+                "runtime": "python3.14",
             },
             {
                 "resource_type": "lambda",
@@ -156,6 +161,7 @@ class TestBuildMatrix:
                 "source": "src/b",
                 "ecr": "ferry/b",
                 "function_name": "b",
+                "runtime": "python3.14",
             },
         ]
         payload_str = _make_payload(
@@ -187,6 +193,7 @@ class TestBuildMatrix:
                 "source": "services/order",
                 "ecr": "ferry/order",
                 "function_name": "order-processor-prod",
+                "runtime": "python3.14",
             },
         ]
         payload_str = _make_payload(resources=resources)
