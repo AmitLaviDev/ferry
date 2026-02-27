@@ -23,11 +23,9 @@ from ferry_utils.models.dispatch import (
 def _build_lambda_matrix(payload: DispatchPayload) -> list[dict]:
     """Build matrix entries for Lambda resources.
 
-    NOTE: The dispatch payload intentionally does not include a ``runtime``
-    field.  Runtime is a build concern from ferry.yaml's LambdaConfig, not a
-    dispatch concern.  For v1 we default to ``python3.12``.  The build action
-    accepts ``runtime`` as an input so it can be overridden at the workflow
-    level if needed.
+    Runtime flows from the dispatch payload (source of truth: ``LambdaConfig``
+    in ferry.yaml).  The build action also accepts ``runtime`` as an input for
+    direct workflow-level overrides.
     """
     return [
         {
@@ -37,7 +35,7 @@ def _build_lambda_matrix(payload: DispatchPayload) -> list[dict]:
             "function_name": r.function_name,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,
-            "runtime": "python3.12",
+            "runtime": r.runtime,
         }
         for r in payload.resources
         if isinstance(r, LambdaResource)
@@ -98,7 +96,7 @@ def build_matrix(payload_str: str) -> dict:
         Dict with ``include`` key containing one entry per resource.
         Entry fields vary by resource type:
 
-        - **lambda**: name, source, ecr, trigger_sha, deployment_tag, runtime
+        - **lambda**: name, source, ecr, function_name, trigger_sha, deployment_tag, runtime
         - **step_function**: name, source, state_machine_name,
           definition_file, trigger_sha, deployment_tag
         - **api_gateway**: name, source, rest_api_id, stage_name,

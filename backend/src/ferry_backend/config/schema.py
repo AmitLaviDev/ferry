@@ -20,7 +20,7 @@ class LambdaConfig(BaseModel):
     name: str
     source_dir: str
     ecr_repo: str
-    runtime: str = "python3.10"
+    runtime: str = "python3.14"
     function_name: str | None = None
 
     @model_validator(mode="after")

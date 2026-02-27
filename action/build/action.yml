@@ -27,7 +27,7 @@ inputs:
   runtime:
     description: "Python runtime version (e.g. python3.12)"
     required: false
-    default: "python3.12"
+    default: "python3.14"
   github-token:
     description: "GitHub token for private repo dependencies"
     required: false

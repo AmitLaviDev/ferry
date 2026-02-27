@@ -74,6 +74,7 @@ def _build_resource(
                     source=lam.source_dir,
                     ecr=lam.ecr_repo,
                     function_name=lam.function_name,
+                    runtime=lam.runtime,
                 )
     elif resource_type == "step_function":
         for sf in config.step_functions:

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.14
 FROM public.ecr.aws/lambda/python:${PYTHON_VERSION}
 
 # Optional system packages (glob trick: file[t] matches file if exists, no-op otherwise)
