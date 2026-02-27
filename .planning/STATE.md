@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 7 of 7 (Tech Debt Cleanup)
-Plan: 2 of 3 in current phase
+Plan: 3 of 3 in current phase
 Status: In Progress
-Last activity: 2026-02-27 -- Completed 07-02 (Workflow documentation)
+Last activity: 2026-02-27 -- Completed 07-01 (Runtime pipeline wiring)
 
 Progress: [##########] 99%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: 4min
-- Total execution time: 0.96 hours
+- Total execution time: 1.01 hours
 
 **By Phase:**
 
@@ -32,10 +32,10 @@ Progress: [##########] 99%
 | 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
 | 04-extended-resource-types | 3 | 14min | 4.7min |
 | 06-fix-lambda-function-name-pipeline | 1 | 4min | 4min |
-| 07-tech-debt-cleanup | 1 | 3min | 3min |
+| 07-tech-debt-cleanup | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 6min, 3min, 5min, 4min, 3min
+- Last 5 plans: 3min, 5min, 4min, 3min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -87,6 +87,8 @@ Recent decisions affecting current work:
 - 04-03: Moto requires x-amazon-apigateway-integration in spec for create_deployment; tests use valid integration specs
 - 06-01: function_name added as required str (not Optional) on LambdaResource -- backend resolves defaults before constructing dispatch model
 - 06-01: deploy.py uses os.environ.get with explicit fail-fast for INPUT_FUNCTION_NAME instead of bare KeyError
+- 07-01: runtime added as required str (not Optional) on LambdaResource -- backend resolves defaults before constructing dispatch model (same pattern as function_name)
+- 07-01: All defaults unified to python3.14: LambdaConfig, action.yml input, Dockerfile ARG
 - 07-02: Workflow YAML examples use real action paths and real input names from composite action YAML files
 - 07-02: Documentation structure: shared setup.md + one file per resource type in docs/ directory
 
@@ -103,5 +105,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 07-02-PLAN.md (Workflow documentation)
+Stopped at: Completed 07-01-PLAN.md (Runtime pipeline wiring)
 Resume file: None
