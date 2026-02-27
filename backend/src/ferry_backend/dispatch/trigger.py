@@ -56,7 +56,7 @@ def _build_resource(
     """Build a dispatch Resource model from an AffectedResource and FerryConfig.
 
     Looks up the resource in the config to get type-specific fields
-    (source_dir -> source, ecr_repo -> ecr for lambdas).
+    (source_dir -> source, ecr_repo -> ecr, function_name, runtime for lambdas).
 
     Args:
         resource_type: Resource type string ("lambda", "step_function", "api_gateway").

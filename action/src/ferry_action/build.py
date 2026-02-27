@@ -25,10 +25,10 @@ def parse_runtime_version(runtime: str) -> str:
     """Extract numeric version from a runtime string.
 
     Strips the ``python`` prefix if present, returning just the
-    version number (e.g. ``"python3.12"`` -> ``"3.12"``).
+    version number (e.g. ``"python3.14"`` -> ``"3.14"``).
 
     Args:
-        runtime: Runtime string like ``"python3.12"`` or ``"3.12"``.
+        runtime: Runtime string like ``"python3.14"`` or ``"3.14"``.
 
     Returns:
         Numeric version string.
