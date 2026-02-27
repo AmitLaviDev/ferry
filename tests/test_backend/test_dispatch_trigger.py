@@ -230,6 +230,47 @@ class TestTriggerDispatches:
         assert payload.resources[0].name == "order"
         assert payload.resources[0].source == "services/order"
         assert payload.resources[0].ecr == "ferry/order"
+        # function_name defaults to name when not set explicitly
+        assert payload.resources[0].function_name == "order"
+
+    def test_trigger_dispatches_includes_explicit_function_name(self, httpx_mock):
+        """function_name that differs from name flows through dispatch payload."""
+        httpx_mock.add_response(
+            url=(
+                "https://api.github.com/repos/owner/repo"
+                "/actions/workflows/ferry-lambdas.yml/dispatches"
+            ),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                    function_name="order-processor-prod",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected(
+                "order", changed_files=("services/order/main.py",),
+            ),
+        ]
+
+        client = GitHubClient()
+        trigger_dispatches(
+            client, "owner/repo", config, affected,
+            "sha123", "main-sha123", "",
+        )
+
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload_data = json.loads(body["inputs"]["payload"])
+        resource = payload_data["resources"][0]
+        assert resource["name"] == "order"
+        assert resource["function_name"] == "order-processor-prod"
 
     def test_trigger_dispatches_uses_correct_workflow_file(self, httpx_mock):
         """lambda -> ferry-lambdas.yml, step_function -> ferry-step_functions.yml."""
@@ -387,3 +428,21 @@ class TestBuildResource:
         assert resource.name == "order"
         assert resource.source == "services/order"
         assert resource.ecr == "ferry/order"
+        # function_name defaults to name when not set
+        assert resource.function_name == "order"
+
+    def test_build_resource_lambda_explicit_function_name(self) -> None:
+        """Lambda config with explicit function_name carries through."""
+        config = FerryConfig(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                    function_name="order-processor-prod",
+                ),
+            ],
+        )
+        resource = _build_resource("lambda", "order", config)
+        assert resource.name == "order"
+        assert resource.function_name == "order-processor-prod"

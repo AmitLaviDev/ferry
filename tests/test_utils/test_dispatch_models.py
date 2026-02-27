@@ -18,17 +18,36 @@ class TestLambdaResource:
             name="my-function",
             source="services/my-function",
             ecr="my-function-repo",
+            function_name="my-function",
         )
         assert resource.resource_type == "lambda"
         assert resource.name == "my-function"
         assert resource.source == "services/my-function"
         assert resource.ecr == "my-function-repo"
+        assert resource.function_name == "my-function"
 
     def test_lambda_resource_default_type(self):
         resource = LambdaResource(
-            name="fn", source="src/fn", ecr="fn-repo"
+            name="fn", source="src/fn", ecr="fn-repo", function_name="fn"
         )
         assert resource.resource_type == "lambda"
+
+    def test_lambda_resource_function_name_differs_from_name(self):
+        """function_name can be explicitly different from name (override case)."""
+        resource = LambdaResource(
+            name="order",
+            source="services/order",
+            ecr="ferry/order",
+            function_name="order-processor-prod",
+        )
+        assert resource.name == "order"
+        assert resource.function_name == "order-processor-prod"
+        # Verify serialization round-trip preserves distinct values
+        data = resource.model_dump()
+        assert data["name"] == "order"
+        assert data["function_name"] == "order-processor-prod"
+        restored = LambdaResource.model_validate(data)
+        assert restored.function_name == "order-processor-prod"
 
 
 class TestStepFunctionResource:
@@ -67,8 +86,14 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn-a", source="services/fn-a", ecr="fn-a-repo"),
-                LambdaResource(name="fn-b", source="services/fn-b", ecr="fn-b-repo"),
+                LambdaResource(
+                    name="fn-a", source="services/fn-a",
+                    ecr="fn-a-repo", function_name="fn-a",
+                ),
+                LambdaResource(
+                    name="fn-b", source="services/fn-b",
+                    ecr="fn-b-repo", function_name="fn-b",
+                ),
             ],
             trigger_sha="abc123def456",
             deployment_tag="v1.0.0-abc123d",
@@ -93,7 +118,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -105,7 +130,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -116,7 +141,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -128,7 +153,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -137,7 +162,7 @@ class TestDispatchPayload:
             payload.trigger_sha = "new-sha"
 
     def test_frozen_resource_rejects_mutation(self):
-        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo")
+        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn")
         with pytest.raises(ValidationError):
             resource.name = "new-name"
 
@@ -184,7 +209,7 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo"),
+                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn"),
                 StepFunctionResource(
                     name="wf",
                     source="workflows/wf",
@@ -200,4 +225,8 @@ class TestDispatchPayload:
 
     def test_lambda_resource_missing_ecr_fails(self):
         with pytest.raises(ValidationError, match="ecr"):
-            LambdaResource(name="fn", source="src/fn")  # type: ignore[call-arg]
+            LambdaResource(name="fn", source="src/fn", function_name="fn")  # type: ignore[call-arg]
+
+    def test_lambda_resource_missing_function_name_fails(self):
+        with pytest.raises(ValidationError, match="function_name"):
+            LambdaResource(name="fn", source="src/fn", ecr="fn-repo")  # type: ignore[call-arg]

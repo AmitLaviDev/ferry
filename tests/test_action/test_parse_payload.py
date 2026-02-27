@@ -25,12 +25,14 @@ def _make_payload(
                 "name": "order-processor",
                 "source": "services/order-processor",
                 "ecr": "ferry/order-processor",
+                "function_name": "order-processor",
             },
             {
                 "resource_type": "lambda",
                 "name": "email-sender",
                 "source": "services/email-sender",
                 "ecr": "ferry/email-sender",
+                "function_name": "email-sender",
             },
         ]
     payload = {
@@ -58,6 +60,7 @@ class TestBuildMatrix:
         assert first["name"] == "order-processor"
         assert first["source"] == "services/order-processor"
         assert first["ecr"] == "ferry/order-processor"
+        assert first["function_name"] == "order-processor"
         assert first["trigger_sha"] == "abc1234def5678"
         assert first["deployment_tag"] == "pr-42"
         assert first["runtime"] == "python3.12"
@@ -66,6 +69,7 @@ class TestBuildMatrix:
         assert second["name"] == "email-sender"
         assert second["source"] == "services/email-sender"
         assert second["ecr"] == "ferry/email-sender"
+        assert second["function_name"] == "email-sender"
 
     def test_parse_single_resource(self) -> None:
         """Single Lambda resource produces matrix with one include entry."""
@@ -75,6 +79,7 @@ class TestBuildMatrix:
                 "name": "my-func",
                 "source": "src/my-func",
                 "ecr": "ferry/my-func",
+                "function_name": "my-func",
             },
         ]
         payload_str = _make_payload(resources=resources)
@@ -112,6 +117,7 @@ class TestBuildMatrix:
                 "name": "my-lambda",
                 "source": "src/lambda",
                 "ecr": "ferry/lambda",
+                "function_name": "my-lambda",
             },
             {
                 "resource_type": "step_function",
@@ -137,8 +143,20 @@ class TestBuildMatrix:
     def test_propagates_trigger_sha_and_deployment_tag(self) -> None:
         """Trigger SHA and deployment tag from payload propagate to all entries."""
         resources = [
-            {"resource_type": "lambda", "name": "a", "source": "src/a", "ecr": "ferry/a"},
-            {"resource_type": "lambda", "name": "b", "source": "src/b", "ecr": "ferry/b"},
+            {
+                "resource_type": "lambda",
+                "name": "a",
+                "source": "src/a",
+                "ecr": "ferry/a",
+                "function_name": "a",
+            },
+            {
+                "resource_type": "lambda",
+                "name": "b",
+                "source": "src/b",
+                "ecr": "ferry/b",
+                "function_name": "b",
+            },
         ]
         payload_str = _make_payload(
             resources=resources,
@@ -150,6 +168,33 @@ class TestBuildMatrix:
         for entry in result["include"]:
             assert entry["trigger_sha"] == "deadbeef12345678"
             assert entry["deployment_tag"] == "pr-99"
+
+    def test_lambda_matrix_includes_function_name(self) -> None:
+        """function_name appears in lambda matrix output."""
+        payload_str = _make_payload()
+        result = build_matrix(payload_str)
+
+        first = result["include"][0]
+        assert "function_name" in first
+        assert first["function_name"] == "order-processor"
+
+    def test_lambda_matrix_explicit_function_name_override(self) -> None:
+        """function_name different from name flows through to matrix."""
+        resources = [
+            {
+                "resource_type": "lambda",
+                "name": "order",
+                "source": "services/order",
+                "ecr": "ferry/order",
+                "function_name": "order-processor-prod",
+            },
+        ]
+        payload_str = _make_payload(resources=resources)
+        result = build_matrix(payload_str)
+
+        entry = result["include"][0]
+        assert entry["name"] == "order"
+        assert entry["function_name"] == "order-processor-prod"
 
     def test_step_function_matrix(self) -> None:
         """Step Function resources produce correct matrix entries."""
