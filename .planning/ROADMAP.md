@@ -108,10 +108,10 @@ Plans:
   2. `_build_resource` in `trigger.py` passes `function_name` when constructing `LambdaResource`
   3. `parse_payload.py` includes `function_name` in the GHA matrix output for Lambda resources
   4. `deploy.py` receives `INPUT_FUNCTION_NAME` env var from the matrix and deploys to the correct function
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01-PLAN.md — Wire function_name through dispatch pipeline (model + trigger + matrix + deploy error handling + tests)
 
 ### Phase 7: Tech Debt Cleanup
 **Goal:** Resolve low-severity tech debt items identified by the milestone audit
