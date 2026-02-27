@@ -122,10 +122,12 @@ Plans:
   1. Runtime default is consistent — `LambdaConfig.runtime` and `parse_payload.py` use the same default value
   2. User-facing documentation exists for workflow file naming convention (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`)
   3. SUMMARY.md files include `requirements-completed` frontmatter field for 3-source cross-reference
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Wire runtime end-to-end through dispatch pipeline, unify defaults to python3.14
+- [ ] 07-02-PLAN.md — Create user-facing workflow documentation (docs/ directory with 4 guides)
+- [ ] 07-03-PLAN.md — Fix SUMMARY frontmatter mismatch + codebase sweep for stale references
 
 ## Progress
 
