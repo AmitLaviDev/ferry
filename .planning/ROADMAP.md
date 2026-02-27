@@ -16,9 +16,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: App Core Logic** - ferry.yaml parsing, change detection, dispatch triggering, PR status checks (completed 2026-02-24)
 - [x] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
 - [x] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment (completed 2026-02-26)
-- [ ] **Phase 5: Integration and Error Reporting** - End-to-end flow, error surfacing in PR status and workflow logs
+- [x] ~~**Phase 5: Integration and Error Reporting**~~ - *Superseded: E2E flows verified by Phases 1-4+6; error surfacing moved to Phase 8*
 - [x] **Phase 6: Fix Lambda function_name Pipeline** - Close DEPLOY-01 integration break (function_name dropped in dispatch pipeline) (completed 2026-02-27)
-- [ ] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter
+- [x] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter (completed 2026-02-27)
+- [ ] **Phase 8: Error Surfacing and Failure Reporting** - Close WHOOK-03: surface build/deploy failures in PR status checks and workflow logs
+- [ ] **Phase 9: Tech Debt Cleanup (Round 2)** - Resolve remaining low-severity tech debt from second audit
 
 ## Phase Details
 
@@ -85,18 +87,10 @@ Plans:
 - [x] 04-02-PLAN.md — Step Functions deploy module with envsubst, content-hash skip, version publishing (TDD)
 - [x] 04-03-PLAN.md — API Gateway deploy module with spec parsing, field stripping, content-hash skip (TDD)
 
-### Phase 5: Integration and Error Reporting
-**Goal**: The full Ferry pipeline works end-to-end (push to deploy) with build and deploy failures clearly surfaced to the developer in PR status checks and workflow logs
-**Depends on**: Phase 2, Phase 4
-**Requirements**: WHOOK-03
-**Success Criteria** (what must be TRUE):
-  1. A push that changes a Lambda source directory results in the Lambda being built, pushed to ECR, and deployed — the full pipeline from webhook to running code with no manual intervention
-  2. A build failure (e.g., bad requirements.txt) surfaces as a failed GitHub Check Run on the PR and a clear error message in the GHA workflow log — the developer does not need to check CloudWatch
-  3. A deploy failure (e.g., invalid Lambda handler) surfaces the same way — failed Check Run plus clear workflow log output
-**Plans**: TBD
-
-Plans:
-- [ ] 05-01: TBD
+### Phase 5: Integration and Error Reporting *(SUPERSEDED)*
+**Status:** Superseded — E2E flows verified by Phases 1-4+6. Error surfacing (WHOOK-03) moved to Phase 8.
+**Original Goal**: The full Ferry pipeline works end-to-end (push to deploy) with build and deploy failures clearly surfaced
+**Requirements**: WHOOK-03 → reassigned to Phase 8
 
 ### Phase 6: Fix Lambda function_name Pipeline
 **Goal:** Lambda `function_name` flows correctly from `ferry.yaml` through the dispatch pipeline to the deploy action, closing the DEPLOY-01 integration break
@@ -129,19 +123,50 @@ Plans:
 - [ ] 07-02-PLAN.md — Create user-facing workflow documentation (docs/ directory with 4 guides)
 - [ ] 07-03-PLAN.md — Fix SUMMARY frontmatter mismatch + codebase sweep for stale references
 
+### Phase 8: Error Surfacing and Failure Reporting
+**Goal:** Build and deploy failures are clearly surfaced to developers in PR status checks and GHA workflow logs — no silent failures, no need to check CloudWatch
+**Depends on**: Phase 2, Phase 6
+**Requirements**: WHOOK-03
+**Gap Closure:** Closes WHOOK-03 gap from audit (Phase 5 never executed)
+**Success Criteria** (what must be TRUE):
+  1. Auth failures (bad JWT, expired token, invalid installation) in the backend handler produce a structured error response and log — not an unstructured Lambda 500
+  2. Invalid ferry.yaml on the default branch after merge produces a clear error in logs — not a silent HTTP 200
+  3. A build failure (e.g., bad requirements.txt) surfaces as a failed GitHub Check Run on the PR and a clear error message in the GHA workflow log
+  4. A deploy failure (e.g., invalid Lambda handler) surfaces the same way — failed Check Run plus clear workflow log output
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01: TBD
+
+### Phase 9: Tech Debt Cleanup (Round 2)
+**Goal:** Resolve remaining low-severity tech debt items identified by the second milestone audit
+**Depends on**: Phase 8
+**Requirements**: None (tech debt)
+**Gap Closure:** Closes tech debt items from second audit
+**Success Criteria** (what must be TRUE):
+  1. `build_matrix` docstring in parse_payload.py includes `function_name` in the lambda field list
+  2. `PushEvent` and `WebhookHeaders` are either consumed in production code or removed from exports
+  3. `tenacity>=8.3` phantom dependency removed from backend/pyproject.toml
+  4. `PyYAML>=6.0.1` dependency moved from utils to backend pyproject.toml (where YAML parsing actually happens)
+  5. `moto` extras include `stepfunctions` in root pyproject.toml
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-Note: Phases 2 and 3 depend only on Phase 1 and could be developed in parallel.
-Note: Phase 6 (gap closure) should be executed before Phase 5 — it fixes a deploy pipeline break that Phase 5 E2E testing depends on.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5(superseded) → 6 → 7 → 8 → 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Shared Contract | 0/3 | Planned | - |
-| 2. App Core Logic | 0/? | Complete    | 2026-02-24 |
+| 1. Foundation and Shared Contract | 3/3 | Complete | 2026-02-22 |
+| 2. App Core Logic | 3/3 | Complete | 2026-02-24 |
 | 3. Build and Lambda Deploy | 3/3 | Complete | 2026-02-26 |
-| 4. Extended Resource Types | 0/? | Not started | - |
-| 5. Integration and Error Reporting | 0/? | Not started | - |
+| 4. Extended Resource Types | 3/3 | Complete | 2026-02-26 |
+| 5. Integration and Error Reporting | — | Superseded | — |
 | 6. Fix Lambda function_name Pipeline | 1/1 | Complete | 2026-02-27 |
-| 7. Tech Debt Cleanup | 0/? | Not started | - |
+| 7. Tech Debt Cleanup | 3/3 | Complete | 2026-02-27 |
+| 8. Error Surfacing and Failure Reporting | 0/? | Not started | - |
+| 9. Tech Debt Cleanup (Round 2) | 0/? | Not started | - |

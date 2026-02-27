@@ -106,7 +106,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | WHOOK-01 | Phase 1 | Complete |
 | WHOOK-02 | Phase 1 | Complete |
-| WHOOK-03 | Phase 5 | Pending |
+| WHOOK-03 | Phase 8 | Pending |
 | CONF-01 | Phase 2 | Complete |
 | CONF-02 | Phase 2 | Complete |
 | DETECT-01 | Phase 2 | Complete |
@@ -132,8 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1 requirements: 23 total
 - Mapped to phases: 23
 - Unmapped: 0
-- Complete: 21 (WHOOK-03 pending Phase 5, DEPLOY-01 pending Phase 6)
+- Complete: 22 (WHOOK-03 pending Phase 8)
 
 ---
 *Requirements defined: 2026-02-21*
-*Last updated: 2026-02-26 after gap closure phase creation*
+*Last updated: 2026-02-27 after gap closure phases 8-9 creation*
