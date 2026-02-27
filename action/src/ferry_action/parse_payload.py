@@ -34,6 +34,7 @@ def _build_lambda_matrix(payload: DispatchPayload) -> list[dict]:
             "name": r.name,
             "source": r.source,
             "ecr": r.ecr,
+            "function_name": r.function_name,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,
             "runtime": "python3.12",

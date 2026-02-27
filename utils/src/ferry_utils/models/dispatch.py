@@ -21,6 +21,7 @@ class LambdaResource(BaseModel):
     name: str
     source: str
     ecr: str
+    function_name: str
 
 
 class StepFunctionResource(BaseModel):

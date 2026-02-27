@@ -69,7 +69,12 @@ def _build_resource(
     if resource_type == "lambda":
         for lam in config.lambdas:
             if lam.name == name:
-                return LambdaResource(name=name, source=lam.source_dir, ecr=lam.ecr_repo)
+                return LambdaResource(
+                    name=name,
+                    source=lam.source_dir,
+                    ecr=lam.ecr_repo,
+                    function_name=lam.function_name,
+                )
     elif resource_type == "step_function":
         for sf in config.step_functions:
             if sf.name == name:
