@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 4: Extended Resource Types
+**Current focus:** Phase 6: Fix Lambda function_name Pipeline
 
 ## Current Position
 
-Phase: 4 of 5 (Extended Resource Types)
-Plan: 3 of 3 in current phase
+Phase: 6 of 7 (Fix Lambda function_name Pipeline)
+Plan: 1 of 1 in current phase
 Status: Phase Complete
-Last activity: 2026-02-26 -- Completed 04-03 (API Gateway deploy module)
+Last activity: 2026-02-27 -- Completed 06-01 (Wire function_name through dispatch pipeline)
 
-Progress: [##########] 96%
+Progress: [##########] 98%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 4min
-- Total execution time: 0.84 hours
+- Total execution time: 0.91 hours
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [##########] 96%
 | 02-app-core | 3 | 17min | 6min |
 | 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
 | 04-extended-resource-types | 3 | 14min | 4.7min |
+| 06-fix-lambda-function-name-pipeline | 1 | 4min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 3min, 6min, 3min, 5min
+- Last 5 plans: 3min, 6min, 3min, 5min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - 04-03: pyyaml added to ferry-action deps for YAML spec parsing; moto[apigateway] added to dev deps
 - 04-03: Canonical JSON (sort_keys=True, compact separators) for deterministic hashing regardless of input format
 - 04-03: Moto requires x-amazon-apigateway-integration in spec for create_deployment; tests use valid integration specs
+- 06-01: function_name added as required str (not Optional) on LambdaResource -- backend resolves defaults before constructing dispatch model
+- 06-01: deploy.py uses os.environ.get with explicit fail-fast for INPUT_FUNCTION_NAME instead of bare KeyError
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-26
-Stopped at: Completed 04-03-PLAN.md (API Gateway deploy module)
+Last session: 2026-02-27
+Stopped at: Completed 06-01-PLAN.md (Wire function_name through dispatch pipeline)
 Resume file: None

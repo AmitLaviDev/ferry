@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Build and Lambda Deploy** - Composite action, Magic Dockerfile, ECR push, Lambda deployment, OIDC auth
 - [x] **Phase 4: Extended Resource Types** - Step Functions and API Gateway deployment (completed 2026-02-26)
 - [ ] **Phase 5: Integration and Error Reporting** - End-to-end flow, error surfacing in PR status and workflow logs
-- [ ] **Phase 6: Fix Lambda function_name Pipeline** - Close DEPLOY-01 integration break (function_name dropped in dispatch pipeline)
+- [x] **Phase 6: Fix Lambda function_name Pipeline** - Close DEPLOY-01 integration break (function_name dropped in dispatch pipeline) (completed 2026-02-27)
 - [ ] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter
 
 ## Phase Details
@@ -111,7 +111,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Wire function_name through dispatch pipeline (model + trigger + matrix + deploy error handling + tests)
+- [x] 06-01-PLAN.md — Wire function_name through dispatch pipeline (model + trigger + matrix + deploy error handling + tests)
 
 ### Phase 7: Tech Debt Cleanup
 **Goal:** Resolve low-severity tech debt items identified by the milestone audit
@@ -141,5 +141,5 @@ Note: Phase 6 (gap closure) should be executed before Phase 5 — it fixes a dep
 | 3. Build and Lambda Deploy | 3/3 | Complete | 2026-02-26 |
 | 4. Extended Resource Types | 0/? | Not started | - |
 | 5. Integration and Error Reporting | 0/? | Not started | - |
-| 6. Fix Lambda function_name Pipeline | 0/? | Not started | - |
+| 6. Fix Lambda function_name Pipeline | 1/1 | Complete | 2026-02-27 |
 | 7. Tech Debt Cleanup | 0/? | Not started | - |
