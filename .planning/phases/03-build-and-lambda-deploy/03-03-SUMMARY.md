@@ -33,7 +33,7 @@ patterns-established:
   - "Lambda deploy pattern: update_function_code -> waiter -> publish_version -> update/create alias"
   - "moto fixture pattern: aws_env -> moto_aws (context manager) -> lambda_client/lambda_function"
 
-requirements-completed: [DEPLOY-01, DEPLOY-04, DEPLOY-05]
+requirements-completed: [DEPLOY-04, DEPLOY-05]
 
 duration: 3min
 completed: 2026-02-26
