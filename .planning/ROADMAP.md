@@ -150,10 +150,10 @@ Plans:
   3. `tenacity>=8.3` phantom dependency removed from backend/pyproject.toml
   4. `PyYAML>=6.0.1` dependency moved from utils to backend pyproject.toml (where YAML parsing actually happens)
   5. `moto` extras include `stepfunctions` in root pyproject.toml
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — Dependency hygiene (tenacity removal, PyYAML move, moto extras) + export cleanup (PushEvent/WebhookHeaders)
 
 ## Progress
 
