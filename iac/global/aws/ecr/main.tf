@@ -1,23 +1,16 @@
 data "aws_caller_identity" "current" {}
 
-resource "aws_ecr_repository" "backend" {
-  name                 = var.repository_name
-  image_tag_mutability = "MUTABLE"
-  force_delete         = false
+module "ecr_backend" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "2.4.0"
 
-  image_scanning_configuration {
-    scan_on_push = true
-  }
+  repository_name                 = var.repository_name
+  repository_image_tag_mutability = "MUTABLE"
+  repository_force_delete         = false
+  repository_image_scan_on_push   = true
 
-  tags = {
-    Name = var.repository_name
-  }
-}
-
-resource "aws_ecr_lifecycle_policy" "backend" {
-  repository = aws_ecr_repository.backend.name
-
-  policy = jsonencode({
+  create_lifecycle_policy = true
+  repository_lifecycle_policy = jsonencode({
     rules = [
       {
         rulePriority = 1
@@ -33,4 +26,8 @@ resource "aws_ecr_lifecycle_policy" "backend" {
       }
     ]
   })
+
+  tags = {
+    Name = var.repository_name
+  }
 }

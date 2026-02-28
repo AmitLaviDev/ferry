@@ -1,36 +1,29 @@
-resource "aws_s3_bucket" "state" {
+module "s3_bucket" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "4.10.0"
+
   bucket = var.bucket_name
 
-  tags = {
-    Name    = var.bucket_name
-    Purpose = "terraform-state"
+  versioning = {
+    enabled = true
   }
-}
 
-resource "aws_s3_bucket_versioning" "state" {
-  bucket = aws_s3_bucket.state.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
-  bucket = aws_s3_bucket.state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "aws:kms"
+  server_side_encryption_configuration = {
+    rule = {
+      apply_server_side_encryption_by_default = {
+        sse_algorithm = "aws:kms"
+      }
+      bucket_key_enabled = true
     }
-    bucket_key_enabled = true
   }
-}
-
-resource "aws_s3_bucket_public_access_block" "state" {
-  bucket = aws_s3_bucket.state.id
 
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+
+  tags = {
+    Name    = var.bucket_name
+    Purpose = "terraform-state"
+  }
 }

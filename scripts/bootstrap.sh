@@ -222,7 +222,7 @@ step_placeholder() {
   docker build \
     --platform linux/arm64 \
     -t "${ecr_uri}:${PLACEHOLDER_TAG}" \
-    "$ECR_DIR/placeholder"
+    "$REPO_ROOT/iac/resources/placeholders/ecr_image"
 
   log_info "Pushing placeholder image..."
   docker push "${ecr_uri}:${PLACEHOLDER_TAG}"
