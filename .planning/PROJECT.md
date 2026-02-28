@@ -29,7 +29,16 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Active
 
-(None — next milestone requirements TBD via `/gsd:new-milestone`)
+<!-- v1.1: Deploy Ferry to Staging -->
+
+- [ ] Bootstrap Terraform state backend (S3 bucket) in Ferry's own AWS account
+- [ ] Create ECR repo for Ferry Lambda container
+- [ ] Set up shared IAM roles and policies for Lambda execution
+- [ ] Store GitHub App secrets in Secrets Manager
+- [ ] Deploy Ferry Lambda with Function URL
+- [ ] Deploy DynamoDB table for webhook dedup
+- [ ] Create self-deploy GHA workflow (build, push ECR, update Lambda)
+- [ ] Register GitHub App (manual step)
 
 ### Out of Scope
 
@@ -44,6 +53,27 @@ When a developer pushes code, every affected serverless resource is automaticall
 - ECR repo creation — user's IaC creates ECR repos, Ferry pushes to them
 - Drift detection — process problem, not a tooling problem for v1
 - Local dev/testing — Ferry is a CI/CD tool, not a dev tool
+
+## Current Milestone: v1.1 Deploy to Staging
+
+**Goal:** Stand up Ferry's AWS infrastructure from scratch so we can test it end-to-end and inform future milestones.
+
+**Target features:**
+- Terraform IaC following ConvergeBio/iac-tf patterns (global/cloud/aws + teams/platform/aws hierarchy)
+- Bootstrap: S3 state backend, ECR repo
+- Staging environment: Lambda + Function URL + DynamoDB + IAM + Secrets Manager
+- Self-deploy GHA workflow for the Ferry Lambda container
+- GitHub App registration (manual)
+
+**Structure:**
+```
+iac/
+├── global/cloud/aws/backend/    # TF state S3 bucket
+├── global/cloud/aws/ecr/        # Ferry Lambda ECR repo
+└── teams/platform/aws/staging/
+    ├── shared/                   # IAM roles, Secrets Manager
+    └── us_east_1/ferry_backend/  # Lambda + Function URL + DynamoDB
+```
 
 ## Context
 
@@ -142,4 +172,4 @@ api_gateways:
 | Envsubst for Step Functions | Safe regex: only ${ACCOUNT_ID} and ${AWS_REGION}, preserves JSONPath | ✓ Good — avoids corrupting state machine definitions |
 
 ---
-*Last updated: 2026-02-28 after v1.0 milestone*
+*Last updated: 2026-02-28 after v1.1 milestone started*

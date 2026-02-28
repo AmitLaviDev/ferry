@@ -5,13 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.0 shipped. Planning next milestone.
+**Current focus:** v1.1 Deploy to Staging
 
 ## Current Position
 
-Milestone: v1.0 MVP — SHIPPED 2026-02-28
-Status: Milestone complete
-Last activity: 2026-02-28 -- v1.0 milestone archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-28 — Milestone v1.1 started
 
 ## Performance Metrics (v1.0)
 
