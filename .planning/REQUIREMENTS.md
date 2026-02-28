@@ -9,9 +9,9 @@ Requirements for deploying Ferry to its own AWS account. Each maps to roadmap ph
 
 ### Bootstrap
 
-- [ ] **BOOT-01**: Terraform state stored in S3 with DynamoDB locking in Ferry's AWS account
-- [ ] **BOOT-02**: ECR repository (`ferry/backend`) exists with lifecycle policy (keep last 10 images)
-- [ ] **BOOT-03**: Placeholder container image pushed to ECR to unblock Lambda creation
+- [x] **BOOT-01**: Terraform state stored in S3 with DynamoDB locking in Ferry's AWS account
+- [x] **BOOT-02**: ECR repository (`ferry/backend`) exists with lifecycle policy (keep last 10 images)
+- [x] **BOOT-03**: Placeholder container image pushed to ECR to unblock Lambda creation
 
 ### Shared Infrastructure
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | Phase 11 | Pending |
-| BOOT-02 | Phase 11 | Pending |
-| BOOT-03 | Phase 11 | Pending |
+| BOOT-01 | Phase 11 | Complete |
+| BOOT-02 | Phase 11 | Complete |
+| BOOT-03 | Phase 11 | Complete |
 | IAM-01 | Phase 12 | Pending |
 | IAM-02 | Phase 12 | Pending |
 | IAM-03 | Phase 12 | Pending |

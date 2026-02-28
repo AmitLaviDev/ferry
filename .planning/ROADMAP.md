@@ -128,7 +128,7 @@ Plans:
 | 8. Error Surfacing and Failure Reporting | v1.0 | 2/2 | Complete | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
-| 11. Bootstrap + Global Resources | v1.1 | 0/2 | Planned | — |
+| 11. Bootstrap + Global Resources | 1/2 | In Progress|  | — |
 | 12. Shared IAM + Secrets | v1.1 | 0/? | Not started | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |

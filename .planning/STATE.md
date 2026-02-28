@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 11 of 14 (Bootstrap + Global Resources)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-28 — Roadmap created for v1.1 milestone
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-02-28 — Completed 11-01 (Terraform projects)
 
-Progress: [####################..........] 67% (v1.0 complete, v1.1 0/4 phases)
+Progress: [#####################.........] 71% (v1.0 complete, v1.1 Phase 11: 1/2 plans)
 
 ## Performance Metrics
 
@@ -23,7 +23,10 @@ Progress: [####################..........] 67% (v1.0 complete, v1.1 0/4 phases)
 - Average duration: 4min
 - Total execution time: 1.27 hours
 
-**v1.1:** No plans executed yet.
+**v1.1:**
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 11 | 01 | 1min | 2 | 10 |
 
 ## Accumulated Context
 
@@ -35,6 +38,9 @@ v1.1 decisions so far:
 - Secrets Manager containers in TF, values populated manually via CLI (never in TF state)
 - settings.py will load secrets from Secrets Manager ARNs at cold start (code change required)
 - lifecycle { ignore_changes = [image_uri] } on Lambda — TF owns infra, GHA owns deployed code
+- No assume_role in global bootstrap projects -- ambient credentials for one-time setup (Phase 11)
+- default_tags on provider for ManagedBy + Project tags; resource-specific tags only where needed (Phase 11)
+- aws_caller_identity data source for account ID in ECR outputs -- no hardcoded IDs (Phase 11)
 
 ### Pending Todos
 
@@ -49,5 +55,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: v1.1 roadmap created, ready to plan Phase 11
+Stopped at: Completed 11-01-PLAN.md (Terraform projects for S3 backend + ECR)
 Resume file: None
