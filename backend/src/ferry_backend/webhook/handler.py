@@ -15,7 +15,12 @@ import structlog
 
 from ferry_backend.auth.jwt import generate_app_jwt
 from ferry_backend.auth.tokens import get_installation_token
-from ferry_backend.checks.runs import create_check_run, find_open_prs
+from ferry_backend.checks.runs import (
+    create_check_run,
+    find_merged_pr,
+    find_open_prs,
+    post_pr_comment,
+)
 from ferry_backend.config.loader import fetch_ferry_config, parse_config
 from ferry_backend.config.schema import validate_config
 from ferry_backend.detect.changes import (
@@ -33,7 +38,7 @@ from ferry_backend.logging import configure_logging
 from ferry_backend.settings import Settings
 from ferry_backend.webhook.dedup import is_duplicate
 from ferry_backend.webhook.signature import verify_signature
-from ferry_utils.errors import ConfigError
+from ferry_utils.errors import ConfigError, GitHubAuthError
 
 # Module-level initialization for Lambda cold start optimization
 settings = Settings()
@@ -113,106 +118,139 @@ def handler(event: dict, context: object) -> dict:
         return _response(200, {"status": "duplicate"})
 
     # --- Phase 2: Auth -> Config -> Detect -> Dispatch/Check Run ---
+    # Wrapped in top-level exception handler (Phase 8) to ensure
+    # all errors produce structured JSON responses.
 
-    # 8. Authenticate as GitHub App installation
-    jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
-    github_client.app_auth(jwt_token)
-    inst_token = get_installation_token(
-        github_client, jwt_token, settings.installation_id,
-    )
-    github_client.installation_auth(inst_token)
-
-    # 9. Extract push context
-    before_sha = payload.get("before", "")
-    after_sha = payload.get("after", "")
-    ref = payload.get("ref", "")
-    default_branch = payload["repository"]["default_branch"]
-    branch = ref.removeprefix("refs/heads/")
-    is_default_branch = branch == default_branch
-
-    structlog.contextvars.bind_contextvars(
-        branch=branch,
-        is_default_branch=is_default_branch,
-        after_sha=after_sha[:7],
-    )
-
-    # 10. Fetch and validate config (fail-fast)
     try:
+        # 8. Authenticate as GitHub App installation
+        jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
+        github_client.app_auth(jwt_token)
+        inst_token = get_installation_token(
+            github_client, jwt_token, settings.installation_id,
+        )
+        github_client.installation_auth(inst_token)
+
+        # 9. Extract push context
+        before_sha = payload.get("before", "")
+        after_sha = payload.get("after", "")
+        ref = payload.get("ref", "")
+        default_branch = payload["repository"]["default_branch"]
+        branch = ref.removeprefix("refs/heads/")
+        is_default_branch = branch == default_branch
+
+        structlog.contextvars.bind_contextvars(
+            branch=branch,
+            is_default_branch=is_default_branch,
+            after_sha=after_sha[:7],
+        )
+
+        # 10. Fetch and validate config (fail-fast)
         raw_yaml = fetch_ferry_config(github_client, repo, after_sha)
         parsed = parse_config(raw_yaml)
         config = validate_config(parsed)
+
+        # 11. Detect changes
+        is_initial_push = before_sha == "0" * 40
+        if is_initial_push:
+            # All resources affected on initial push
+            affected = detect_config_changes(None, config)
+        else:
+            # PR branches: merge-base diff (default_branch...head)
+            # Default branch: before...after (the merge commit landing)
+            # Three-dot compare uses merge-base automatically for PR branches
+            compare_base = before_sha if is_default_branch else default_branch
+            changed_files = get_changed_files(
+                github_client, repo, compare_base, after_sha,
+            )
+            affected = match_resources(config, changed_files)
+
+            # Config diff if ferry.yaml itself changed
+            if "ferry.yaml" in changed_files:
+                try:
+                    old_raw = fetch_ferry_config(
+                        github_client, repo, before_sha,
+                    )
+                    old_parsed = parse_config(old_raw)
+                    old_config = validate_config(old_parsed)
+                except ConfigError:
+                    old_config = None  # Old config invalid -> all new
+                config_affected = detect_config_changes(
+                    old_config, config,
+                )
+                affected = merge_affected(affected, config_affected)
+
+        log.info("changes_detected", affected_count=len(affected))
+
+        # 12. Branch-dependent behavior
+        # Default branch pushes: trigger dispatches
+        if is_default_branch and affected:
+            # For default branch, find merged PR number
+            prs = find_open_prs(github_client, repo, after_sha)
+            pr_number = str(prs[0]["number"]) if prs else ""
+            tag = build_deployment_tag(pr_number, branch, after_sha)
+            trigger_dispatches(
+                github_client, repo, config, affected,
+                after_sha, tag, pr_number,
+                default_branch=default_branch,
+            )
+            log.info(
+                "dispatches_triggered",
+                count=len({r.resource_type for r in affected}),
+            )
+
+        # 13. Check Run for PRs (always, even with no changes)
+        if not is_default_branch:
+            prs = find_open_prs(github_client, repo, after_sha)
+            if prs:
+                create_check_run(
+                    github_client, repo, after_sha, affected,
+                )
+
+        return _response(
+            200, {"status": "processed", "affected": len(affected)},
+        )
+
     except ConfigError as exc:
         log.error("config_error", error=str(exc))
-        # Post failed Check Run if this is a PR push
+        # Surface config errors as PR comments (not Check Runs)
+        comment_body = (
+            "**Ferry: Configuration Error**\n\n"
+            "ferry.yaml validation failed:\n"
+            f"```\n{exc!s}\n```"
+        )
+        # PR branches: comment on the open PR
         prs = find_open_prs(github_client, repo, after_sha)
         if prs:
-            create_check_run(
-                github_client, repo, after_sha, [], error=str(exc),
+            post_pr_comment(
+                github_client, repo, prs[0]["number"], comment_body,
             )
+        else:
+            # Default branch: find the merged PR
+            merged_pr = find_merged_pr(github_client, repo, after_sha)
+            if merged_pr:
+                post_pr_comment(
+                    github_client, repo, merged_pr["number"], comment_body,
+                )
+            else:
+                log.warning(
+                    "config_error_no_pr",
+                    reason="no open or merged PR found for comment",
+                )
         return _response(
             200, {"status": "config_error", "error": str(exc)},
         )
 
-    # 11. Detect changes
-    is_initial_push = before_sha == "0" * 40
-    if is_initial_push:
-        # All resources affected on initial push
-        affected = detect_config_changes(None, config)
-    else:
-        # PR branches: merge-base diff (default_branch...head)
-        # Default branch: before...after (the merge commit landing)
-        # Three-dot compare uses merge-base automatically for PR branches
-        compare_base = before_sha if is_default_branch else default_branch
-        changed_files = get_changed_files(
-            github_client, repo, compare_base, after_sha,
-        )
-        affected = match_resources(config, changed_files)
-
-        # Config diff if ferry.yaml itself changed
-        if "ferry.yaml" in changed_files:
-            try:
-                old_raw = fetch_ferry_config(
-                    github_client, repo, before_sha,
-                )
-                old_parsed = parse_config(old_raw)
-                old_config = validate_config(old_parsed)
-            except ConfigError:
-                old_config = None  # Old config invalid -> all new
-            config_affected = detect_config_changes(
-                old_config, config,
-            )
-            affected = merge_affected(affected, config_affected)
-
-    log.info("changes_detected", affected_count=len(affected))
-
-    # 12. Branch-dependent behavior
-    # Default branch pushes: trigger dispatches
-    if is_default_branch and affected:
-        # For default branch, find merged PR number
-        prs = find_open_prs(github_client, repo, after_sha)
-        pr_number = str(prs[0]["number"]) if prs else ""
-        tag = build_deployment_tag(pr_number, branch, after_sha)
-        trigger_dispatches(
-            github_client, repo, config, affected,
-            after_sha, tag, pr_number,
-            default_branch=default_branch,
-        )
-        log.info(
-            "dispatches_triggered",
-            count=len({r.resource_type for r in affected}),
+    except GitHubAuthError as exc:
+        log.error("auth_error", error=str(exc), exc_info=True)
+        return _response(
+            500, {"status": "auth_error", "error": str(exc)},
         )
 
-    # 13. Check Run for PRs (always, even with no changes)
-    if not is_default_branch:
-        prs = find_open_prs(github_client, repo, after_sha)
-        if prs:
-            create_check_run(
-                github_client, repo, after_sha, affected,
-            )
-
-    return _response(
-        200, {"status": "processed", "affected": len(affected)},
-    )
+    except Exception as exc:
+        log.error("unhandled_error", error=str(exc), exc_info=True)
+        return _response(
+            500, {"status": "internal_error", "error": "internal server error"},
+        )
 
 
 def _response(status_code: int, body: dict) -> dict:

@@ -213,6 +213,18 @@ def _mock_dispatch(httpx_mock, workflow_file="ferry-lambdas.yml"):
     )
 
 
+def _mock_pr_comment(httpx_mock, pr_number):
+    """Mock the Issues Comments API endpoint for PR comments."""
+    httpx_mock.add_response(
+        url=(
+            f"https://api.github.com/repos/owner/repo"
+            f"/issues/{pr_number}/comments"
+        ),
+        json={"id": 100, "body": "test"},
+        status_code=201,
+    )
+
+
 class TestHandlerPhase2:
     def test_handler_default_branch_push_triggers_dispatch(
         self, dynamodb_env, httpx_mock, monkeypatch,
@@ -380,10 +392,10 @@ class TestHandlerPhase2:
         assert f"compare/main...{after}" in compare_url
         assert f"compare/{before}" not in compare_url
 
-    def test_handler_config_error_creates_failed_check_run(
+    def test_config_error_posts_pr_comment_not_check_run(
         self, dynamodb_env, httpx_mock, monkeypatch,
     ):
-        """Push to PR branch with invalid ferry.yaml -> failed check run."""
+        """Push to PR branch with invalid ferry.yaml -> PR comment, NOT check run."""
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
             lambda app_id, pk: "fake-jwt",
@@ -398,7 +410,7 @@ class TestHandlerPhase2:
         )
 
         _mock_installation_token(httpx_mock)
-        # Return invalid YAML content (404 = no ferry.yaml)
+        # Return 404 (no ferry.yaml) to trigger ConfigError
         httpx_mock.add_response(
             url=(
                 f"https://api.github.com"
@@ -411,7 +423,7 @@ class TestHandlerPhase2:
             httpx_mock, after,
             prs=[{"number": 42, "state": "open"}],
         )
-        _mock_check_run(httpx_mock)
+        _mock_pr_comment(httpx_mock, 42)
 
         from ferry_backend.webhook.handler import handler
 
@@ -421,15 +433,21 @@ class TestHandlerPhase2:
         assert body["status"] == "config_error"
         assert "error" in body
 
-        # Verify failed check run was posted
+        # Verify PR comment was posted (not a Check Run)
         requests = httpx_mock.get_requests()
+        comment_reqs = [
+            r for r in requests if "/issues/" in str(r.url)
+        ]
+        assert len(comment_reqs) == 1
+        comment_body = json.loads(comment_reqs[0].content)
+        assert "Configuration Error" in comment_body["body"]
+        assert "ferry.yaml validation failed" in comment_body["body"]
+
+        # Verify NO check run was posted
         check_reqs = [
             r for r in requests if "check-runs" in str(r.url)
         ]
-        assert len(check_reqs) == 1
-        check_body = json.loads(check_reqs[0].content)
-        assert check_body["conclusion"] == "failure"
-        assert check_body["output"]["title"] == "Configuration Error"
+        assert len(check_reqs) == 0
 
     def test_handler_no_changes_creates_empty_check_run(
         self, dynamodb_env, httpx_mock, monkeypatch,
@@ -602,3 +620,119 @@ class TestHandlerPhase2:
             if "dispatches" in str(r.url)
         ]
         assert len(dispatch_reqs) == 1
+
+    def test_config_error_default_branch_posts_to_merged_pr(
+        self, dynamodb_env, httpx_mock, monkeypatch,
+    ):
+        """Push to default branch with invalid ferry.yaml -> comment on merged PR."""
+        monkeypatch.setattr(
+            "ferry_backend.webhook.handler.generate_app_jwt",
+            lambda app_id, pk: "fake-jwt",
+        )
+
+        after = "j" * 40
+        event = _make_push_event(
+            ref="refs/heads/main",
+            before="a" * 40,
+            after=after,
+            delivery_id="delivery-p2-008",
+        )
+
+        _mock_installation_token(httpx_mock)
+        # Return 404 (no ferry.yaml) to trigger ConfigError
+        httpx_mock.add_response(
+            url=(
+                f"https://api.github.com"
+                f"/repos/owner/repo/contents/ferry.yaml?ref={after}"
+            ),
+            status_code=404,
+            json={"message": "Not Found"},
+        )
+        # find_open_prs is called first (returns empty -- no open PRs).
+        # find_merged_pr is called second (returns the merged PR).
+        # Both hit the same endpoint, so register the response twice.
+        merged_prs = [
+            {
+                "number": 55,
+                "state": "closed",
+                "merged_at": "2026-02-28T00:00:00Z",
+            },
+        ]
+        _mock_prs_for_commit(httpx_mock, after, prs=merged_prs)
+        _mock_prs_for_commit(httpx_mock, after, prs=merged_prs)
+        _mock_pr_comment(httpx_mock, 55)
+
+        from ferry_backend.webhook.handler import handler
+
+        result = handler(event, None)
+        body = json.loads(result["body"])
+        assert result["statusCode"] == 200
+        assert body["status"] == "config_error"
+
+        # Verify PR comment was posted on the merged PR
+        requests = httpx_mock.get_requests()
+        comment_reqs = [
+            r for r in requests if "/issues/" in str(r.url)
+        ]
+        assert len(comment_reqs) == 1
+        assert "/issues/55/comments" in str(comment_reqs[0].url)
+        comment_body = json.loads(comment_reqs[0].content)
+        assert "Configuration Error" in comment_body["body"]
+
+    def test_auth_error_returns_structured_500(
+        self, dynamodb_env, httpx_mock, monkeypatch,
+    ):
+        """GitHubAuthError in handler -> structured 500 with auth_error status."""
+        from ferry_utils.errors import GitHubAuthError
+
+        monkeypatch.setattr(
+            "ferry_backend.webhook.handler.generate_app_jwt",
+            lambda app_id, pk: (_ for _ in ()).throw(
+                GitHubAuthError("JWT generation failed: bad key"),
+            ),
+        )
+
+        after = "k" * 40
+        event = _make_push_event(
+            ref="refs/heads/main",
+            before="a" * 40,
+            after=after,
+            delivery_id="delivery-p2-009",
+        )
+
+        from ferry_backend.webhook.handler import handler
+
+        result = handler(event, None)
+        body = json.loads(result["body"])
+        assert result["statusCode"] == 500
+        assert body["status"] == "auth_error"
+        assert "JWT generation failed" in body["error"]
+
+    def test_unhandled_error_returns_structured_500(
+        self, dynamodb_env, httpx_mock, monkeypatch,
+    ):
+        """Unexpected exception -> structured 500 with internal_error, no leak."""
+        monkeypatch.setattr(
+            "ferry_backend.webhook.handler.generate_app_jwt",
+            lambda app_id, pk: (_ for _ in ()).throw(
+                RuntimeError("super secret internal detail"),
+            ),
+        )
+
+        after = "m" * 40
+        event = _make_push_event(
+            ref="refs/heads/main",
+            before="a" * 40,
+            after=after,
+            delivery_id="delivery-p2-010",
+        )
+
+        from ferry_backend.webhook.handler import handler
+
+        result = handler(event, None)
+        body = json.loads(result["body"])
+        assert result["statusCode"] == 500
+        assert body["status"] == "internal_error"
+        assert body["error"] == "internal server error"
+        # Must NOT leak internal details
+        assert "super secret" not in body["error"]

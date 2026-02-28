@@ -1,4 +1,4 @@
-"""Tests for Check Run creation: format_deployment_plan, create_check_run, find_open_prs, find_merged_pr, post_pr_comment."""
+"""Tests for Check Runs, PR comments, and PR lookup functions."""
 
 from __future__ import annotations
 
