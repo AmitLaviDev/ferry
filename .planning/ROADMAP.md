@@ -44,16 +44,15 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   1. `terraform init` in any subsequent project succeeds against the S3 backend with DynamoDB locking
   2. `docker push` to the `ferry/backend` ECR repo succeeds and the lifecycle policy retains only the last 10 images
   3. A placeholder container image exists in ECR that can be referenced by a Lambda resource
-**Plans**: TBD
+**Plans**: 2 plans
 
 **Manual Steps:**
 - Have AWS account credentials configured locally before starting
-- Run `terraform apply` with local state for the bootstrap project, then `terraform init -migrate-state` to move state into S3
-- Run `terraform apply` for ECR project
-- Pull public Lambda Python base image, tag it, and push to ECR as placeholder (`docker pull` / `docker tag` / `docker push`)
+- Run `scripts/bootstrap.sh` which handles: S3 bucket creation with state migration, ECR repository creation, and placeholder image build+push
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — S3 state backend + ECR repository + placeholder image TF projects
+- [ ] 11-02-PLAN.md — Idempotent bootstrap script
 
 ### Phase 12: Shared IAM + Secrets
 **Goal**: IAM roles and secrets infrastructure exist so the Lambda can assume its execution role and the GHA workflow can authenticate via OIDC
@@ -129,7 +128,7 @@ Plans:
 | 8. Error Surfacing and Failure Reporting | v1.0 | 2/2 | Complete | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
-| 11. Bootstrap + Global Resources | v1.1 | 0/? | Not started | — |
+| 11. Bootstrap + Global Resources | v1.1 | 0/2 | Planned | — |
 | 12. Shared IAM + Secrets | v1.1 | 0/? | Not started | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |
