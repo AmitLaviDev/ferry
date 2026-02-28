@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] ~~**Phase 5: Integration and Error Reporting**~~ - *Superseded: E2E flows verified by Phases 1-4+6; error surfacing moved to Phase 8*
 - [x] **Phase 6: Fix Lambda function_name Pipeline** - Close DEPLOY-01 integration break (function_name dropped in dispatch pipeline) (completed 2026-02-27)
 - [x] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter (completed 2026-02-27)
-- [ ] **Phase 8: Error Surfacing and Failure Reporting** - Close WHOOK-03: surface build/deploy failures in PR status checks and workflow logs
+- [x] **Phase 8: Error Surfacing and Failure Reporting** - Close WHOOK-03: surface build/deploy failures in PR status checks and workflow logs (completed 2026-02-28)
 - [ ] **Phase 9: Tech Debt Cleanup (Round 2)** - Resolve remaining low-severity tech debt from second audit
 
 ## Phase Details
@@ -169,5 +169,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5(superseded) → 6 →
 | 5. Integration and Error Reporting | — | Superseded | — |
 | 6. Fix Lambda function_name Pipeline | 1/1 | Complete | 2026-02-27 |
 | 7. Tech Debt Cleanup | 3/3 | Complete | 2026-02-27 |
-| 8. Error Surfacing and Failure Reporting | 0/? | Not started | - |
+| 8. Error Surfacing and Failure Reporting | 0/? | Complete    | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | 0/? | Not started | - |
