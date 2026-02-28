@@ -165,7 +165,7 @@ Plans:
   1. All three workflow docs (`docs/lambdas.md`, `docs/step-functions.md`, `docs/api-gateways.md`) include `checks:write` in the `permissions:` block
   2. `docs/lambdas.md` deploy step includes `trigger-sha` and `github-token` inputs matching `action/deploy/action.yml`
   3. `BuildError` and `DeployError` in `ferry_utils/errors.py` are either used in action code or removed
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [ ] 10-01-PLAN.md — Fix workflow doc permissions/inputs + remove unused error classes
