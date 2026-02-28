@@ -78,6 +78,19 @@ class GitHubClient:
         url = f"{self.base_url}{path}"
         return self._client.post(url, headers=self._headers, **kwargs)
 
+    def patch(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Send PATCH request to GitHub API.
+
+        Args:
+            path: API path (e.g., "/repos/{owner}/{repo}/check-runs/{id}").
+            **kwargs: Additional arguments passed to httpx.Client.patch (e.g., json=...).
+
+        Returns:
+            httpx.Response from the API.
+        """
+        url = f"{self.base_url}{path}"
+        return self._client.patch(url, headers=self._headers, **kwargs)
+
     def close(self) -> None:
         """Close the underlying httpx client."""
         self._client.close()

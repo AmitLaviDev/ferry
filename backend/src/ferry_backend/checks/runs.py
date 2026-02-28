@@ -156,3 +156,61 @@ def find_open_prs(
     resp = client.get(f"/repos/{repo}/commits/{sha}/pulls")
     prs = resp.json()
     return [pr for pr in prs if pr.get("state") == "open"]
+
+
+def find_merged_pr(
+    client: GitHubClient,
+    repo: str,
+    sha: str,
+) -> dict | None:
+    """Find the merged PR associated with a commit SHA.
+
+    Uses the same endpoint as find_open_prs but filters by merged_at
+    instead of state=="open". This handles the case where a PR is already
+    merged/closed (e.g., config error on default branch push).
+
+    Args:
+        client: Authenticated GitHubClient with installation token.
+        repo: Repository full name (owner/repo).
+        sha: Commit SHA to find the merged PR for.
+
+    Returns:
+        The first merged PR dict, or None if no merged PR found.
+    """
+    resp = client.get(f"/repos/{repo}/commits/{sha}/pulls")
+    prs = resp.json()
+    for pr in prs:
+        if pr.get("merged_at") is not None:
+            return pr
+    return None
+
+
+def post_pr_comment(
+    client: GitHubClient,
+    repo: str,
+    pr_number: int,
+    body: str,
+) -> dict:
+    """Post a comment on a PR (issues API -- PRs are issues).
+
+    Args:
+        client: Authenticated GitHubClient with installation token.
+        repo: Repository full name (owner/repo).
+        pr_number: PR number to comment on.
+        body: Markdown body for the comment.
+
+    Returns:
+        Response JSON from the Issues Comments API.
+    """
+    resp = client.post(
+        f"/repos/{repo}/issues/{pr_number}/comments",
+        json={"body": body},
+    )
+
+    logger.info(
+        "pr_comment_posted",
+        repo=repo,
+        pr_number=pr_number,
+    )
+
+    return resp.json()

@@ -1,4 +1,4 @@
-"""Tests for Check Run creation: format_deployment_plan, create_check_run, find_open_prs."""
+"""Tests for Check Run creation: format_deployment_plan, create_check_run, find_open_prs, find_merged_pr, post_pr_comment."""
 
 from __future__ import annotations
 
@@ -6,8 +6,10 @@ import json
 
 from ferry_backend.checks.runs import (
     create_check_run,
+    find_merged_pr,
     find_open_prs,
     format_deployment_plan,
+    post_pr_comment,
 )
 from ferry_backend.detect.changes import AffectedResource
 from ferry_backend.github.client import GitHubClient
@@ -222,3 +224,92 @@ class TestFindOpenPrs:
         assert len(result) == 2
         numbers = {pr["number"] for pr in result}
         assert numbers == {42, 99}
+
+
+# ---------------------------------------------------------------------------
+# find_merged_pr
+# ---------------------------------------------------------------------------
+
+
+class TestFindMergedPr:
+    def test_find_merged_pr_returns_merged(self, httpx_mock):
+        """Returns PR with merged_at set."""
+        httpx_mock.add_response(
+            url=(
+                "https://api.github.com/repos/owner/repo"
+                "/commits/sha123/pulls"
+            ),
+            json=[
+                {"number": 10, "state": "closed", "merged_at": None},
+                {"number": 42, "state": "closed", "merged_at": "2026-02-28T00:00:00Z"},
+            ],
+        )
+
+        client = GitHubClient()
+        result = find_merged_pr(client, "owner/repo", "sha123")
+        assert result is not None
+        assert result["number"] == 42
+
+    def test_find_merged_pr_returns_none_when_no_merged(self, httpx_mock):
+        """Returns None when no PRs have merged_at set."""
+        httpx_mock.add_response(
+            url=(
+                "https://api.github.com/repos/owner/repo"
+                "/commits/sha123/pulls"
+            ),
+            json=[
+                {"number": 10, "state": "closed", "merged_at": None},
+                {"number": 11, "state": "open", "merged_at": None},
+            ],
+        )
+
+        client = GitHubClient()
+        result = find_merged_pr(client, "owner/repo", "sha123")
+        assert result is None
+
+    def test_find_merged_pr_returns_first_merged(self, httpx_mock):
+        """Returns the first merged PR when multiple exist."""
+        httpx_mock.add_response(
+            url=(
+                "https://api.github.com/repos/owner/repo"
+                "/commits/sha123/pulls"
+            ),
+            json=[
+                {"number": 42, "state": "closed", "merged_at": "2026-02-28T00:00:00Z"},
+                {"number": 43, "state": "closed", "merged_at": "2026-02-28T01:00:00Z"},
+            ],
+        )
+
+        client = GitHubClient()
+        result = find_merged_pr(client, "owner/repo", "sha123")
+        assert result is not None
+        assert result["number"] == 42
+
+
+# ---------------------------------------------------------------------------
+# post_pr_comment
+# ---------------------------------------------------------------------------
+
+
+class TestPostPrComment:
+    def test_post_pr_comment_posts_to_issues_api(self, httpx_mock):
+        """Verify post_pr_comment sends POST to issues comments endpoint."""
+        httpx_mock.add_response(
+            url=(
+                "https://api.github.com/repos/owner/repo"
+                "/issues/42/comments"
+            ),
+            json={"id": 100, "body": "test comment"},
+            status_code=201,
+        )
+
+        client = GitHubClient()
+        result = post_pr_comment(
+            client, "owner/repo", 42, "test comment",
+        )
+        assert result["id"] == 100
+
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        assert body["body"] == "test comment"
+        assert "/issues/42/comments" in str(request.url)
