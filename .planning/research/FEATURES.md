@@ -1,187 +1,174 @@
 # Feature Landscape
 
-**Domain:** Serverless AWS deployment automation (Lambda, Step Functions, API Gateway)
-**Researched:** 2026-02-21
-**Confidence:** MEDIUM (based on training data for competitor products; web verification unavailable)
-
-## Competitive Landscape Summary
-
-Products analyzed across the serverless deployment automation space:
-
-| Product | Model | Relevance to Ferry |
-|---------|-------|-------------------|
-| **Digger** | GitHub App + GHA (Terraform) | Direct architectural model -- Ferry adapts this for serverless code deploys |
-| **SST (Ion)** | CLI + Console | Full framework approach, different philosophy but feature benchmark |
-| **Serverless Framework v4** | CLI + Dashboard | Plugin ecosystem, stage management, packaging |
-| **AWS SAM** | CLI (CloudFormation) | AWS-native baseline, local dev focus |
-| **Seed.run** | Hosted CI/CD (Serverless Framework) | Closest to Ferry's hosted model for serverless |
-| **ArgoCD** | GitOps controller (K8s) | GitOps sync/status model Ferry should emulate |
-
----
+**Domain:** AWS IaC deployment for a GitHub App Lambda backend (staging environment)
+**Researched:** 2026-02-28
+**Milestone:** v1.1 Deploy to Staging
 
 ## Table Stakes
 
-Features users expect. Missing any of these means the product feels broken or incomplete.
+Features the infrastructure MUST have for the app to function and be operationally viable. Missing any of these means the Lambda cannot serve webhook traffic.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Change detection** | Every competitor detects what changed. Deploying everything on every push is unacceptable for repos with 10+ resources. | Medium | Ferry uses commit diff + ferry.yaml path mappings. Digger does file-path matching for Terraform. Seed.run does incremental deploys. This is non-negotiable. |
-| **Container/artifact build** | Users expect the tool to handle building, not just deploying. SAM builds, SST builds, Serverless packages. Ferry's magic Dockerfile IS the build. | Medium | Ferry's key UX win -- one Dockerfile for all Lambdas. Must handle build caching (ECR layer cache) or builds become painfully slow. |
-| **Multi-resource deployment** | A single push often changes multiple Lambdas. Deploying one-at-a-time manually is what Ferry replaces. | Medium | Ferry dispatches per resource type, with payload listing all changed resources of that type. Parallel execution within a dispatch is expected. |
-| **PR status reporting** | Digger posts plan output on PRs. ArgoCD shows sync status. SST Console shows deploy status. Users need to know what WILL deploy before merging. | Medium | GitHub Checks API -- post which resources are affected, build/deploy status. This is the primary UI since Ferry has no dashboard. |
-| **Webhook signature validation** | Security baseline. Any GitHub App that doesn't validate HMAC-SHA256 signatures is a vulnerability. | Low | Standard implementation. Already in Ferry's requirements. |
-| **Idempotent delivery** | GitHub sends duplicate webhooks. Processing them twice causes wasted builds or race conditions. | Low | DynamoDB conditional writes for dedup. Already in Ferry's requirements. |
-| **OIDC authentication** | Storing AWS credentials as GitHub secrets is the old way. OIDC federation is table stakes in 2026. Digger, AWS's own docs, and GitHub all push OIDC. | Low | User provides role ARN, Ferry Action does OIDC exchange + optional role chaining. |
-| **Deployment tagging** | Users need to correlate deployments with code. "Which commit is running in prod?" must be answerable. | Low | Tag ECR images and Lambda versions with git SHA, PR number, or branch. Reference impl uses `pr-{number}` and `{branch}-{commit}`. |
-| **Clear error reporting** | When a deploy fails, users need to see the error in the PR/workflow, not hunt through CloudWatch. | Low | Surface build failures, deploy failures, and permission errors in GHA output AND PR status checks. |
+| S3 State Backend + DynamoDB Lock | Terraform state must be stored remotely with locking for CI/CD; local state breaks team workflows and GHA self-deploy | Low | Bootstrap project -- must be created first, before all other TF projects. Single S3 bucket + DynamoDB lock table. |
+| ECR Repository for Ferry Lambda | Container image registry for the backend Lambda; must exist before first push | Low | Single repo (`ferry/backend` or similar). Lifecycle policy to limit stored images (keep last 10-20). |
+| Lambda Function (Container Image) | The actual compute resource running the webhook handler | Med | Container image deployment (not zip). 256-512MB memory. 30s timeout sufficient for webhook processing. ARM64 (Graviton) for cost savings. |
+| Lambda Function URL (auth_type=NONE) | Webhook endpoint -- GitHub sends POST requests here; GitHub cannot sign AWS IAM requests so NONE auth is mandatory | Low | Auth type MUST be NONE because GitHub webhook delivery has no AWS IAM capability. The app validates via HMAC-SHA256 signature in the handler code itself. CORS not needed (server-to-server). |
+| DynamoDB Table for Dedup | Webhook deduplication requires conditional writes; the app code already expects this table | Low | Partition key `pk` (String), sort key `sk` (String). TTL attribute `expires_at`. PAY_PER_REQUEST billing (low, bursty traffic). |
+| DynamoDB TTL Enabled | Automatic cleanup of expired dedup records (24h TTL set in app code) | Low | TTL attribute name: `expires_at`. Without this, the table grows forever. DynamoDB TTL deletes are free (no WCU consumed). |
+| Secrets Manager Secret(s) | GitHub App credentials (private key, webhook secret, app ID, installation ID) must not be in env vars or code | Med | App reads FERRY_PRIVATE_KEY, FERRY_WEBHOOK_SECRET, FERRY_APP_ID, FERRY_INSTALLATION_ID from env vars (pydantic-settings). Two options: (A) Lambda env vars referencing Secrets Manager via extension, or (B) env vars populated from TF `data.aws_secretsmanager_secret_version`. Option B is simpler for staging. |
+| IAM Execution Role | Lambda needs permissions for DynamoDB writes, Secrets Manager reads, CloudWatch Logs, and X-Ray | Med | Least-privilege: dynamodb:PutItem on dedup table, secretsmanager:GetSecretValue on Ferry secret, logs:CreateLogGroup/CreateLogStream/PutLogEvents, xray:PutTraceSegments/PutTelemetryRecords. |
+| CloudWatch Log Group | Lambda logs go here; must configure retention to avoid unbounded cost | Low | `/aws/lambda/ferry-backend`. Set retention to 30 days for staging (not indefinite). The app already uses structlog JSON output compatible with CloudWatch Logs Insights. |
+| OIDC Identity Provider + GHA Deploy Role | GitHub Actions needs AWS access to push ECR images and update Lambda; OIDC avoids stored credentials | Med | `aws_iam_openid_connect_provider` for `token.actions.githubusercontent.com`. Trust policy scoped to the specific repo and branch. Role needs ecr:GetAuthorizationToken, ecr:BatchCheckLayerAvailability, ecr:PutImage, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload, lambda:UpdateFunctionCode. |
+| Self-Deploy GHA Workflow | Automated pipeline: on push to main, build container, push to ECR, update Lambda | Med | workflow_dispatch + push trigger. Steps: checkout, configure AWS creds (OIDC), ECR login, docker build+push, aws lambda update-function-code. This is Ferry deploying itself. |
+| Backend Dockerfile | Container image for the ferry-backend Lambda package | Low | Based on `public.ecr.aws/lambda/python:3.14`. COPY backend + utils packages, pip install, set CMD to handler. Simpler than the Magic Dockerfile (no build secrets, no system packages needed). |
 
 ## Differentiators
 
-Features that set Ferry apart. Not expected by default, but create competitive advantage.
+Features that improve operational quality but are not strictly required for the app to run. Include these for a production-ready staging environment.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Magic Dockerfile (zero-config builds)** | One Dockerfile builds ANY Lambda. No per-function build config. This is Ferry's signature feature -- no competitor does this. SAM requires per-function build config. Serverless Framework needs plugins. SST generates build config per function. | Low (already designed) | The glob trick (`COPY system-requirements.tx[t]`) for optional files, build secrets for private repos. This is the single biggest UX differentiator. |
-| **GitOps for serverless code** (not IaC) | Ferry deploys CODE, not infrastructure. IaC (Terraform) owns resource creation. Ferry owns code updates. This clean separation doesn't exist in SAM/SST/Serverless which conflate IaC and code deployment. Digger only does IaC. | Low (architectural decision) | The "three connection points" model (code dir + IaC module + ECR repo) is unique. ferry.yaml makes this explicit. |
-| **PR preview of affected resources** | Before merge, see exactly which Lambdas, Step Functions, and API Gateways will be deployed. Digger does this for Terraform plans. No serverless tool does this for code deploys. | Medium | Parse commit diff against ferry.yaml, post a summary check. "This PR will deploy: order-processor (Lambda), checkout-flow (Step Function)". Huge confidence-builder. |
-| **Digest-based skip** | If the built Docker image digest matches what's already deployed, skip the deployment. Saves deploy time and avoids unnecessary Lambda cold starts. Seed.run does incremental deploys but at the package hash level. | Medium | Compare ECR image digest with currently deployed Lambda image URI. Reference impl already does this via `int128/deploy-lambda-action`. |
-| **Thin backend (serverless deploys serverless)** | Ferry's backend is 1-2 Lambdas. Competitors like Seed.run run substantial backend infrastructure. SST Console is a hosted service. This means low operational cost and simple self-hosting path later. | Low (architectural decision) | Marketing differentiator as much as technical. "Your deployment tool costs $0.50/month in AWS bills." |
-| **Resource-type-aware dispatching** | One dispatch per resource type (Lambdas, Step Functions, API Gateways). Each type has different build/deploy logic. Cleaner than monolithic "deploy everything" or per-resource dispatching. | Medium | Enables type-specific optimizations: parallel Lambda builds, sequential Step Function updates, API Gateway deployment stages. |
+| CloudWatch Alarms (5xx + Latency) | Proactive notification when webhooks fail or slow down; catch issues before users notice | Low | Alarm on Url5xxCount > 0 over 5min, UrlRequestLatency p99 > 5s. SNS topic for email notification. Lambda Function URL exposes these metrics natively per AWS docs. |
+| X-Ray Active Tracing | Trace webhook processing end-to-end; identify slow GitHub API calls or DynamoDB latency | Low | `tracing_config { mode = "Active" }` on Lambda + AWSXRayDaemonWriteAccess policy. Adds two trace segments per invocation: service-level and function-level. Sampling: 1 req/sec + 5% additional. |
+| Lambda Reserved Concurrency | Rate-limit the Lambda to prevent runaway costs or accidental DynamoDB throttling | Low | Set to 10-25 for staging. RPS limit = 10x reserved concurrency. Returns HTTP 429 when exceeded (GitHub retries webhooks). Can set to 0 for emergency deactivation. |
+| Lambda Alias (live) | Decouple the "current version" from $LATEST; enables future blue/green or canary deploys | Low | Create a `live` alias pointing to $LATEST. Function URL attached to alias, not to $LATEST directly. Self-deploy workflow publishes new version + updates alias. |
+| CloudWatch Dashboard | Single-pane view of Lambda metrics, DynamoDB metrics, error rates | Low | Widgets: invocation count, error count, duration p50/p99, DynamoDB consumed capacity, throttle count. Quick operational visibility without digging through metrics. |
+| Terraform Variable Separation (tfvars) | Environment-specific values in `.tfvars` files; same TF code for staging and prod | Low | `staging.tfvars` and future `prod.tfvars`. Variables: environment, lambda_memory, log_retention_days, reserved_concurrency. Enables prod environment later without duplicating TF code. |
+| DynamoDB Point-in-Time Recovery | Protects dedup table against accidental deletes; AWS best practice for any production table | Low | `point_in_time_recovery { enabled = true }`. Negligible cost. Not critical for a dedup table (data is ephemeral) but good hygiene. |
+| Resource Tagging Strategy | Consistent tags across all resources for cost tracking and organization | Low | Tags: Project=ferry, Environment=staging, ManagedBy=terraform. Applied via `default_tags` in provider block. |
 
 ## Anti-Features
 
-Features to explicitly NOT build. These are tempting but wrong for Ferry v1.
+Features to explicitly NOT build for v1.1 staging deployment.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| **Web dashboard** | Ferry's UI is the GitHub PR. Building a dashboard means maintaining a frontend, auth system, and state sync. Digger spent years building theirs and it's mediocre. SST Console is good but required massive investment. | Post everything to GitHub Checks API and PR comments. The PR IS the dashboard. |
-| **AI/automatic resource discovery** | Scanning repos to auto-detect Lambdas sounds smart but is fragile, inaccurate, and removes user control. Explicit config (ferry.yaml) is more reliable and debuggable. | ferry.yaml is the source of truth. Users declare resources explicitly. |
-| **Infrastructure provisioning** | Creating Lambda functions, ECR repos, Step Functions, or API Gateways. This is Terraform/CloudFormation territory. Ferry deploys code to EXISTING resources. Mixing IaC and code deployment is how SAM/SST/Serverless become complex. | Require pre-existing resources. ferry.yaml maps code to existing infra. IaC creates resources, Ferry updates them. |
-| **Automatic rollback** | Sounds essential but is dangerous for serverless. Rolling back a Lambda might break a Step Function that depends on the new version. Rolling back an API Gateway spec might orphan Lambda integrations. Cross-resource rollback is an unsolved problem. | User re-deploys previous commit. Git is the rollback mechanism. Clear deployment tagging makes "which commit to revert to" obvious. |
-| **Environment/branch mapping** | Mapping branches to environments (main=prod, develop=staging) adds complexity around promotion, environment-specific config, and multi-account AWS. Digger supports this but it's their most complex feature. | v1 deploys to one target account per workflow run. Environment management is a v2 feature. |
-| **Local development/testing** | SAM has `sam local invoke`. SST has live Lambda dev. These are huge features that don't fit Ferry's model. Ferry runs in GHA, not locally. | Users test Lambdas locally with their own tools (pytest, docker run). Ferry is a CI/CD tool, not a dev tool. |
-| **Plugin/extension system** | Serverless Framework's plugin ecosystem is powerful but created a maintenance nightmare. Plugins break across versions, have inconsistent quality, and fragment the community. | Opinionated defaults. If a deployment type isn't supported, add it as a first-class resource type in ferry.yaml, not as a plugin. |
-| **Multi-account deployment** | Deploying to staging AND prod from one push. Requires environment promotion logic, approval gates, account-specific role ARNs. Significantly increases complexity. | One target account per workflow run. Users can set up separate workflows for staging/prod if needed. |
-| **SQS/async event processing** | Adding a queue between webhook receipt and dispatch adds latency, complexity (DLQ, retry logic, ordering), and infra. The reference implementation processes synchronously and it works fine. | Process webhook synchronously. Lambda timeout is 15 minutes -- plenty for reading ferry.yaml, computing diffs, and triggering dispatches. |
-| **ECR repository creation** | Auto-creating ECR repos conflates infrastructure management with code deployment. What permissions should the repo have? What lifecycle policy? These are IaC decisions. | Require pre-existing ECR repos. ferry.yaml's `ecr` field points to repos that already exist. |
-| **Drift detection** | Detecting when deployed Lambda code doesn't match the expected version. ArgoCD does this for K8s. But for serverless, "drift" mostly means someone manually updated a Lambda in the console, which is a process problem not a tooling problem. | Out of scope for v1. If needed later, compare deployed image digest against expected digest from last Ferry deployment. |
+| API Gateway in front of Function URL | Adds complexity, cost, and another failure point. Function URL already provides HTTPS endpoint. GitHub webhooks do not need API keys, rate limiting, or request transformation. | Use Lambda Function URL directly with auth_type=NONE. The app handles HMAC validation internally. |
+| WAF / CloudFront in front of Lambda | Overkill for a webhook endpoint that validates signatures itself. Adds latency and cost. GitHub IPs change frequently -- IP allowlisting is fragile. | HMAC-SHA256 signature validation in the handler is the security boundary. Invalid signatures get 401 before any processing. |
+| VPC Configuration for Lambda | Lambda does not need VPC access. It talks to DynamoDB (public endpoint), GitHub API (public), and Secrets Manager (public). VPC adds cold start latency (1-2s) and requires NAT Gateway ($32+/month). | Keep Lambda in default (no VPC) configuration. All services accessed via public endpoints. |
+| Custom Domain for Function URL | Unnecessary for staging. GitHub App webhook URL is configured once and does not need to be pretty. Adds ACM certificate and Route53 complexity. | Use the auto-generated Function URL (`*.lambda-url.*.on.aws`). Add custom domain for prod only if needed. |
+| Multi-environment Terraform Workspaces | Terraform workspaces add state management complexity. The ConvergeBio/iac-tf pattern uses directory-based environment separation, not workspaces. | Use directory structure: `teams/platform/aws/staging/` vs future `teams/platform/aws/prod/`. One state file per directory. |
+| Secrets Manager Rotation | Rotation adds Lambda + rotation schedule complexity. GitHub App credentials do not expire on their own -- only rotated manually when compromised. | Store secrets statically in Secrets Manager. Rotate manually if needed. |
+| Lambda Provisioned Concurrency | Eliminates cold starts but costs money 24/7. Webhook latency tolerance is high (GitHub allows 10s timeout). Cold starts on container Lambdas are 1-3s -- acceptable for staging. | Accept cold starts. GitHub retries on timeout. Revisit for prod if needed. |
+| Terraform Modules (reusable) | Premature abstraction. Ferry has exactly one Lambda, one DynamoDB table, one Function URL. Writing a module for a single use adds indirection without reuse. | Inline resource definitions in the TF project files. Extract modules only when a second environment reveals genuine duplication. |
+| KMS Customer Managed Key | Default AWS-managed encryption is sufficient for staging. CMK adds key management overhead and $1/month per key. | Use default encryption for DynamoDB, CloudWatch Logs, Secrets Manager. Revisit for prod if compliance requires it. |
+| Lambda Layers | The backend has modest dependencies (httpx, pydantic, boto3, structlog, PyJWT). Container image deployment bundles everything. Layers add deployment complexity for no benefit with container images. | Ship everything in the container image. Layers are for zip-based deployments, not container Lambdas. |
+| Lambda Dead Letter Queue (DLQ) | Function URL invocations are synchronous -- errors return directly to GitHub as HTTP responses. DLQ only applies to async invocations, which Ferry does not use. | Not applicable. If async invocations are added later, revisit then. |
 
 ## Feature Dependencies
 
 ```
-Webhook validation ──> Change detection ──> PR status reporting
-                                        ──> Workflow dispatch ──> Container build ──> Lambda deploy
-                                                              ──> Step Function deploy
-                                                              ──> API Gateway deploy
+S3 State Backend (bootstrap)
+  --> ALL other Terraform projects depend on this
 
-ferry.yaml parsing ──> Change detection (path mapping)
-                   ──> Workflow dispatch (resource list payload)
-                   ──> PR status reporting (resource names)
+ECR Repository
+  --> Backend Dockerfile (needs repo to push to)
+    --> Self-Deploy GHA Workflow (builds and pushes image)
+      --> Lambda Function (needs image in ECR)
 
-OIDC auth ──> ECR push
-          ──> Lambda deploy
-          ──> Step Function deploy
-          ──> API Gateway deploy
+OIDC Provider + GHA Role
+  --> Self-Deploy GHA Workflow (needs AWS credentials)
 
-Container build (ECR push) ──> Lambda deploy (image URI)
-                           ──> Digest-based skip (compare digests)
+Secrets Manager Secret
+  --> Lambda Function (env vars reference secret values)
+    --> Lambda Function URL (endpoint for webhooks)
 
-Deployment tagging ──> Digest-based skip (tag lookup)
-                   ──> PR status reporting (deployed version)
+DynamoDB Table
+  --> Lambda Function (dedup writes)
+
+IAM Execution Role
+  --> Lambda Function (assumes this role)
+
+CloudWatch Log Group
+  --> Lambda Function (writes logs here)
+
+CloudWatch Alarms --> CloudWatch Log Group + Lambda Function URL (needs metrics)
+X-Ray Tracing --> IAM Execution Role (needs xray permissions)
+CloudWatch Dashboard --> Lambda Function + DynamoDB Table (aggregates their metrics)
 ```
 
-**Critical path:** Webhook validation -> ferry.yaml parsing -> change detection -> workflow dispatch -> container build -> Lambda deploy. Everything else branches off this spine.
-
-## Detailed Feature Analysis by Competitor
-
-### Change Detection
-
-| Product | How | Granularity | Notes |
-|---------|-----|-------------|-------|
-| **Digger** | File path matching in digger.yaml | Per Terraform project | Closest to Ferry's model |
-| **SST** | Framework tracks constructs | Per construct | Automatic, no config needed |
-| **Serverless Framework** | Package hash comparison | Per service | Only detects at deploy time |
-| **SAM** | CloudFormation changeset | Per stack | Infrastructure-level, not file-level |
-| **Seed.run** | Package fingerprinting | Per service | Incremental -- only deploys changed services |
-| **Ferry** | Commit diff + ferry.yaml path mapping | Per resource | Git-native, pre-deploy detection. Posts affected resources to PR BEFORE deploy. |
-
-**Ferry's edge:** Detection happens at PR time (pre-merge), not at deploy time. Users see what will deploy before they merge. No other serverless tool does this.
-
-### Deployment Model
-
-| Product | Build Where | Deploy How | Multi-resource |
-|---------|-------------|------------|----------------|
-| **Digger** | GHA runner | Terraform apply | Yes, per project |
-| **SST** | Local/CI | CloudFormation | Yes, per stack |
-| **Serverless Framework** | Local/CI | CloudFormation | Yes, per service |
-| **SAM** | Local/CI | CloudFormation | Yes, per stack |
-| **Seed.run** | Seed's infra | CloudFormation | Yes, per service |
-| **Ferry** | GHA runner | Direct API calls | Yes, per resource type dispatch |
-
-**Ferry's edge:** Direct API calls (no CloudFormation) means deploys are FAST. Updating a Lambda image via API takes 5-10 seconds. CloudFormation stack updates take 1-5 minutes.
-
-### Status Reporting
-
-| Product | Where | What |
-|---------|-------|------|
-| **Digger** | PR comment + Check | Terraform plan output |
-| **SST** | Console (web) | Stack status, resource list |
-| **Serverless Framework** | Dashboard (web) | Deploy history, alerts |
-| **SAM** | CLI output | Stack events |
-| **Seed.run** | Web console | Build/deploy logs, alerts |
-| **ArgoCD** | Web UI + K8s status | Sync status, health, diff |
-| **Ferry** | PR check + GHA logs | Affected resources, build/deploy status |
-
-**Ferry's edge:** Everything in GitHub. No second tool, no separate login, no context switching.
+**Critical path:** S3 Backend --> ECR Repo --> Dockerfile --> OIDC + GHA Role --> Self-Deploy Workflow --> Lambda + DynamoDB + Secrets + IAM + Function URL
 
 ## MVP Recommendation
 
-**Phase 1 -- Core pipeline (must ship together):**
-1. Webhook validation + dedup (table stakes, low complexity)
-2. ferry.yaml parsing (foundation for everything)
-3. Change detection via commit diff (table stakes, medium complexity)
-4. Workflow dispatch triggering (core mechanism)
-5. PR status check -- affected resources preview (differentiator, medium complexity)
+### Phase 1: Bootstrap (must be first, manual `terraform apply` from local machine)
+1. S3 state backend + DynamoDB lock table
+2. ECR repository for ferry-backend
 
-**Phase 2 -- Build and deploy (must ship together):**
-1. Magic Dockerfile container build (differentiator, already designed)
-2. ECR push with deployment tagging (table stakes, low complexity)
-3. Lambda deployment (table stakes, medium complexity)
-4. Step Function deployment (table stakes, low complexity)
-5. API Gateway deployment (table stakes, low complexity)
-6. OIDC authentication in Ferry Action (table stakes, low complexity)
+### Phase 2: Shared Resources (can also be local apply)
+3. OIDC identity provider for GitHub Actions
+4. GHA deploy role (ECR push + Lambda update permissions)
+5. Secrets Manager secret (placeholder -- values filled manually after GitHub App registration)
 
-**Phase 3 -- Polish:**
-1. Digest-based deploy skip (differentiator, medium complexity)
-2. Error reporting improvements (table stakes, low complexity)
-3. Build caching optimization (performance, medium complexity)
+### Phase 3: Core Infrastructure (target for self-deploy)
+6. IAM execution role for Lambda
+7. DynamoDB dedup table (with TTL enabled)
+8. CloudWatch log group (with 30-day retention)
+9. Lambda function (container image, referencing ECR + secrets + DynamoDB)
+10. Lambda Function URL (auth_type=NONE)
+11. Backend Dockerfile
+12. Self-deploy GHA workflow
 
-**Defer to v2:**
-- Environment/branch mapping
-- Multi-account deployment
-- Drift detection
-- Approval gates / deployment policies
+### Phase 4: Operational Readiness (after app is running)
+13. Resource tagging strategy (add to all resources via default_tags)
+14. CloudWatch alarms (5xx, latency)
+15. X-Ray active tracing
+16. Reserved concurrency
+17. CloudWatch dashboard
 
-## Confidence Notes
+**Defer:**
+- Lambda alias (`live`): Add when preparing for prod to enable blue/green. Not needed for initial staging.
+- DynamoDB PITR: Nice-to-have, add in Phase 4 if time permits.
+- tfvars separation: Include from the start if low effort, otherwise add when prod environment is created.
 
-| Finding | Confidence | Reason |
-|---------|------------|--------|
-| Competitor feature sets | MEDIUM | Based on training data (up to early 2025). SST Ion, Serverless v4 may have added features since. |
-| Change detection as table stakes | HIGH | Universal across all products studied. Fundamental to multi-resource repos. |
-| PR preview as differentiator | HIGH | Verified no serverless code deploy tool does this (Digger does for IaC plans, not code). |
-| Magic Dockerfile as differentiator | HIGH | No competitor offers a single Dockerfile for all functions. SAM/SST/Serverless all require per-function build config. |
-| Direct API deploys being faster than CloudFormation | HIGH | Well-established. CloudFormation overhead is a known pain point. |
-| Anti-rollback stance | MEDIUM | Reasonable for v1 but some users will push back. Git-based rollback is defensible. |
-| Dashboard as anti-feature | MEDIUM | Bold stance. Seed.run and SST Console users value dashboards. But GitHub-native is a valid positioning choice. |
+## App Code Dependencies
+
+The Terraform must satisfy these contracts established by the existing Python code.
+
+| App Code Reference | TF Resource Needed | Details |
+|-------------------|--------------------|---------|
+| `Settings.app_id` (FERRY_APP_ID env var) | Secrets Manager or Lambda env var | GitHub App ID string |
+| `Settings.private_key` (FERRY_PRIVATE_KEY env var) | Secrets Manager secret | PEM private key content, stripped whitespace |
+| `Settings.webhook_secret` (FERRY_WEBHOOK_SECRET env var) | Secrets Manager secret | HMAC-SHA256 webhook validation secret |
+| `Settings.table_name` (FERRY_TABLE_NAME env var) | Lambda env var pointing to DynamoDB table name | Must match the actual DynamoDB table name |
+| `Settings.installation_id` (FERRY_INSTALLATION_ID env var) | Secrets Manager or Lambda env var | Integer, GitHub App installation ID |
+| `Settings.log_level` (FERRY_LOG_LEVEL env var) | Lambda env var | Default "INFO", set to "DEBUG" for staging |
+| `boto3.client("dynamodb", region_name="us-east-1")` | DynamoDB table in us-east-1 | Region is hardcoded in handler.py |
+| `structlog.PrintLoggerFactory()` | CloudWatch Logs | JSON lines to stdout, picked up by CloudWatch automatically |
+| DynamoDB schema: pk (S), sk (S), expires_at (N) | DynamoDB table with TTL on `expires_at` | Conditional writes using `attribute_not_exists(pk)` |
+| Lambda Function URL payload format v2 | Function URL on the Lambda | Handler expects `event.headers`, `event.body`, `event.isBase64Encoded` |
+| `handler` function in `ferry_backend.webhook.handler` | Lambda CMD / handler config | Entry point: `ferry_backend.webhook.handler.handler` |
+
+## Secrets Strategy Detail
+
+The app uses `pydantic-settings` with `env_prefix="FERRY_"`, loading all config from environment variables at cold start. Two viable approaches:
+
+**Option A: Direct env vars from Terraform (recommended for staging)**
+- Terraform reads secret values via `data.aws_secretsmanager_secret_version`
+- Passes values as Lambda environment variables in the `aws_lambda_function` resource
+- Pros: Simple, no Lambda extension needed, no code changes
+- Cons: Secret values visible in TF state and Lambda console
+- Mitigation: TF state is encrypted at rest in S3; Lambda console access restricted by IAM
+
+**Option B: Secrets Manager Lambda Extension**
+- Lambda extension layer fetches secrets at cold start
+- Requires code changes to read from extension HTTP endpoint instead of env vars
+- Pros: Secrets never in env vars or TF state
+- Cons: Adds Lambda layer dependency, requires code changes, adds cold start latency
+- Verdict: Overkill for staging. Consider for prod if security posture requires it.
+
+**Recommendation: Option A.** Populate FERRY_APP_ID, FERRY_PRIVATE_KEY, FERRY_WEBHOOK_SECRET, FERRY_INSTALLATION_ID as Lambda env vars sourced from Secrets Manager via Terraform data source. Set FERRY_TABLE_NAME and FERRY_LOG_LEVEL as plain env vars (not secrets).
 
 ## Sources
 
-- Digger architecture and GitHub App model (training data, docs.digger.dev)
-- SST Ion documentation and Console features (training data, sst.dev)
-- Serverless Framework v4 and Dashboard (training data, serverless.com)
-- AWS SAM CLI and documentation (training data, docs.aws.amazon.com)
-- Seed.run feature set and pricing (training data, seed.run)
-- ArgoCD GitOps patterns (training data, argo-cd.readthedocs.io)
-- ConvergeBio/pipelines-hub reference implementation (project memory)
-
-**Note:** Web search and verification tools were unavailable during this research session. All competitor analysis is based on training data (cutoff early 2025). Recommend verifying SST Ion and Serverless Framework v4 feature sets before finalizing roadmap, as these products evolve quickly.
+- AWS Lambda Function URL configuration: https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html (HIGH confidence)
+- AWS Lambda Function URL monitoring/metrics: https://docs.aws.amazon.com/lambda/latest/dg/urls-monitoring.html (HIGH confidence)
+- AWS Lambda Function URL invocation format: https://docs.aws.amazon.com/lambda/latest/dg/urls-invocation.html (HIGH confidence)
+- AWS Lambda limits: https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html (HIGH confidence)
+- AWS Lambda X-Ray tracing: https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html (HIGH confidence)
+- AWS Lambda environment variables best practices: https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html (HIGH confidence)
+- AWS Secrets Manager Lambda integration: https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html (HIGH confidence)
+- DynamoDB TTL: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html (HIGH confidence)
+- Ferry backend handler.py, settings.py, dedup.py: direct code analysis (PRIMARY source)
+- ConvergeBio/iac-tf conventions: project memory (MEDIUM confidence)

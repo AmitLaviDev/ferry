@@ -1,660 +1,940 @@
-# Architecture Patterns
+# Architecture Patterns: Ferry v1.1 Staging Deployment
 
-**Domain:** GitHub App + GitHub Action serverless deployment system
-**Researched:** 2026-02-21
-**Overall confidence:** MEDIUM (web search/fetch unavailable; based on training data knowledge of GitHub APIs, Digger architecture, and AWS Lambda patterns. Core GitHub App/Action mechanics are well-established and unlikely to have changed.)
+**Domain:** Terraform IaC for deploying a GitHub App backend (Lambda + DynamoDB) to AWS
+**Researched:** 2026-02-28
+**Overall confidence:** MEDIUM-HIGH (Terraform AWS resources are well-documented and stable; web search/fetch unavailable so version details are from training data through early 2025)
 
 ## Recommended Architecture
 
-### System Overview
+### System Overview: Four Terraform Projects
 
 ```
-                        GitHub.com
-                       +-----------+
-                       |  Push/PR  |
-                       |  Event    |
-                       +-----+-----+
-                             |
-                      webhook (HTTPS POST)
-                             |
-                    +--------v---------+
-                    |  API Gateway /   |
-                    |  Function URL    |
-                    +--------+---------+
-                             |
-                    +--------v---------+
-                    |   Ferry App      |
-                    |   Lambda         |
-                    |                  |
-                    | 1. Validate sig  |
-                    | 2. Dedup (DDB)   |
-                    | 3. Fetch config  |
-                    | 4. Diff analysis |
-                    | 5. Dispatch GHA  |
-                    | 6. Post checks   |
-                    +--------+---------+
-                             |
-              workflow_dispatch (GitHub API)
-                             |
-                    +--------v---------+
-                    |  User's GHA      |
-                    |  Runner          |
-                    |                  |
-                    | ferry-action:    |
-                    | 1. OIDC auth     |
-                    | 2. Build images  |
-                    | 3. Push ECR      |
-                    | 4. Deploy        |
-                    +------------------+
+iac/
+├── global/cloud/aws/backend/           # TF Project 1: S3 state bucket (bootstrap)
+│   ├── providers.tf                    #   No remote backend (local state or S3 after bootstrap)
+│   ├── main.tf                         #   aws_s3_bucket, versioning, encryption
+│   ├── variables.tf                    #   account_id, bucket_name
+│   └── outputs.tf                      #   bucket_name, bucket_arn
+│
+├── global/cloud/aws/ecr/               # TF Project 2: ECR repo for Ferry Lambda
+│   ├── providers.tf                    #   S3 backend → backend/ bucket
+│   ├── main.tf                         #   terraform-aws-modules/ecr/aws
+│   ├── variables.tf                    #   repo_name, lifecycle rules
+│   └── outputs.tf                      #   repository_url, repository_arn
+│
+└── teams/platform/aws/staging/
+    ├── shared/                         # TF Project 3: Cross-cutting IAM + Secrets
+    │   ├── providers.tf                #   S3 backend → backend/ bucket
+    │   ├── main.tf                     #   IAM roles, Secrets Manager
+    │   ├── iam.tf                      #   Lambda execution role, OIDC provider
+    │   ├── secrets.tf                  #   GitHub App private key, webhook secret
+    │   ├── variables.tf
+    │   ├── outputs.tf                  #   role_arn, secret_arns
+    │   └── data.tf                     #   terraform_remote_state for ecr
+    │
+    └── us_east_1/ferry_backend/        # TF Project 4: Lambda + Function URL + DynamoDB
+        ├── providers.tf                #   S3 backend → backend/ bucket
+        ├── main.tf                     #   Lambda via terraform-aws-modules/lambda/aws
+        ├── dynamodb.tf                 #   terraform-aws-modules/dynamodb-table/aws
+        ├── variables.tf
+        ├── outputs.tf                  #   function_url, lambda_function_name
+        ├── data.tf                     #   terraform_remote_state for shared + ecr
+        └── locals.tf                   #   computed values
 ```
 
-### Component Boundaries
+### Dependency Graph and Apply Order
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| **Ferry App Lambda** | Webhook ingestion, signature validation, dedup, config reading, change detection, dispatch triggering, PR status posting | GitHub API (inbound webhooks, outbound REST), DynamoDB |
-| **DynamoDB Table** | Webhook dedup (delivery ID), optional state tracking | Ferry App Lambda (read/write) |
-| **Ferry Action** | AWS auth (OIDC), container builds, ECR push, Lambda/StepFunction/APIGateway deployment | AWS APIs (STS, ECR, Lambda, StepFunctions, APIGateway), Docker |
-| **ferry.yaml** | Source of truth for resource mappings | Read by Ferry App Lambda via GitHub Contents API |
-| **User's GHA Workflow** | Thin wrapper that calls ferry-action on workflow_dispatch | GitHub Actions runtime, ferry-action |
-
-### Data Flow
-
-**Trigger Flow (Ferry App):**
-
-1. GitHub delivers webhook (push or pull_request event) to Ferry App's HTTPS endpoint
-2. Ferry App validates HMAC-SHA256 signature using webhook secret
-3. Ferry App checks DynamoDB for `X-GitHub-Delivery` header (idempotency key) -- conditional put fails if duplicate
-4. Ferry App generates JWT from App private key (RS256, 10-minute expiry)
-5. Ferry App exchanges JWT for installation access token (scoped to the repo's installation)
-6. Ferry App fetches `ferry.yaml` from the repo's default branch via Contents API
-7. Ferry App fetches the commit comparison (diff) via Compare API or Commits API
-8. Ferry App matches changed file paths against `ferry.yaml` source directories
-9. For each affected resource type, Ferry App calls `POST /repos/{owner}/{repo}/dispatches` (repository_dispatch) or `POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches` (workflow_dispatch)
-10. Ferry App posts a Check Run via Checks API showing what will deploy (pending state)
-
-**Execution Flow (Ferry Action):**
-
-1. User's workflow file triggers on `workflow_dispatch` event
-2. Workflow calls `ferry-action` with inputs from the dispatch payload
-3. Ferry Action configures AWS credentials via OIDC federation (user-provided role ARN)
-4. For Lambdas: builds Docker image using magic Dockerfile, pushes to ECR, updates Lambda function code, publishes version, updates alias
-5. For Step Functions: reads definition JSON, runs envsubst for account/region, calls update-state-machine
-6. For API Gateways: reads OpenAPI spec, calls put-rest-api + create-deployment
-7. Ferry Action outputs success/failure status (picked up by GitHub workflow)
-
-## The Digger/OpenTofu Cloud Model (Reference Architecture)
-
-**Confidence: MEDIUM** (based on training data knowledge of Digger's open-source codebase)
-
-Digger pioneered the "backend orchestrator + GHA executor" pattern for Terraform/OpenTofu:
-
-### How Digger Works
-
-1. **Digger Backend** (Go, hosted or self-hosted): GitHub App receives PR webhooks. Parses `digger.yml` to find which Terraform projects are affected. Generates "jobs" describing what to run. Triggers `workflow_dispatch` on the user's repo.
-
-2. **Digger Action** (runs in user's GHA runner): Receives job spec via dispatch payload. Runs `terraform plan` or `terraform apply`. Posts plan output back to PR as a comment. Reports status.
-
-3. **Key Digger patterns Ferry should adopt:**
-   - Backend is stateless per-request (state lives in DynamoDB/Postgres, not in memory)
-   - Dispatch payload is a serialized "job spec" -- all information the action needs is in the payload
-   - Installation token is NOT passed to the action -- action uses its own auth (OIDC for AWS, GitHub token for API calls)
-   - Backend handles concurrency/locking (Digger uses DynamoDB for locks)
-   - PR comment as status mechanism (Ferry uses Checks API instead -- better UX)
-
-4. **Where Ferry diverges from Digger:**
-   - Digger's backend is complex (Go, multiple services, database migrations). Ferry keeps it to 1-2 Lambdas.
-   - Digger passes Terraform commands. Ferry passes resource lists + deployment instructions.
-   - Digger needs plan storage/locking. Ferry does not (container builds are idempotent).
-   - Digger supports multiple VCS providers. Ferry is GitHub-only.
-
-## GitHub App Authentication Deep-Dive
-
-**Confidence: HIGH** (GitHub App auth is well-documented and stable)
-
-### Three Auth Layers
-
-1. **Webhook Signature Validation** (inbound security)
-   - GitHub signs every webhook payload with HMAC-SHA256 using the app's webhook secret
-   - Header: `X-Hub-Signature-256: sha256=<hex_digest>`
-   - Validate by computing `HMAC-SHA256(webhook_secret, raw_body)` and comparing with constant-time comparison
-   - MUST validate before any processing -- this is the trust boundary
-
-2. **App JWT** (identify as the app itself)
-   - Generated client-side using the App's private key (RSA, PEM format)
-   - Algorithm: RS256
-   - Claims: `iss` = App ID, `iat` = now - 60s (clock drift), `exp` = now + 600s (max 10 minutes)
-   - Used for: listing installations, getting installation access tokens
-   - NOT used for: accessing repo content (need installation token for that)
-
-3. **Installation Access Token** (act on behalf of the app in a specific installation)
-   - Obtained via `POST /app/installations/{installation_id}/access_tokens` (authenticated with JWT)
-   - Scoped to the repositories the installation has access to
-   - Expires after 1 hour (but generate fresh for each webhook -- do not cache across requests)
-   - Used for: reading repo content, posting checks, creating dispatches, commenting on PRs
-   - Can be further scoped to specific repos and permissions at creation time
-
-### Auth Flow for Ferry App Lambda
-
-```python
-# Pseudocode for the auth flow
-def handle_webhook(event):
-    # 1. Validate signature (webhook secret, not JWT)
-    raw_body = event["body"]
-    signature = event["headers"]["x-hub-signature-256"]
-    validate_hmac_sha256(WEBHOOK_SECRET, raw_body, signature)
-
-    # 2. Parse payload, extract installation_id
-    payload = json.loads(raw_body)
-    installation_id = payload["installation"]["id"]
-
-    # 3. Generate JWT (short-lived, for this request only)
-    now = int(time.time())
-    jwt_payload = {"iss": APP_ID, "iat": now - 60, "exp": now + 600}
-    jwt_token = jwt.encode(jwt_payload, PRIVATE_KEY, algorithm="RS256")
-
-    # 4. Exchange JWT for installation token
-    token = github_api.post(
-        f"/app/installations/{installation_id}/access_tokens",
-        headers={"Authorization": f"Bearer {jwt_token}"},
-        json={"permissions": {"contents": "read", "checks": "write", "actions": "write"}}
-    ).json()["token"]
-
-    # 5. Use installation token for all subsequent API calls
-    config = github_api.get(
-        f"/repos/{repo}/contents/ferry.yaml",
-        headers={"Authorization": f"token {token}"}
-    )
+```
+[1] backend (S3 bucket)
+      |
+      +---> [2] ecr (ECR repository)
+      |           |
+      +---> [3] shared (IAM + Secrets Manager)
+                  |          |
+                  +----------+
+                  |
+                  v
+            [4] ferry_backend (Lambda + Function URL + DynamoDB)
 ```
 
-### Critical Auth Details
+**Apply order is strictly sequential:**
 
-- **Private key storage**: Store in AWS Secrets Manager or SSM Parameter Store (SecureString). Load at Lambda cold start, cache in memory.
-- **Do not pass installation tokens to the Action**: The Action runs in the user's environment. It should use OIDC for AWS and `GITHUB_TOKEN` (automatically provided by Actions) for GitHub API calls.
-- **Webhook secret vs signing key**: These are different. Webhook secret is a shared symmetric key for HMAC. The App private key is RSA for JWT. Do not confuse them.
-- **Rate limits**: Installation tokens have 5,000 requests/hour per installation. For Ferry's use case (a few API calls per webhook), this is more than sufficient.
-
-## Composite Action vs Docker Action
-
-**Confidence: HIGH** (well-documented, stable GitHub Actions feature)
-
-### Comparison Matrix
-
-| Criterion | Composite Action | Docker Container Action |
-|-----------|-----------------|------------------------|
-| **Startup time** | Near-zero (runs in host) | 10-60s (build or pull image) |
-| **Isolation** | None (shares host environment) | Full (container boundary) |
-| **Can run Docker commands** | Yes (via `run` steps calling docker CLI) | No (already inside container) |
-| **Can call other actions** | Yes (`uses` steps) | No |
-| **Language** | Any (via `run` steps) | Any (defined by Dockerfile) |
-| **Access to host Docker** | Yes | No (Docker-in-Docker is problematic) |
-| **Marketplace distribution** | Yes | Yes |
-| **File system** | Shares runner workspace | Mounts workspace at `/github/workspace` |
-
-### Recommendation: Composite Action
-
-**Use a composite action for Ferry.** The reasoning is decisive:
-
-1. **Ferry Action needs to build Docker images** (magic Dockerfile). A Docker container action runs INSIDE a container -- it cannot easily run `docker build` because Docker-in-Docker is fragile and slow. A composite action runs on the host and has direct access to the Docker daemon.
-
-2. **Ferry Action needs to call `docker login`** for ECR. This requires the host's Docker daemon.
-
-3. **Ferry Action needs to call `aws` CLI or use boto3** for deployments. A composite action can install these or rely on the runner's pre-installed tools.
-
-4. **Startup time matters** for deployment tools. Composite actions start instantly. Docker actions add 10-60 seconds for image pull/build.
-
-5. **Composite actions can call other actions** via `uses` steps. This lets Ferry Action compose with `aws-actions/configure-aws-credentials` for OIDC and `aws-actions/amazon-ecr-login` for ECR auth.
-
-### Composite Action Structure
-
-```yaml
-# action.yml
-name: 'Ferry Deploy'
-description: 'Build and deploy serverless AWS resources'
-inputs:
-  resource-type:
-    description: 'Type of resources to deploy (lambdas, step_functions, api_gateways)'
-    required: true
-  resources:
-    description: 'JSON array of resources to deploy'
-    required: true
-  aws-role-arn:
-    description: 'AWS IAM role ARN for OIDC authentication'
-    required: true
-  aws-region:
-    description: 'AWS region'
-    required: true
-  aws-account-id:
-    description: 'AWS account ID (for ECR registry)'
-    required: true
-
-runs:
-  using: 'composite'
-  steps:
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ inputs.aws-role-arn }}
-        aws-region: ${{ inputs.aws-region }}
-
-    - name: Login to ECR
-      if: inputs.resource-type == 'lambdas'
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Deploy resources
-      shell: bash
-      run: |
-        python ${{ github.action_path }}/deploy.py \
-          --type "${{ inputs.resource-type }}" \
-          --resources '${{ inputs.resources }}' \
-          --region "${{ inputs.aws-region }}" \
-          --account-id "${{ inputs.aws-account-id }}"
+```
+1. backend       — Creates S3 bucket for TF state (chicken-and-egg: see bootstrap section)
+2. ecr           — Creates ECR repo. Needed by GHA to push images, and by ferry_backend for image_uri.
+3. shared        — Creates IAM roles (referenced by Lambda) and Secrets Manager secrets.
+4. ferry_backend — Creates Lambda (referencing ECR image, IAM role, secrets), Function URL, DynamoDB.
 ```
 
-### Why NOT a Docker Action
+**Why this order:**
+- `backend` has zero dependencies (it IS the state backend for everything else)
+- `ecr` depends only on `backend` (for its own state storage)
+- `shared` depends on `backend` (state) and reads `ecr` outputs via `terraform_remote_state`
+- `ferry_backend` depends on `backend` (state), `ecr` (image_uri), and `shared` (IAM role ARN, secret ARNs)
 
-- Cannot run `docker build` inside a Docker action without Docker-in-Docker (DinD)
-- DinD requires privileged mode (security risk, not available on all runners)
-- DinD adds significant startup overhead (docker daemon inside docker)
-- Breaks the ability to use `aws-actions/configure-aws-credentials` (which is itself an action)
+### Integration Points Between TF Projects
 
-## Dispatch Payload Design
+The projects integrate via `terraform_remote_state` data sources -- the standard ConvergeBio/iac-tf pattern.
 
-**Confidence: MEDIUM** (GitHub API for workflow_dispatch is stable; payload design is Ferry-specific)
+**Project 2 (ecr) exposes:**
+```hcl
+# iac/global/cloud/aws/ecr/outputs.tf
+output "repository_url" {
+  description = "ECR repository URL for Ferry Lambda container"
+  value       = module.ecr.repository_url
+}
 
-### workflow_dispatch vs repository_dispatch
+output "repository_arn" {
+  description = "ECR repository ARN"
+  value       = module.ecr.repository_arn
+}
+```
 
-| Feature | workflow_dispatch | repository_dispatch |
-|---------|-------------------|---------------------|
-| **Trigger** | `POST /repos/{owner}/{repo}/actions/workflows/{id}/dispatches` | `POST /repos/{owner}/{repo}/dispatches` |
-| **Payload location** | `inputs` (string key-value pairs) | `client_payload` (arbitrary JSON) |
-| **Workflow selection** | Explicit (by workflow ID or filename) | Event type string matched in workflow `on:` |
-| **Visibility in UI** | Shows as "workflow_dispatch" with inputs | Shows as "repository_dispatch" |
-| **Input constraints** | Max 10 inputs, all strings, max 65535 chars each | Arbitrary JSON, max ~65KB total |
-| **Manual trigger** | Can also be triggered manually from UI | API-only |
+**Project 3 (shared) reads ecr and exposes:**
+```hcl
+# iac/teams/platform/aws/staging/shared/data.tf
+data "terraform_remote_state" "ecr" {
+  backend = "s3"
+  config = {
+    bucket = "ferry-terraform-state"
+    key    = "global/cloud/aws/ecr/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
 
-### Recommendation: workflow_dispatch
+# iac/teams/platform/aws/staging/shared/outputs.tf
+output "lambda_execution_role_arn" {
+  description = "IAM role ARN for Ferry Lambda"
+  value       = aws_iam_role.ferry_lambda.arn
+}
 
-Use `workflow_dispatch` because:
+output "github_app_secret_arn" {
+  description = "Secrets Manager ARN for GitHub App credentials"
+  value       = aws_secretsmanager_secret.github_app.arn
+}
 
-1. **Explicit workflow targeting**: Ferry knows exactly which workflow file to trigger (e.g., `.github/workflows/ferry-lambdas.yml`). No need for event_type routing.
-2. **UI visibility**: If a user manually checks their Actions tab, they see clear "workflow_dispatch" triggers with input values.
-3. **Input validation**: GitHub validates that required inputs are provided before the workflow starts.
+output "webhook_secret_arn" {
+  description = "Secrets Manager ARN for webhook HMAC secret"
+  value       = aws_secretsmanager_secret.webhook_secret.arn
+}
 
-However, `workflow_dispatch` inputs are all strings. For structured data (list of resources), serialize as JSON string.
+output "ecr_repository_url" {
+  description = "ECR repo URL (passed through from global ecr project)"
+  value       = data.terraform_remote_state.ecr.outputs.repository_url
+}
+```
 
-### Recommended Payload Structure
+**Project 4 (ferry_backend) reads shared:**
+```hcl
+# iac/teams/platform/aws/staging/us_east_1/ferry_backend/data.tf
+data "terraform_remote_state" "shared" {
+  backend = "s3"
+  config = {
+    bucket = "ferry-terraform-state"
+    key    = "teams/platform/aws/staging/shared/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
 
-```json
-{
-  "ref": "main",
-  "inputs": {
-    "ferry_version": "1",
-    "trigger_sha": "abc123def456",
-    "trigger_ref": "refs/heads/main",
-    "trigger_pr": "42",
-    "resource_type": "lambdas",
-    "resources": "[{\"name\":\"order-processor\",\"source\":\"services/order-processor\",\"ecr\":\"ferry/order-processor\"},{\"name\":\"payment-handler\",\"source\":\"services/payment-handler\",\"ecr\":\"ferry/payment-handler\"}]",
-    "deployment_tag": "pr-42"
+data "terraform_remote_state" "ecr" {
+  backend = "s3"
+  config = {
+    bucket = "ferry-terraform-state"
+    key    = "global/cloud/aws/ecr/terraform.tfstate"
+    region = "us-east-1"
   }
 }
 ```
 
-### Payload Field Rationale
+## Component Details
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `ferry_version` | string | Schema version for forward compatibility. Action can reject unknown versions. |
-| `trigger_sha` | string | The exact commit to build. Action checks out this SHA, not HEAD. |
-| `trigger_ref` | string | The branch/ref that triggered the build. For logging and tag derivation. |
-| `trigger_pr` | string | PR number if applicable. Used for deployment tags (`pr-42`) and check reporting. Empty string if not a PR. |
-| `resource_type` | string | `lambdas`, `step_functions`, or `api_gateways`. Determines the deploy strategy. |
-| `resources` | string (JSON) | JSON array of resource objects. Each has the fields from ferry.yaml needed for deployment. |
-| `deployment_tag` | string | The ECR image tag / deployment identifier. Computed by Ferry App for consistency. |
+### Project 1: Backend (Bootstrap)
 
-### User's Workflow File (Thin Wrapper)
+**Confidence: HIGH**
+
+The classic Terraform bootstrap problem: the S3 bucket that stores state cannot itself have its state stored in S3 (on first run).
+
+**Bootstrap strategy:**
+1. First `terraform apply` uses local state (no backend block)
+2. After bucket exists, add S3 backend config to `providers.tf`
+3. Run `terraform init -migrate-state` to move local state to S3
+4. Commit the providers.tf with S3 backend
+
+This is a one-time operation. After bootstrap, the backend project manages itself.
+
+```hcl
+# iac/global/cloud/aws/backend/main.tf
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "ferry-terraform-state"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket                  = aws_s3_bucket.terraform_state.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Optional: DynamoDB table for state locking
+resource "aws_dynamodb_table" "terraform_locks" {
+  name         = "ferry-terraform-locks"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+```
+
+**After bootstrap, providers.tf becomes:**
+```hcl
+# iac/global/cloud/aws/backend/providers.tf
+terraform {
+  backend "s3" {
+    bucket         = "ferry-terraform-state"
+    key            = "global/cloud/aws/backend/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "ferry-terraform-locks"
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = "ferry"
+      Environment = "global"
+      ManagedBy   = "terraform"
+    }
+  }
+}
+```
+
+### Project 2: ECR
+
+**Confidence: HIGH**
+
+Uses `terraform-aws-modules/ecr/aws` per ConvergeBio conventions.
+
+```hcl
+# iac/global/cloud/aws/ecr/main.tf
+module "ecr" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 2.0"
+
+  repository_name = "ferry/backend"
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last 30 images"
+        selection = {
+          tagStatus     = "any"
+          countType     = "imageCountMoreThan"
+          countNumber   = 30
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+
+  repository_image_tag_mutability = "MUTABLE"
+
+  # Allow GHA OIDC role to push images
+  repository_read_write_access_arns = [
+    # Will be set after shared/ creates the OIDC role
+    # For now, use the account root or a known role ARN
+  ]
+}
+```
+
+**Key decision: Global, not per-environment.** ECR repos are in `global/` because the same container images are used across staging and production. The environment difference is which image tag the Lambda points to, not which ECR repo it pulls from.
+
+### Project 3: Shared (IAM + Secrets)
+
+**Confidence: HIGH**
+
+Creates the IAM role for Lambda execution and the OIDC provider for GHA.
+
+```hcl
+# iac/teams/platform/aws/staging/shared/iam.tf
+
+# Lambda execution role
+resource "aws_iam_role" "ferry_lambda" {
+  name = "ferry-lambda-staging"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Basic Lambda execution (CloudWatch Logs)
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
+  role       = aws_iam_role.ferry_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# DynamoDB access for webhook dedup
+resource "aws_iam_policy" "dynamodb_access" {
+  name = "ferry-dynamodb-staging"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:DeleteItem",
+        ]
+        Resource = "arn:aws:dynamodb:us-east-1:*:table/ferry-state-staging"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "dynamodb_access" {
+  role       = aws_iam_role.ferry_lambda.name
+  policy_arn = aws_iam_policy.dynamodb_access.arn
+}
+
+# Secrets Manager read access
+resource "aws_iam_policy" "secrets_access" {
+  name = "ferry-secrets-staging"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = [
+          aws_secretsmanager_secret.github_app.arn,
+          aws_secretsmanager_secret.webhook_secret.arn,
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "secrets_access" {
+  role       = aws_iam_role.ferry_lambda.name
+  policy_arn = aws_iam_policy.secrets_access.arn
+}
+
+# OIDC provider for GitHub Actions (self-deploy workflow)
+module "github_oidc" {
+  source  = "terraform-module/github-oidc-provider/aws"
+  version = "~> 2.0"
+
+  create_oidc_provider = true
+
+  # Role for the self-deploy GHA workflow
+  create_oidc_role = true
+  oidc_role_name   = "ferry-gha-deploy-staging"
+
+  repositories = [
+    "your-org/ferry"
+  ]
+
+  oidc_role_policy_arns = [
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser",
+  ]
+}
+
+# Additional policy: update Lambda function code
+resource "aws_iam_policy" "gha_lambda_deploy" {
+  name = "ferry-gha-lambda-deploy-staging"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:GetFunction",
+        ]
+        Resource = "arn:aws:lambda:us-east-1:*:function:ferry-backend-staging"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "gha_lambda_deploy" {
+  role       = module.github_oidc.oidc_role_name
+  policy_arn = aws_iam_policy.gha_lambda_deploy.arn
+}
+```
+
+```hcl
+# iac/teams/platform/aws/staging/shared/secrets.tf
+
+resource "aws_secretsmanager_secret" "github_app" {
+  name        = "ferry/staging/github-app"
+  description = "Ferry GitHub App credentials (app_id, private_key, installation_id)"
+}
+
+# Secret VALUE is set manually via AWS console or CLI -- NOT in Terraform
+# Terraform manages the secret resource, not its content.
+
+resource "aws_secretsmanager_secret" "webhook_secret" {
+  name        = "ferry/staging/webhook-secret"
+  description = "Ferry GitHub App webhook HMAC secret"
+}
+```
+
+**Critical: Secrets Manager values are NOT in Terraform.** Terraform creates the secret containers. The actual secret values (private key PEM, webhook secret string, app ID, installation ID) are populated manually via AWS Console or `aws secretsmanager put-secret-value`. This is intentional -- secrets must never be in Terraform state or version control.
+
+### Project 4: Ferry Backend (Lambda + Function URL + DynamoDB)
+
+**Confidence: HIGH**
+
+This is the main deployment target.
+
+```hcl
+# iac/teams/platform/aws/staging/us_east_1/ferry_backend/main.tf
+
+module "lambda" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "~> 7.0"
+
+  function_name = "ferry-backend-staging"
+  description   = "Ferry GitHub App webhook handler"
+
+  # Container image deployment
+  package_type  = "Image"
+  create_package = false
+  image_uri     = "${data.terraform_remote_state.ecr.outputs.repository_url}:latest"
+
+  # CRITICAL: Let GHA update the image, don't let TF revert it
+  ignore_source_code_hash = true
+
+  memory_size = 256
+  timeout     = 30
+  architectures = ["x86_64"]
+
+  # Function URL (replaces API Gateway)
+  create_lambda_function_url = true
+  authorization_type         = "NONE"
+  cors = {
+    allow_origins = ["*"]
+    allow_methods = ["POST"]
+    allow_headers = ["content-type", "x-hub-signature-256", "x-github-delivery", "x-github-event"]
+  }
+
+  # IAM role from shared project
+  create_role = false
+  lambda_role = data.terraform_remote_state.shared.outputs.lambda_execution_role_arn
+
+  # Environment variables
+  environment_variables = {
+    FERRY_APP_ID          = local.app_id
+    FERRY_TABLE_NAME      = module.dynamodb.dynamodb_table_id
+    FERRY_INSTALLATION_ID = local.installation_id
+    FERRY_LOG_LEVEL       = "INFO"
+    # FERRY_PRIVATE_KEY and FERRY_WEBHOOK_SECRET loaded from Secrets Manager at runtime
+    # (See "Secrets Loading" section below)
+  }
+
+  # CloudWatch log retention
+  cloudwatch_logs_retention_in_days = 14
+}
+```
+
+```hcl
+# iac/teams/platform/aws/staging/us_east_1/ferry_backend/dynamodb.tf
+
+module "dynamodb" {
+  source  = "terraform-aws-modules/dynamodb-table/aws"
+  version = "~> 4.0"
+
+  name         = "ferry-state-staging"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attributes = [
+    {
+      name = "pk"
+      type = "S"
+    },
+    {
+      name = "sk"
+      type = "S"
+    },
+  ]
+
+  ttl_enabled        = true
+  ttl_attribute_name = "expires_at"
+}
+```
+
+## Lambda Function URL vs API Gateway
+
+**Confidence: HIGH**
+
+### What is a Lambda Function URL?
+
+A Lambda Function URL is a dedicated HTTPS endpoint built into Lambda itself -- no separate API Gateway resource needed. It provides:
+
+- An auto-generated HTTPS URL: `https://<url-id>.lambda-url.<region>.on.aws`
+- Two auth modes: `AWS_IAM` or `NONE`
+- Built-in CORS configuration
+- Request/response payload format v2 (same as HTTP API Gateway)
+
+### Terraform Resource: `aws_lambda_function_url`
+
+When using the `terraform-aws-modules/lambda/aws` module, you do NOT need a separate `aws_lambda_function_url` resource. The module handles it via these variables:
+
+```hcl
+create_lambda_function_url = true     # Creates the function URL
+authorization_type         = "NONE"    # No IAM auth (GitHub validates via HMAC)
+cors = {                              # CORS configuration
+  allow_origins = ["*"]
+  allow_methods = ["POST"]
+}
+```
+
+If using raw resources instead of the module:
+```hcl
+resource "aws_lambda_function_url" "webhook" {
+  function_name      = aws_lambda_function.ferry.function_name
+  authorization_type = "NONE"
+
+  cors {
+    allow_origins = ["*"]
+    allow_methods = ["POST"]
+    allow_headers = ["content-type", "x-hub-signature-256", "x-github-delivery", "x-github-event"]
+  }
+}
+```
+
+### Function URL vs API Gateway Comparison
+
+| Criterion | Lambda Function URL | API Gateway (HTTP API) | API Gateway (REST API) |
+|-----------|--------------------|-----------------------|----------------------|
+| **Cost** | Free (Lambda pricing only) | $1.00/million requests | $3.50/million requests |
+| **Terraform resources** | 1 (part of Lambda) | 3-5 separate resources | 5-10 separate resources |
+| **Custom domain** | Requires CloudFront distribution | Built-in custom domain mapping | Built-in custom domain mapping |
+| **Rate limiting** | None built-in | Built-in throttling | Built-in throttling |
+| **WAF integration** | No (requires CloudFront) | Yes (HTTP API v2) | Yes |
+| **Request validation** | None | JSON schema validation | JSON schema validation |
+| **Auth options** | IAM or NONE | IAM, JWT, Lambda authorizer | IAM, API key, Cognito, Lambda authorizer |
+| **Payload format** | v2 (same as HTTP API) | v1 or v2 | v1 |
+| **Max payload size** | 6 MB | 10 MB | 10 MB |
+| **Max timeout** | 15 min (Lambda limit) | 30 sec (HTTP API) | 29 sec (REST API) |
+| **Setup complexity** | Minimal (1 flag) | Moderate | High |
+
+### Why Function URL is correct for Ferry
+
+1. **Single endpoint**: Ferry has exactly one POST endpoint. API Gateway's routing, stages, and domain management are wasted complexity.
+2. **Cost**: Zero additional cost. At Ferry's expected volume (< 100K webhooks/month), API Gateway would cost pennies, but free is simpler.
+3. **Webhook compatibility**: GitHub webhooks POST to an HTTPS URL. Function URL provides that. The authentication is HMAC-SHA256 signature validation in the Lambda code itself, not at the gateway level.
+4. **No custom domain needed for v1**: The auto-generated Function URL is configured as the GitHub App's webhook URL. Users never see or interact with it.
+5. **Timeout advantage**: Function URLs inherit Lambda's 15-minute timeout. API Gateway HTTP API caps at 30 seconds. While Ferry processes webhooks in < 2 seconds, the longer timeout provides headroom.
+
+### When to switch to API Gateway (v2+)
+
+- Custom domain requirement (e.g., `webhooks.ferry.dev`)
+- WAF/rate limiting for DDoS protection
+- Multiple endpoints (health check, admin API, webhook status)
+- Request throttling beyond Lambda concurrency limits
+
+The migration path is clean: add API Gateway in front of the same Lambda. No Lambda code changes needed.
+
+## Secrets Loading Pattern
+
+**Confidence: MEDIUM** (pattern is well-established but implementation details need verification)
+
+Ferry Lambda needs `FERRY_PRIVATE_KEY` (PEM, multi-line) and `FERRY_WEBHOOK_SECRET` at runtime. Two options:
+
+### Option A: Environment Variables from Secrets Manager (Recommended)
+
+Use the Lambda `aws_secretsmanager` environment variable integration (available since late 2022). Lambda resolves Secrets Manager references at startup and injects them as environment variables.
+
+```hcl
+environment_variables = {
+  FERRY_PRIVATE_KEY     = "{{resolve:secretsmanager:ferry/staging/github-app:SecretString:private_key}}"
+  FERRY_WEBHOOK_SECRET  = "{{resolve:secretsmanager:ferry/staging/webhook-secret:SecretString:value}}"
+}
+```
+
+**Caveat:** The `{{resolve:...}}` syntax is a CloudFormation feature, not natively supported in Terraform's Lambda resource. For Terraform, the standard approach is:
+
+### Option B: Load Secrets at Cold Start (Recommended for Terraform)
+
+The Lambda code loads secrets from Secrets Manager at cold start. This is already a common pattern and avoids putting secret ARNs in environment variables directly.
+
+```python
+# In settings.py or a dedicated secrets loader
+import boto3
+import json
+
+def load_secrets(secret_arn: str) -> dict:
+    client = boto3.client("secretsmanager")
+    response = client.get_secret_value(SecretId=secret_arn)
+    return json.loads(response["SecretString"])
+```
+
+**Terraform configuration:**
+```hcl
+environment_variables = {
+  FERRY_APP_ID             = local.app_id
+  FERRY_TABLE_NAME         = module.dynamodb.dynamodb_table_id
+  FERRY_INSTALLATION_ID    = local.installation_id
+  FERRY_LOG_LEVEL          = "INFO"
+  FERRY_SECRETS_ARN        = data.terraform_remote_state.shared.outputs.github_app_secret_arn
+  FERRY_WEBHOOK_SECRET_ARN = data.terraform_remote_state.shared.outputs.webhook_secret_arn
+}
+```
+
+The Lambda code reads `FERRY_SECRETS_ARN` and `FERRY_WEBHOOK_SECRET_ARN`, calls `secretsmanager:GetSecretValue`, and caches the results in module-level variables (cold start only).
+
+**This means `Settings` needs modification:** Instead of `FERRY_PRIVATE_KEY` as a direct env var, it loads from Secrets Manager. This is a code change for v1.1, not just IaC.
+
+## Self-Deploy GHA Workflow
+
+**Confidence: HIGH**
+
+The self-deploy workflow builds the ferry-backend container, pushes to ECR, and updates the Lambda function.
+
+### Workflow Architecture
+
+```
+Push to main (backend/ or utils/ changes)
+  |
+  v
+GHA Workflow: .github/workflows/deploy-ferry.yml
+  |
+  +-- Step 1: Checkout code
+  +-- Step 2: Configure AWS credentials (OIDC)
+  +-- Step 3: Login to ECR
+  +-- Step 4: Build container image (docker build)
+  +-- Step 5: Push to ECR (docker push)
+  +-- Step 6: Update Lambda function code (aws lambda update-function-code)
+```
+
+### Workflow File
 
 ```yaml
-# .github/workflows/ferry-deploy.yml
-name: Ferry Deploy
+# .github/workflows/deploy-ferry.yml
+name: Deploy Ferry Backend
+
 on:
-  workflow_dispatch:
-    inputs:
-      ferry_version:
-        required: true
-      trigger_sha:
-        required: true
-      trigger_ref:
-        required: true
-      trigger_pr:
-        required: false
-        default: ''
-      resource_type:
-        required: true
-      resources:
-        required: true
-      deployment_tag:
-        required: true
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'utils/**'
+      - 'action/Dockerfile'  # If the Dockerfile itself changes, redeploy
+
+  workflow_dispatch:  # Manual trigger for emergencies
 
 permissions:
-  id-token: write  # Required for OIDC
+  id-token: write   # OIDC
   contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ferry/backend
+  LAMBDA_FUNCTION: ferry-backend-staging
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          ref: ${{ inputs.trigger_sha }}
+          role-to-assume: ${{ secrets.FERRY_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - uses: ferry-app/ferry-action@v1
-        with:
-          resource-type: ${{ inputs.resource_type }}
-          resources: ${{ inputs.resources }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-          aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
-          deployment-tag: ${{ inputs.deployment_tag }}
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and tag image
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -f backend/Dockerfile.deploy \
+            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $REGISTRY/$ECR_REPOSITORY:latest \
+            .
+
+      - name: Push image to ECR
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          aws lambda update-function-code \
+            --function-name $LAMBDA_FUNCTION \
+            --image-uri $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 ```
 
-### Design Constraints
+### Backend Dockerfile (New File Needed)
 
-- **workflow_dispatch inputs max 10**: Ferry uses 7 inputs. Room for 3 more if needed.
-- **Each input max 65535 chars**: The `resources` JSON must stay under this. For a typical repo with < 50 Lambda functions, this is well within limits. Flag for validation if someone has hundreds of resources.
-- **Workflow must exist on default branch**: `workflow_dispatch` only triggers workflows that exist on the repo's default branch. The user must have the workflow file merged to main before Ferry can dispatch to it.
+The existing `action/Dockerfile` is the **magic Dockerfile** for user Lambda builds. Ferry's own backend needs a **separate Dockerfile** for containerizing the ferry-backend package.
 
-## Webhook Delivery and Reliability
+```dockerfile
+# backend/Dockerfile.deploy
+# Builds the Ferry backend Lambda container
+FROM public.ecr.aws/lambda/python:3.14
 
-**Confidence: HIGH** (GitHub's webhook behavior is well-documented)
+# Copy workspace files needed for installation
+COPY utils/ /tmp/utils/
+COPY backend/ /tmp/backend/
 
-### GitHub Webhook Guarantees
+# Install ferry-utils first (dependency), then ferry-backend
+RUN pip install --no-cache-dir /tmp/utils/ /tmp/backend/
 
-- **At-least-once delivery**: GitHub may re-deliver webhooks. DynamoDB dedup is essential.
-- **10-second timeout**: GitHub expects a response within 10 seconds or marks delivery as failed. Ferry App Lambda must respond quickly.
-- **Retry policy**: GitHub retries failed deliveries (non-2xx response or timeout) up to 3 times with exponential backoff.
-- **Ordering**: Webhooks are NOT guaranteed to arrive in order. A push to `main` and its PR merge event may arrive in any order.
+# Clean up source copies
+RUN rm -rf /tmp/utils/ /tmp/backend/
 
-### Idempotency Strategy
-
-```
-webhook arrives
-  -> extract X-GitHub-Delivery header (UUID)
-  -> DynamoDB conditional put: PutItem with condition "attribute_not_exists(delivery_id)"
-     -> if succeeds: process the webhook (first delivery)
-     -> if ConditionalCheckFailedException: return 200 (duplicate, already processed)
+# Lambda handler entry point
+CMD ["ferry_backend.webhook.handler.handler"]
 ```
 
-DynamoDB table design:
+**Key considerations:**
+- The Dockerfile builds from the repo root (not from `backend/`) because it needs both `utils/` and `backend/` packages
+- Uses the official AWS Lambda Python base image (same as user Lambdas)
+- Installs packages via pip from local directories (uv workspace wheel builds)
+- The CMD points to the actual handler function path
+- Docker context is the repo root, Dockerfile is at `backend/Dockerfile.deploy`
+
+### Alternative: Two-Stage Build (Cleaner)
+
+```dockerfile
+# backend/Dockerfile.deploy
+FROM public.ecr.aws/lambda/python:3.14
+
+# Install build tools
+RUN pip install --no-cache-dir hatchling
+
+# Copy and build ferry-utils wheel
+COPY utils/ /tmp/build/utils/
+RUN pip install --no-cache-dir /tmp/build/utils/
+
+# Copy and build ferry-backend wheel (depends on ferry-utils)
+COPY backend/ /tmp/build/backend/
+RUN pip install --no-cache-dir /tmp/build/backend/
+
+# Clean up
+RUN rm -rf /tmp/build/
+
+CMD ["ferry_backend.webhook.handler.handler"]
 ```
-Table: ferry-webhook-deliveries
-  PK: delivery_id (S)     -- X-GitHub-Delivery UUID
-  TTL: expires_at (N)     -- epoch + 24 hours (auto-cleanup)
-```
 
-### Responding Within 10 Seconds
+### Why NOT Use the Magic Dockerfile
 
-The Ferry App Lambda must complete all work (validate, dedup, read config, diff, dispatch, post check) within 10 seconds. This is tight but achievable because:
-
-1. Signature validation: < 1ms
-2. DynamoDB conditional write: < 50ms
-3. JWT generation: < 10ms
-4. Installation token exchange: ~100ms
-5. Fetch ferry.yaml: ~100ms
-6. Fetch commit diff: ~200ms
-7. Change detection logic: < 10ms
-8. Trigger workflow_dispatch(es): ~100ms each (1-3 dispatches)
-9. Post check run: ~100ms
-
-Total: ~700ms-1s for typical case. Well within 10 seconds.
-
-If this becomes a concern: return 200 immediately after dedup, do remaining work asynchronously. But for v1, synchronous processing should be fine.
+The magic Dockerfile (`action/Dockerfile`) expects a specific structure: `main.py` + `requirements.txt` in a single flat directory. Ferry's backend is a proper Python package installed via `pip install`. Using the magic Dockerfile would require restructuring the backend into the user-facing Lambda convention, which defeats the purpose of having a well-structured workspace.
 
 ## Patterns to Follow
 
-### Pattern 1: Stateless Request Handler
+### Pattern 1: Placeholder Image URI
 
-**What:** Each webhook invocation is fully self-contained. The Lambda generates a fresh JWT, gets a fresh installation token, reads config, and processes -- no state carried between invocations.
+**What:** Terraform creates the Lambda with a placeholder/initial image. The real image is pushed by GHA and the Lambda is updated via `update-function-code`. Terraform never manages the running image after initial creation.
 
-**When:** Always. This is the core pattern for the Ferry App Lambda.
+**Why:** Separates infrastructure provisioning from code deployment. Terraform manages the Lambda resource, GHA manages what code runs on it.
 
-**Why:** Lambda may be running on a new cold start or a warm instance. Stateless handlers are inherently idempotent and horizontally scalable. The only shared state is DynamoDB for dedup.
-
-**Example:**
-```python
-def handler(event, context):
-    # Each invocation is independent
-    body = event["body"]
-    headers = event["headers"]
-
-    # 1. Validate (no external state needed)
-    validate_signature(headers, body)
-
-    # 2. Dedup (DynamoDB -- shared state, but idempotent)
-    if not record_delivery(headers["x-github-delivery"]):
-        return {"statusCode": 200, "body": "duplicate"}
-
-    # 3. Auth (fresh tokens every time)
-    jwt_token = generate_jwt(APP_ID, PRIVATE_KEY)
-    installation_id = parse_installation_id(body)
-    access_token = get_installation_token(jwt_token, installation_id)
-
-    # 4. Process (pure function of inputs)
-    config = fetch_ferry_yaml(access_token, repo, ref)
-    changed = detect_changes(access_token, repo, before_sha, after_sha, config)
-
-    # 5. Dispatch (idempotent -- worst case, duplicate workflow runs)
-    for resource_type, resources in changed.items():
-        dispatch_workflow(access_token, repo, resource_type, resources)
-
-    return {"statusCode": 200, "body": "ok"}
+**Implementation:**
+```hcl
+# In ferry_backend/main.tf
+image_uri                  = "${data.terraform_remote_state.ecr.outputs.repository_url}:latest"
+ignore_source_code_hash    = true
 ```
 
-### Pattern 2: Config-Driven Change Detection
+The `ignore_source_code_hash = true` is critical. Without it, every `terraform plan` would detect that the image has changed (because GHA pushed a new one) and try to revert it.
 
-**What:** The `ferry.yaml` config file defines what directories map to what resources. Change detection is the intersection of "files changed in this push" and "source directories defined in config."
+### Pattern 2: terraform_remote_state for Cross-Project References
 
-**When:** On every push/PR webhook.
+**What:** Projects reference each other's outputs via `terraform_remote_state` data sources. All state lives in the same S3 bucket with different keys.
 
-**Why:** This is the core logic that makes Ferry useful. Without it, users would need to write their own change detection in GitHub Actions (which is what they do today with `tj-actions/changed-files`).
+**Why:** Avoids hardcoding ARNs and URLs. Changes to upstream projects (e.g., renaming the ECR repo) automatically propagate on next plan/apply of downstream projects.
 
-**Example:**
-```python
-def detect_changes(
-    access_token: str,
-    repo: str,
-    base_sha: str,
-    head_sha: str,
-    config: FerryConfig,
-) -> dict[str, list[Resource]]:
-    """Return resources grouped by type that have changes."""
-
-    # Get list of changed files from GitHub Compare API
-    comparison = github_api.get(
-        f"/repos/{repo}/compare/{base_sha}...{head_sha}",
-        token=access_token,
-    )
-    changed_files = {f["filename"] for f in comparison["files"]}
-
-    affected: dict[str, list[Resource]] = {}
-
-    for resource_type, resources in config.resource_groups():
-        for resource in resources:
-            # Check if any changed file is under this resource's source directory
-            if any(f.startswith(resource.source + "/") for f in changed_files):
-                affected.setdefault(resource_type, []).append(resource)
-
-    return affected
+**State key convention:**
+```
+global/cloud/aws/backend/terraform.tfstate
+global/cloud/aws/ecr/terraform.tfstate
+teams/platform/aws/staging/shared/terraform.tfstate
+teams/platform/aws/staging/us_east_1/ferry_backend/terraform.tfstate
 ```
 
-### Pattern 3: Separation of Orchestration and Execution
+### Pattern 3: Environment-Scoped Naming
 
-**What:** Ferry App (backend) decides WHAT to deploy. Ferry Action (GHA runner) does the HOW. The dispatch payload is the contract between them.
+**What:** All resource names include the environment suffix: `ferry-backend-staging`, `ferry-state-staging`, etc.
 
-**When:** This is the fundamental architectural split.
+**Why:** Enables future production environment without naming conflicts. Also makes CloudWatch logs and AWS console navigation unambiguous.
 
-**Why:** This is the Digger model's key insight. The backend is thin (decision-making only). The execution environment (GHA runner) is the user's -- they pay for compute, they control the network access, they own the AWS credentials (via OIDC). Ferry never touches the user's AWS account directly.
+### Pattern 4: Separate Terraform State Lock Table
 
-### Pattern 4: Version the Dispatch Contract
+**What:** A DynamoDB table (`ferry-terraform-locks`) in the backend project provides state locking for all TF projects.
 
-**What:** Include `ferry_version` in every dispatch payload. The action checks this field and can reject unsupported versions.
-
-**When:** From day one.
-
-**Why:** The dispatch payload is an API contract between two independently deployed systems (Ferry App backend and Ferry Action). They will evolve at different rates. Versioning prevents breaking changes from causing silent failures.
+**Why:** Prevents concurrent applies from corrupting state. Especially important when the self-deploy workflow and manual `terraform apply` might overlap.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Passing Secrets in Dispatch Payload
+### Anti-Pattern 1: Single Monolithic TF Project
 
-**What:** Including AWS credentials, GitHub tokens, or other secrets in the `workflow_dispatch` inputs.
+**What:** Putting all resources (S3, ECR, IAM, Lambda, DynamoDB) in one Terraform project.
 
-**Why bad:** Dispatch inputs are visible in the Actions UI. Anyone with read access to the repo can see workflow run inputs. Also, GitHub logs workflow inputs in the audit log.
+**Why bad:** One `terraform apply` manages everything. Blast radius is enormous. A mistake in IAM config could destroy the DynamoDB table. Also, state locking means only one person/workflow can apply at a time across ALL resources.
 
-**Instead:** The Action should obtain its own credentials. AWS via OIDC (user configures trust policy). GitHub via the automatic `GITHUB_TOKEN`. Any additional secrets go in GitHub Secrets and are referenced in the workflow file.
+**Instead:** Four focused projects with clear dependency ordering.
 
-### Anti-Pattern 2: Backend Performing Deployments
+### Anti-Pattern 2: Managing Container Image in Terraform
 
-**What:** Having the Ferry App Lambda directly call AWS APIs to deploy resources.
+**What:** Building and pushing the Docker image as part of `terraform apply` (e.g., using `null_resource` with `docker build` provisioner).
 
-**Why bad:** Requires Ferry's backend to have AWS credentials for every user's account. Massive security liability. Also, container builds require Docker, which Lambda cannot run.
+**Why bad:** Terraform is for infrastructure, not application deployment. Mixing them means every `terraform apply` triggers a build, or Terraform state tracks image hashes and fights with GHA deployments.
 
-**Instead:** Ferry App only orchestrates. Deployment runs in the user's GHA runner with their credentials.
+**Instead:** Terraform creates the Lambda with `ignore_source_code_hash = true`. GHA owns the build-push-update cycle.
 
-### Anti-Pattern 3: Monolithic Dispatch (One Dispatch for All Types)
+### Anti-Pattern 3: Secrets in Terraform Variables
 
-**What:** Sending a single workflow_dispatch containing lambdas AND step functions AND API gateways.
+**What:** Passing the GitHub App private key or webhook secret as Terraform variables.
 
-**Why bad:** Different resource types have fundamentally different deployment steps. Lambdas need Docker builds. Step Functions need envsubst. API Gateways need OpenAPI processing. A monolithic workflow becomes a giant conditional mess. Also, if Lambda deploys fail, it should not block Step Function deploys.
+**Why bad:** Terraform state stores all variable values in plaintext. Even with encrypted S3 state, anyone with state access sees the secrets.
 
-**Instead:** One dispatch per resource type. Each triggers a focused workflow (or the same workflow with type-specific logic). Resource types deploy independently and can fail independently.
+**Instead:** Terraform creates `aws_secretsmanager_secret` resources (the containers). Secret values are populated manually via CLI or Console, never in TF.
 
-### Anti-Pattern 4: Caching Installation Tokens Across Requests
+### Anti-Pattern 4: Cross-Account assume_role in Staging
 
-**What:** Storing installation access tokens in DynamoDB or environment variables for reuse across Lambda invocations.
+**What:** Using `assume_role` in the provider block when Ferry runs in its own dedicated account.
 
-**Why bad:** Installation tokens expire after 1 hour, but the permissions they grant can change if the user modifies the GitHub App installation. Always generating a fresh token ensures you have current permissions. The API call is fast (~100ms) and the 5,000/hour rate limit is not a concern.
+**Why bad:** Unnecessary complexity. The ConvergeBio/iac-tf pattern uses `assume_role` because Terraform runs from a management account into target accounts. For Ferry's own account, the TF runner (your local machine or a GHA runner) has direct credentials.
 
-**Instead:** Generate a fresh installation token for each webhook processing request.
+**Instead:** Simple provider with region and default_tags. No `assume_role` unless Ferry later moves to a multi-account setup.
 
-### Anti-Pattern 5: Using repository_dispatch with Event Routing
+## Build Order for Self-Deploy
 
-**What:** Using `repository_dispatch` with `event_type` strings like `ferry-deploy-lambdas` and routing in the workflow's `on.repository_dispatch.types`.
-
-**Why bad:** `repository_dispatch` requires the workflow file to list all event types it handles. Adding a new resource type requires updating the user's workflow file. Also, `client_payload` is untyped -- no input validation from GitHub.
-
-**Instead:** Use `workflow_dispatch` with explicit inputs. The workflow ID targeting is more direct and the input validation is built-in.
-
-## Component Build Order (Dependencies)
-
-The components have clear dependency ordering:
+The complete build and deploy sequence:
 
 ```
-Phase 1: Foundation (no external dependencies)
-  |
-  +-- Webhook signature validation
-  +-- DynamoDB dedup logic
-  +-- GitHub App JWT generation
-  +-- Installation token exchange
-  +-- Pydantic models for ferry.yaml, webhook payloads, dispatch payloads
-  |
-Phase 2: Core App Logic (depends on Phase 1)
-  |
-  +-- ferry.yaml parser and validator
-  +-- Change detection engine (diff analysis + config matching)
-  +-- Dispatch payload builder
-  +-- workflow_dispatch trigger
-  +-- Checks API integration (PR status)
-  |
-Phase 3: Ferry Action - Build (independent of Phase 2 for development)
-  |
-  +-- Composite action scaffolding (action.yml)
-  +-- Magic Dockerfile (port from pipelines-hub)
-  +-- Docker build + ECR push logic
-  +-- Lambda deployment logic
-  |
-Phase 4: Ferry Action - Extended Deploy (depends on Phase 3)
-  |
-  +-- Step Functions deployment
-  +-- API Gateway deployment
-  |
-Phase 5: Integration (depends on Phases 2 + 3)
-  |
-  +-- End-to-end flow testing
-  +-- GitHub App registration and configuration
-  +-- AWS infrastructure (Lambda, API Gateway/Function URL, DynamoDB)
+1. [One-time] terraform apply: backend/    (creates S3 bucket, lock table)
+2. [One-time] terraform init -migrate-state: backend/  (move local state to S3)
+3. [One-time] terraform apply: ecr/        (creates ECR repo)
+4. [One-time] terraform apply: shared/     (creates IAM roles, secret containers)
+5. [Manual]   aws secretsmanager put-secret-value: populate secrets
+6. [One-time] Build + push initial container image to ECR
+7. [One-time] terraform apply: ferry_backend/  (creates Lambda, Function URL, DynamoDB)
+8. [Manual]   Register GitHub App with Function URL as webhook endpoint
+9. [Ongoing]  GHA self-deploy workflow: push to main -> build -> push ECR -> update Lambda
 ```
 
-**Key dependency insight:** Phases 2 and 3 can be built in parallel. The Ferry App and Ferry Action communicate only through the dispatch payload contract. Define the payload schema in Phase 1 (as Pydantic models) and both sides can develop against it independently.
+Steps 1-8 are the initial setup. Step 9 is the ongoing deployment cycle.
 
-## Single Lambda vs Two Lambdas
+**Step 6 detail:** Before `terraform apply` for ferry_backend, ECR needs at least one image tagged `latest` (because the Lambda resource references it). Push a placeholder:
 
-**Confidence: MEDIUM**
-
-The PROJECT.md mentions "1-2 Lambdas." Recommendation: **start with one Lambda.**
-
-**One Lambda (recommended for v1):**
-- Handles all webhook events (push, pull_request)
-- Routes internally based on event type
-- Simpler deployment, fewer moving parts
-- Lambda cold start is minimal for Python (~200ms)
-- All logic shares the same auth/config code
-
-**When to split into two Lambdas:**
-- If webhook processing exceeds 10 seconds regularly (unlikely for v1)
-- If you need async processing (webhook receiver returns 200, processor runs separately)
-- If different events need different memory/timeout configurations
-
-**Architecture if you do split:**
-```
-Lambda 1 (webhook receiver): validate, dedup, return 200
-  -> Invokes Lambda 2 asynchronously (via Lambda.invoke with InvocationType='Event')
-Lambda 2 (processor): auth, config, diff, dispatch, checks
+```bash
+# Build and push initial image
+docker build -f backend/Dockerfile.deploy -t ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/ferry/backend:latest .
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+docker push ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/ferry/backend:latest
 ```
 
-This is the "return 200 quickly, process later" pattern. Not needed for v1 but a clean escape hatch.
+## New Files Needed (Summary)
 
-## API Gateway Function URL vs API Gateway
+| File | Type | Purpose |
+|------|------|---------|
+| `backend/Dockerfile.deploy` | Dockerfile | Containerize ferry-backend for Lambda |
+| `.github/workflows/deploy-ferry.yml` | GHA workflow | Self-deploy on push to main |
+| `iac/global/cloud/aws/backend/` | TF project (4 files) | S3 state bucket + lock table |
+| `iac/global/cloud/aws/ecr/` | TF project (4 files) | ECR repository |
+| `iac/teams/platform/aws/staging/shared/` | TF project (6 files) | IAM roles, Secrets Manager, OIDC |
+| `iac/teams/platform/aws/staging/us_east_1/ferry_backend/` | TF project (6 files) | Lambda + Function URL + DynamoDB |
 
-**Confidence: HIGH**
+## Code Changes Needed
 
-For receiving webhooks, use **Lambda Function URL** (not API Gateway):
+| File | Change | Why |
+|------|--------|-----|
+| `backend/src/ferry_backend/settings.py` | Add Secrets Manager loading | Private key and webhook secret loaded from Secrets Manager ARNs instead of direct env vars |
 
-| Criterion | Lambda Function URL | API Gateway (REST/HTTP) |
-|-----------|-------------------|------------------------|
-| **Cost** | Free (included in Lambda pricing) | $1/million requests + data transfer |
-| **Setup** | One setting on the Lambda | Separate resource, routes, stages |
-| **Custom domain** | Requires CloudFront | Built-in custom domain |
-| **Features** | Basic (no rate limiting, no API keys) | Full (throttling, caching, WAF) |
-| **Webhook use case** | Perfect -- just needs an HTTPS endpoint | Overkill for a single POST endpoint |
-
-For v1, Function URL is the right choice. GitHub just needs an HTTPS endpoint to POST to. If you later need rate limiting or custom domains, add API Gateway in front.
+The `Settings` class currently expects `FERRY_PRIVATE_KEY` and `FERRY_WEBHOOK_SECRET` as direct environment variables. For Secrets Manager, it needs to accept `FERRY_SECRETS_ARN` and `FERRY_WEBHOOK_SECRET_ARN`, then load the actual values at cold start.
 
 ## Scalability Considerations
 
-| Concern | At 10 installations | At 1K installations | At 10K installations |
-|---------|---------------------|---------------------|----------------------|
-| **Lambda concurrency** | Default (1000 concurrent) is fine | Still fine -- each invocation is < 2s | May need reserved concurrency |
-| **DynamoDB throughput** | On-demand, pennies | On-demand, still cheap | On-demand scales automatically |
-| **GitHub rate limits** | 5K req/hr per installation -- no issue | Each installation has its own limit | No issue (limits are per-installation) |
-| **Secrets management** | One App private key for all | Same -- single multi-tenant App | Same |
-| **Dispatch volume** | ~10s of dispatches/day | ~1000s of dispatches/day | May hit GitHub secondary rate limits |
-
-The architecture scales naturally because:
-- Lambda scales horizontally
-- DynamoDB on-demand scales automatically
-- GitHub rate limits are per-installation (not per-app)
-- No shared mutable state beyond dedup table
-
-The main scaling concern at 10K+ installations is GitHub's secondary rate limits (anti-abuse throttling on API calls). Mitigation: add exponential backoff/retry to dispatch calls.
+| Concern | Staging (< 100 webhooks/day) | Production (10K webhooks/day) |
+|---------|------|------|
+| Lambda concurrency | Default 1000, no concern | Default 1000, monitor with alarms |
+| DynamoDB | PAY_PER_REQUEST, pennies | PAY_PER_REQUEST, still cheap |
+| ECR storage | 30 images ~3GB, ~$0.30/month | Same (lifecycle policy keeps 30) |
+| Function URL | No throttling concern | Consider adding CloudFront + WAF |
+| State locking | No contention | Use Digger for TF CI/CD if multiple contributors |
 
 ## Sources
 
-- GitHub Docs: About authentication with a GitHub App (training data, HIGH confidence for auth mechanics)
-- GitHub Docs: About custom actions (training data, HIGH confidence for action types)
-- GitHub Docs: Events that trigger workflows - workflow_dispatch (training data, HIGH confidence)
-- GitHub Docs: Webhooks - securing your webhooks (training data, HIGH confidence)
-- Digger GitHub repository: github.com/diggerhq/digger (training data, MEDIUM confidence -- architecture may have evolved)
-- AWS Lambda Function URLs documentation (training data, HIGH confidence)
+- Training data knowledge of Terraform AWS provider resources (stable, well-documented) -- HIGH confidence on resource schemas
+- Training data knowledge of terraform-aws-modules/lambda/aws module -- HIGH confidence on variables/features
+- Training data knowledge of terraform-aws-modules/ecr/aws module -- HIGH confidence
+- Training data knowledge of terraform-aws-modules/dynamodb-table/aws module -- HIGH confidence
+- Training data knowledge of terraform-module/github-oidc-provider/aws -- MEDIUM confidence on exact version/interface
+- Training data knowledge of Lambda Function URLs -- HIGH confidence
+- Training data knowledge of GHA OIDC + aws-actions -- HIGH confidence
+- ConvergeBio/iac-tf patterns from memory/terraform-conventions.md -- HIGH confidence (first-party)
+- pipelines-hub analysis from memory/pipelines-hub-analysis.md -- HIGH confidence (first-party)
+- Ferry v1.0 codebase analysis (handler.py, settings.py, pyproject.toml) -- HIGH confidence (first-party)
 
-**Note:** Web search and web fetch were unavailable during this research session. Findings are based on training data knowledge of GitHub APIs (which are stable and well-documented) and the Digger open-source project. The core GitHub App and Actions mechanics are very unlikely to have changed materially. The Digger-specific details should be verified against the current Digger codebase if precision is needed.
+**Note:** Web search, web fetch, and Brave search were all unavailable during this research session. The `terraform-aws-modules` module version numbers (~> 7.0 for lambda, ~> 2.0 for ecr, ~> 4.0 for dynamodb-table) should be verified against the Terraform Registry before implementation. The module variable names and features described are from training data and are very likely accurate (these modules are mature and stable), but exact variable names should be confirmed via `terraform init` + documentation.
