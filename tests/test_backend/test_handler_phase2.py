@@ -43,16 +43,18 @@ dJ8Nt0KHAHly/eJUzHRv7YWpBqzDAH7bNzMn7Ay7CuGJ0OKAOC+yP3WRFO8LGTGK
 -----END RSA PRIVATE KEY-----"""
 
 # Minimal ferry.yaml for tests
-FERRY_YAML = yaml.dump({
-    "version": 1,
-    "lambdas": [
-        {
-            "name": "order-processor",
-            "source_dir": "services/order-processor",
-            "ecr_repo": "ferry/order-processor",
-        },
-    ],
-})
+FERRY_YAML = yaml.dump(
+    {
+        "version": 1,
+        "lambdas": [
+            {
+                "name": "order-processor",
+                "source_dir": "services/order-processor",
+                "ecr_repo": "ferry/order-processor",
+            },
+        ],
+    }
+)
 
 FERRY_YAML_B64 = base64.b64encode(FERRY_YAML.encode()).decode()
 
@@ -142,10 +144,7 @@ def _make_push_event(
 def _mock_installation_token(httpx_mock):
     """Mock the installation token exchange endpoint."""
     httpx_mock.add_response(
-        url=(
-            "https://api.github.com"
-            "/app/installations/12345/access_tokens"
-        ),
+        url=("https://api.github.com/app/installations/12345/access_tokens"),
         json={"token": "ghs_test_token_123"},
         status_code=201,
     )
@@ -156,10 +155,7 @@ def _mock_ferry_config(httpx_mock, sha, yaml_b64=None):
     if yaml_b64 is None:
         yaml_b64 = FERRY_YAML_B64
     httpx_mock.add_response(
-        url=(
-            f"https://api.github.com"
-            f"/repos/owner/repo/contents/ferry.yaml?ref={sha}"
-        ),
+        url=(f"https://api.github.com/repos/owner/repo/contents/ferry.yaml?ref={sha}"),
         json={"content": yaml_b64},
         status_code=200,
     )
@@ -168,14 +164,9 @@ def _mock_ferry_config(httpx_mock, sha, yaml_b64=None):
 def _mock_compare(httpx_mock, base, head, files):
     """Mock the Compare API endpoint."""
     httpx_mock.add_response(
-        url=(
-            f"https://api.github.com"
-            f"/repos/owner/repo/compare/{base}...{head}"
-        ),
+        url=(f"https://api.github.com/repos/owner/repo/compare/{base}...{head}"),
         json={
-            "files": [
-                {"filename": f, "status": "modified"} for f in files
-            ],
+            "files": [{"filename": f, "status": "modified"} for f in files],
         },
     )
 
@@ -185,10 +176,7 @@ def _mock_prs_for_commit(httpx_mock, sha, prs=None):
     if prs is None:
         prs = []
     httpx_mock.add_response(
-        url=(
-            f"https://api.github.com"
-            f"/repos/owner/repo/commits/{sha}/pulls"
-        ),
+        url=(f"https://api.github.com/repos/owner/repo/commits/{sha}/pulls"),
         json=prs,
     )
 
@@ -206,8 +194,7 @@ def _mock_dispatch(httpx_mock, workflow_file="ferry-lambdas.yml"):
     """Mock the workflow dispatch API endpoint."""
     httpx_mock.add_response(
         url=(
-            f"https://api.github.com/repos/owner/repo"
-            f"/actions/workflows/{workflow_file}/dispatches"
+            f"https://api.github.com/repos/owner/repo/actions/workflows/{workflow_file}/dispatches"
         ),
         status_code=204,
     )
@@ -216,10 +203,7 @@ def _mock_dispatch(httpx_mock, workflow_file="ferry-lambdas.yml"):
 def _mock_pr_comment(httpx_mock, pr_number):
     """Mock the Issues Comments API endpoint for PR comments."""
     httpx_mock.add_response(
-        url=(
-            f"https://api.github.com/repos/owner/repo"
-            f"/issues/{pr_number}/comments"
-        ),
+        url=(f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments"),
         json={"id": 100, "body": "test"},
         status_code=201,
     )
@@ -227,7 +211,10 @@ def _mock_pr_comment(httpx_mock, pr_number):
 
 class TestHandlerPhase2:
     def test_handler_default_branch_push_triggers_dispatch(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Push to default branch with changed lambda files -> dispatch.
 
@@ -242,13 +229,17 @@ class TestHandlerPhase2:
         before = "a" * 40
         after = "b" * 40
         event = _make_push_event(
-            ref="refs/heads/main", before=before, after=after,
+            ref="refs/heads/main",
+            before=before,
+            after=after,
         )
 
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, after)
         _mock_compare(
-            httpx_mock, before, after,
+            httpx_mock,
+            before,
+            after,
             ["services/order-processor/main.py"],
         )
         # No open PRs for this commit (default branch merge)
@@ -265,20 +256,18 @@ class TestHandlerPhase2:
 
         # Verify dispatch was called
         requests = httpx_mock.get_requests()
-        dispatch_reqs = [
-            r for r in requests
-            if "dispatches" in str(r.url)
-        ]
+        dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 1
 
         # Verify NO check run was posted (no open PR)
-        check_reqs = [
-            r for r in requests if "check-runs" in str(r.url)
-        ]
+        check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 0
 
     def test_handler_pr_branch_push_creates_check_run(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Push to feature branch with open PR -> check run, no dispatch.
 
@@ -302,11 +291,14 @@ class TestHandlerPhase2:
         _mock_ferry_config(httpx_mock, after)
         # PR branch: compare uses default_branch (main) as base
         _mock_compare(
-            httpx_mock, "main", after,
+            httpx_mock,
+            "main",
+            after,
             ["services/order-processor/main.py"],
         )
         _mock_prs_for_commit(
-            httpx_mock, after,
+            httpx_mock,
+            after,
             prs=[{"number": 42, "state": "open"}],
         )
         _mock_check_run(httpx_mock)
@@ -321,9 +313,7 @@ class TestHandlerPhase2:
 
         # Verify check run was posted
         requests = httpx_mock.get_requests()
-        check_reqs = [
-            r for r in requests if "check-runs" in str(r.url)
-        ]
+        check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 1
 
         # Verify check run body content
@@ -333,14 +323,14 @@ class TestHandlerPhase2:
         assert "order-processor" in check_body["output"]["text"]
 
         # Verify NO dispatch was triggered
-        dispatch_reqs = [
-            r for r in requests
-            if "dispatches" in str(r.url)
-        ]
+        dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 0
 
     def test_handler_pr_branch_second_push_full_diff(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Second push to PR branch still uses merge-base comparison.
 
@@ -367,11 +357,14 @@ class TestHandlerPhase2:
         _mock_ferry_config(httpx_mock, after)
         # Must use main...after (merge-base), NOT before...after
         _mock_compare(
-            httpx_mock, "main", after,
+            httpx_mock,
+            "main",
+            after,
             ["services/order-processor/main.py"],
         )
         _mock_prs_for_commit(
-            httpx_mock, after,
+            httpx_mock,
+            after,
             prs=[{"number": 42, "state": "open"}],
         )
         _mock_check_run(httpx_mock)
@@ -384,16 +377,17 @@ class TestHandlerPhase2:
 
         # Verify compare was called with main...after, not before...after
         requests = httpx_mock.get_requests()
-        compare_reqs = [
-            r for r in requests if "compare" in str(r.url)
-        ]
+        compare_reqs = [r for r in requests if "compare" in str(r.url)]
         assert len(compare_reqs) == 1
         compare_url = str(compare_reqs[0].url)
         assert f"compare/main...{after}" in compare_url
         assert f"compare/{before}" not in compare_url
 
     def test_config_error_posts_pr_comment_not_check_run(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Push to PR branch with invalid ferry.yaml -> PR comment, NOT check run."""
         monkeypatch.setattr(
@@ -412,15 +406,13 @@ class TestHandlerPhase2:
         _mock_installation_token(httpx_mock)
         # Return 404 (no ferry.yaml) to trigger ConfigError
         httpx_mock.add_response(
-            url=(
-                f"https://api.github.com"
-                f"/repos/owner/repo/contents/ferry.yaml?ref={after}"
-            ),
+            url=(f"https://api.github.com/repos/owner/repo/contents/ferry.yaml?ref={after}"),
             status_code=404,
             json={"message": "Not Found"},
         )
         _mock_prs_for_commit(
-            httpx_mock, after,
+            httpx_mock,
+            after,
             prs=[{"number": 42, "state": "open"}],
         )
         _mock_pr_comment(httpx_mock, 42)
@@ -435,22 +427,21 @@ class TestHandlerPhase2:
 
         # Verify PR comment was posted (not a Check Run)
         requests = httpx_mock.get_requests()
-        comment_reqs = [
-            r for r in requests if "/issues/" in str(r.url)
-        ]
+        comment_reqs = [r for r in requests if "/issues/" in str(r.url)]
         assert len(comment_reqs) == 1
         comment_body = json.loads(comment_reqs[0].content)
         assert "Configuration Error" in comment_body["body"]
         assert "ferry.yaml validation failed" in comment_body["body"]
 
         # Verify NO check run was posted
-        check_reqs = [
-            r for r in requests if "check-runs" in str(r.url)
-        ]
+        check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 0
 
     def test_handler_no_changes_creates_empty_check_run(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Push to PR branch, no file matches -> 'No resources affected'."""
         monkeypatch.setattr(
@@ -470,11 +461,14 @@ class TestHandlerPhase2:
         _mock_ferry_config(httpx_mock, after)
         # Changed files don't match any resource source_dir
         _mock_compare(
-            httpx_mock, "main", after,
+            httpx_mock,
+            "main",
+            after,
             ["unrelated/readme.md"],
         )
         _mock_prs_for_commit(
-            httpx_mock, after,
+            httpx_mock,
+            after,
             prs=[{"number": 42, "state": "open"}],
         )
         _mock_check_run(httpx_mock)
@@ -488,16 +482,17 @@ class TestHandlerPhase2:
 
         # Verify check run was posted with "No Changes Detected"
         requests = httpx_mock.get_requests()
-        check_reqs = [
-            r for r in requests if "check-runs" in str(r.url)
-        ]
+        check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 1
         check_body = json.loads(check_reqs[0].content)
         assert check_body["conclusion"] == "success"
         assert check_body["output"]["title"] == "No Changes Detected"
 
     def test_handler_initial_push_dispatches_all(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """before SHA is all zeros -> all resources dispatched.
 
@@ -534,20 +529,18 @@ class TestHandlerPhase2:
 
         # Verify dispatch was called
         requests = httpx_mock.get_requests()
-        dispatch_reqs = [
-            r for r in requests
-            if "dispatches" in str(r.url)
-        ]
+        dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 1
 
         # Verify NO compare API call was made
-        compare_reqs = [
-            r for r in requests if "compare" in str(r.url)
-        ]
+        compare_reqs = [r for r in requests if "compare" in str(r.url)]
         assert len(compare_reqs) == 0
 
     def test_handler_ferry_yaml_change_triggers_config_diff(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """ferry.yaml in changed files -> config diff logic runs.
 
@@ -563,16 +556,18 @@ class TestHandlerPhase2:
         after = "i" * 40
 
         # New config has the resource
-        new_yaml = yaml.dump({
-            "version": 1,
-            "lambdas": [
-                {
-                    "name": "order-processor",
-                    "source_dir": "services/order-processor",
-                    "ecr_repo": "ferry/order-processor",
-                },
-            ],
-        })
+        new_yaml = yaml.dump(
+            {
+                "version": 1,
+                "lambdas": [
+                    {
+                        "name": "order-processor",
+                        "source_dir": "services/order-processor",
+                        "ecr_repo": "ferry/order-processor",
+                    },
+                ],
+            }
+        )
         new_yaml_b64 = base64.b64encode(new_yaml.encode()).decode()
 
         # Old config: empty (no lambdas)
@@ -589,15 +584,14 @@ class TestHandlerPhase2:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, after, yaml_b64=new_yaml_b64)
         _mock_compare(
-            httpx_mock, before, after,
+            httpx_mock,
+            before,
+            after,
             ["ferry.yaml"],  # Only ferry.yaml changed
         )
         # Fetch old config at before_sha
         httpx_mock.add_response(
-            url=(
-                f"https://api.github.com"
-                f"/repos/owner/repo/contents/ferry.yaml?ref={before}"
-            ),
+            url=(f"https://api.github.com/repos/owner/repo/contents/ferry.yaml?ref={before}"),
             json={"content": old_yaml_b64},
             status_code=200,
         )
@@ -615,14 +609,14 @@ class TestHandlerPhase2:
 
         # Verify dispatch was called (default branch push)
         requests = httpx_mock.get_requests()
-        dispatch_reqs = [
-            r for r in requests
-            if "dispatches" in str(r.url)
-        ]
+        dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 1
 
     def test_config_error_default_branch_posts_to_merged_pr(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Push to default branch with invalid ferry.yaml -> comment on merged PR."""
         monkeypatch.setattr(
@@ -641,10 +635,7 @@ class TestHandlerPhase2:
         _mock_installation_token(httpx_mock)
         # Return 404 (no ferry.yaml) to trigger ConfigError
         httpx_mock.add_response(
-            url=(
-                f"https://api.github.com"
-                f"/repos/owner/repo/contents/ferry.yaml?ref={after}"
-            ),
+            url=(f"https://api.github.com/repos/owner/repo/contents/ferry.yaml?ref={after}"),
             status_code=404,
             json={"message": "Not Found"},
         )
@@ -671,16 +662,17 @@ class TestHandlerPhase2:
 
         # Verify PR comment was posted on the merged PR
         requests = httpx_mock.get_requests()
-        comment_reqs = [
-            r for r in requests if "/issues/" in str(r.url)
-        ]
+        comment_reqs = [r for r in requests if "/issues/" in str(r.url)]
         assert len(comment_reqs) == 1
         assert "/issues/55/comments" in str(comment_reqs[0].url)
         comment_body = json.loads(comment_reqs[0].content)
         assert "Configuration Error" in comment_body["body"]
 
     def test_auth_error_returns_structured_500(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """GitHubAuthError in handler -> structured 500 with auth_error status."""
         from ferry_utils.errors import GitHubAuthError
@@ -709,7 +701,10 @@ class TestHandlerPhase2:
         assert "JWT generation failed" in body["error"]
 
     def test_unhandled_error_returns_structured_500(
-        self, dynamodb_env, httpx_mock, monkeypatch,
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
     ):
         """Unexpected exception -> structured 500 with internal_error, no leak."""
         monkeypatch.setattr(

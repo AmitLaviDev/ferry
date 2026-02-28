@@ -136,19 +136,13 @@ def _mock_phase2_apis(httpx_mock, after_sha):
     """
     # Installation token
     httpx_mock.add_response(
-        url=(
-            "https://api.github.com"
-            "/app/installations/12345/access_tokens"
-        ),
+        url=("https://api.github.com/app/installations/12345/access_tokens"),
         json={"token": "ghs_test_token_123"},
         status_code=201,
     )
     # Ferry config (empty config = no resources)
     httpx_mock.add_response(
-        url=(
-            f"https://api.github.com"
-            f"/repos/owner/repo/contents/ferry.yaml?ref={after_sha}"
-        ),
+        url=(f"https://api.github.com/repos/owner/repo/contents/ferry.yaml?ref={after_sha}"),
         json={"content": _FERRY_YAML_B64},
         status_code=200,
     )
@@ -156,7 +150,9 @@ def _mock_phase2_apis(httpx_mock, after_sha):
 
 class TestHandler:
     def test_valid_signature_new_delivery_returns_processed(
-        self, dynamodb_env, httpx_mock,
+        self,
+        dynamodb_env,
+        httpx_mock,
     ):
         """Valid push event processes through Phase 2 pipeline."""
         from ferry_backend.webhook.handler import handler
@@ -171,7 +167,9 @@ class TestHandler:
         assert body["status"] == "processed"
 
     def test_valid_signature_duplicate_delivery_returns_duplicate(
-        self, dynamodb_env, httpx_mock,
+        self,
+        dynamodb_env,
+        httpx_mock,
     ):
         """Duplicate delivery ID returns duplicate status."""
         from ferry_backend.webhook.handler import handler
@@ -216,7 +214,9 @@ class TestHandler:
         assert body["status"] == "ignored"
 
     def test_base64_encoded_body_decoded_before_validation(
-        self, dynamodb_env, httpx_mock,
+        self,
+        dynamodb_env,
+        httpx_mock,
     ):
         """Base64-encoded body is decoded before signature validation."""
         from ferry_backend.webhook.handler import handler

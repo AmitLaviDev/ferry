@@ -30,7 +30,10 @@ class TestLambdaResource:
 
     def test_lambda_resource_default_type(self):
         resource = LambdaResource(
-            name="fn", source="src/fn", ecr="fn-repo", function_name="fn",
+            name="fn",
+            source="src/fn",
+            ecr="fn-repo",
+            function_name="fn",
             runtime="python3.14",
         )
         assert resource.resource_type == "lambda"
@@ -61,7 +64,10 @@ class TestLambdaResource:
     def test_lambda_resource_custom_runtime(self):
         """Runtime can be any string value (e.g. different Python version)."""
         resource = LambdaResource(
-            name="fn", source="src/fn", ecr="fn-repo", function_name="fn",
+            name="fn",
+            source="src/fn",
+            ecr="fn-repo",
+            function_name="fn",
             runtime="python3.12",
         )
         assert resource.runtime == "python3.12"
@@ -104,13 +110,17 @@ class TestDispatchPayload:
             resource_type="lambdas",
             resources=[
                 LambdaResource(
-                    name="fn-a", source="services/fn-a",
-                    ecr="fn-a-repo", function_name="fn-a",
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
                     runtime="python3.14",
                 ),
                 LambdaResource(
-                    name="fn-b", source="services/fn-b",
-                    ecr="fn-b-repo", function_name="fn-b",
+                    name="fn-b",
+                    source="services/fn-b",
+                    ecr="fn-b-repo",
+                    function_name="fn-b",
                     runtime="python3.14",
                 ),
             ],
@@ -137,7 +147,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
+                LambdaResource(
+                    name="fn",
+                    source="src/fn",
+                    ecr="fn-repo",
+                    function_name="fn",
+                    runtime="python3.14",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -149,7 +165,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
+                LambdaResource(
+                    name="fn",
+                    source="src/fn",
+                    ecr="fn-repo",
+                    function_name="fn",
+                    runtime="python3.14",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -160,7 +182,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
+                LambdaResource(
+                    name="fn",
+                    source="src/fn",
+                    ecr="fn-repo",
+                    function_name="fn",
+                    runtime="python3.14",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -172,7 +200,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
+                LambdaResource(
+                    name="fn",
+                    source="src/fn",
+                    ecr="fn-repo",
+                    function_name="fn",
+                    runtime="python3.14",
+                ),
             ],
             trigger_sha="abc123",
             deployment_tag="v1.0.0",
@@ -181,7 +215,9 @@ class TestDispatchPayload:
             payload.trigger_sha = "new-sha"
 
     def test_frozen_resource_rejects_mutation(self):
-        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14")
+        resource = LambdaResource(
+            name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"
+        )
         with pytest.raises(ValidationError):
             resource.name = "new-name"
 
@@ -228,7 +264,13 @@ class TestDispatchPayload:
         payload = DispatchPayload(
             resource_type="lambdas",
             resources=[
-                LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"),
+                LambdaResource(
+                    name="fn",
+                    source="src/fn",
+                    ecr="fn-repo",
+                    function_name="fn",
+                    runtime="python3.14",
+                ),
                 StepFunctionResource(
                     name="wf",
                     source="workflows/wf",

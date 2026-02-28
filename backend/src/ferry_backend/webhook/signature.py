@@ -24,10 +24,13 @@ def verify_signature(body: str, signature_header: str, secret: str) -> bool:
     if not signature_header.startswith("sha256="):
         return False
 
-    expected = "sha256=" + hmac.new(
-        secret.encode("utf-8"),
-        body.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "sha256="
+        + hmac.new(
+            secret.encode("utf-8"),
+            body.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+    )
 
     return hmac.compare_digest(expected, signature_header)

@@ -214,8 +214,11 @@ def main() -> None:
             gha.set_output("deployment-id", "")
 
             report_check_run(
-                resource_name, "deploy", "success",
-                f"Skipped {resource_name} (spec unchanged)", trigger_sha,
+                resource_name,
+                "deploy",
+                "success",
+                f"Skipped {resource_name} (spec unchanged)",
+                trigger_sha,
             )
 
             gha.write_summary(
@@ -239,8 +242,11 @@ def main() -> None:
         gha.set_output("deployment-id", result["deployment_id"])
 
         report_check_run(
-            resource_name, "deploy", "success",
-            f"Deployed {resource_name}", trigger_sha,
+            resource_name,
+            "deploy",
+            "success",
+            f"Deployed {resource_name}",
+            trigger_sha,
         )
 
         gha.write_summary(
@@ -257,15 +263,9 @@ def main() -> None:
     except ClientError as exc:
         error_code = exc.response["Error"]["Code"]
         hints = {
-            "NotFoundException": (
-                f"REST API '{rest_api_id}' not found"
-            ),
-            "BadRequestException": (
-                "Invalid OpenAPI spec -- check spec syntax"
-            ),
-            "AccessDeniedException": (
-                "IAM role lacks apigateway permissions"
-            ),
+            "NotFoundException": (f"REST API '{rest_api_id}' not found"),
+            "BadRequestException": ("Invalid OpenAPI spec -- check spec syntax"),
+            "AccessDeniedException": ("IAM role lacks apigateway permissions"),
         }
         hint = hints.get(error_code, str(exc))
         gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))

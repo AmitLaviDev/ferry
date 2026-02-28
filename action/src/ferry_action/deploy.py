@@ -22,9 +22,7 @@ from ferry_action import gha
 from ferry_action.report import format_error_detail, report_check_run
 
 
-def get_current_image_digest(
-    lambda_client: object, function_name: str
-) -> str | None:
+def get_current_image_digest(lambda_client: object, function_name: str) -> str | None:
     """Get the sha256 digest of the currently deployed Lambda image.
 
     Extracts the digest from ``Code.ResolvedImageUri`` which contains
@@ -49,9 +47,7 @@ def get_current_image_digest(
     return resolved_uri.split("@", 1)[1]
 
 
-def should_skip_deploy(
-    current_digest: str | None, new_digest: str
-) -> bool:
+def should_skip_deploy(current_digest: str | None, new_digest: str) -> bool:
     """Determine whether deployment should be skipped.
 
     Normalizes both digests to just the ``sha256:...`` part (stripping
@@ -188,8 +184,11 @@ def main() -> None:
             gha.set_output("lambda-version", "")
 
             report_check_run(
-                resource_name, "deploy", "success",
-                f"Skipped {resource_name} (image unchanged)", trigger_sha,
+                resource_name,
+                "deploy",
+                "success",
+                f"Skipped {resource_name} (image unchanged)",
+                trigger_sha,
             )
 
             gha.write_summary(
@@ -202,16 +201,17 @@ def main() -> None:
             )
             return
 
-        result = deploy_lambda(
-            client, function_name, image_uri, deployment_tag
-        )
+        result = deploy_lambda(client, function_name, image_uri, deployment_tag)
 
         gha.set_output("skipped", "false")
         gha.set_output("lambda-version", result["version"])
 
         report_check_run(
-            resource_name, "deploy", "success",
-            f"Deployed {resource_name} v{result['version']}", trigger_sha,
+            resource_name,
+            "deploy",
+            "success",
+            f"Deployed {resource_name} v{result['version']}",
+            trigger_sha,
         )
 
         gha.write_summary(
@@ -230,8 +230,7 @@ def main() -> None:
         error_code = exc.response["Error"]["Code"]
         hints = {
             "AccessDeniedException": (
-                f"IAM role lacks lambda:UpdateFunctionCode permission "
-                f"for '{function_name}'"
+                f"IAM role lacks lambda:UpdateFunctionCode permission for '{function_name}'"
             ),
             "ResourceNotFoundException": (
                 f"Lambda function '{function_name}' not found. "

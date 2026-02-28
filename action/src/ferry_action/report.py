@@ -45,9 +45,7 @@ def report_check_run(
     repo = os.environ.get("GITHUB_REPOSITORY", "")
 
     if not token or not repo:
-        logger.warning(
-            "GITHUB_TOKEN or GITHUB_REPOSITORY not set -- skipping Check Run"
-        )
+        logger.warning("GITHUB_TOKEN or GITHUB_REPOSITORY not set -- skipping Check Run")
         return
 
     check_name = f"Ferry: {resource_name} {phase}"

@@ -28,9 +28,7 @@ from ferry_action.envsubst import (
 from ferry_action.report import format_error_detail, report_check_run
 
 
-def should_skip_deploy(
-    sfn_client: object, state_machine_arn: str, new_hash: str
-) -> bool:
+def should_skip_deploy(sfn_client: object, state_machine_arn: str, new_hash: str) -> bool:
     """Determine whether deployment should be skipped based on content hash.
 
     Reads the ``ferry:content-hash`` tag from the state machine and compares
@@ -126,14 +124,11 @@ def main() -> None:
     try:
         # Resolve account ID and region
         account_id = sts_client.get_caller_identity()["Account"]
-        region = os.environ.get(
-            "AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1")
-        )
+        region = os.environ.get("AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1"))
 
         # Construct state machine ARN
         state_machine_arn = (
-            f"arn:aws:states:{region}:{account_id}"
-            f":stateMachine:{state_machine_name}"
+            f"arn:aws:states:{region}:{account_id}:stateMachine:{state_machine_name}"
         )
 
         # Read definition file
@@ -148,15 +143,16 @@ def main() -> None:
 
         # Check skip
         if should_skip_deploy(sfn_client, state_machine_arn, content_hash):
-            print(
-                f"Skipping deploy for {resource_name} -- definition unchanged"
-            )
+            print(f"Skipping deploy for {resource_name} -- definition unchanged")
             gha.set_output("skipped", "true")
             gha.set_output("version-arn", "")
 
             report_check_run(
-                resource_name, "deploy", "success",
-                f"Skipped {resource_name} (definition unchanged)", trigger_sha,
+                resource_name,
+                "deploy",
+                "success",
+                f"Skipped {resource_name} (definition unchanged)",
+                trigger_sha,
             )
 
             gha.write_summary(
@@ -171,16 +167,17 @@ def main() -> None:
             return
 
         # Deploy
-        result = deploy_step_function(
-            sfn_client, state_machine_arn, definition, deployment_tag
-        )
+        result = deploy_step_function(sfn_client, state_machine_arn, definition, deployment_tag)
 
         gha.set_output("skipped", "false")
         gha.set_output("version-arn", str(result["version_arn"]))
 
         report_check_run(
-            resource_name, "deploy", "success",
-            f"Deployed {resource_name}", trigger_sha,
+            resource_name,
+            "deploy",
+            "success",
+            f"Deployed {resource_name}",
+            trigger_sha,
         )
 
         gha.write_summary(
@@ -198,16 +195,13 @@ def main() -> None:
         error_code = exc.response["Error"]["Code"]
         hints = {
             "StateMachineDoesNotExist": (
-                f"State machine '{state_machine_name}' not found "
-                f"-- verify it exists in {region}"
+                f"State machine '{state_machine_name}' not found -- verify it exists in {region}"
             ),
             "AccessDeniedException": (
-                f"IAM role lacks states:UpdateStateMachine permission "
-                f"for '{state_machine_name}'"
+                f"IAM role lacks states:UpdateStateMachine permission for '{state_machine_name}'"
             ),
             "InvalidDefinition": (
-                f"State machine definition is invalid "
-                f"-- check '{definition_file}' syntax"
+                f"State machine definition is invalid -- check '{definition_file}' syntax"
             ),
         }
         hint = hints.get(error_code, str(exc))

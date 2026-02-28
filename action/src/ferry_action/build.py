@@ -35,7 +35,7 @@ def parse_runtime_version(runtime: str) -> str:
         Numeric version string.
     """
     if runtime.startswith("python"):
-        return runtime[len("python"):]
+        return runtime[len("python") :]
     return runtime
 
 
@@ -209,8 +209,7 @@ def main() -> None:
             )
         else:
             hint = (
-                f"Build failed for {resource_name}: "
-                f"docker build exited with code {exc.returncode}"
+                f"Build failed for {resource_name}: docker build exited with code {exc.returncode}"
             )
         gha.error(format_error_detail(exc, hint))
         report_check_run(resource_name, "build", "failure", hint, trigger_sha)
@@ -228,10 +227,7 @@ def main() -> None:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr or "" if hasattr(exc, "stderr") and exc.stderr else ""
         if "ecr" in stderr.lower() or "authorization" in stderr.lower():
-            hint = (
-                "ECR login failed. Verify the IAM role has "
-                "ecr:GetAuthorizationToken permission."
-            )
+            hint = "ECR login failed. Verify the IAM role has ecr:GetAuthorizationToken permission."
         else:
             hint = f"Push failed for {resource_name}: ECR push exited with code {exc.returncode}"
         gha.error(format_error_detail(exc, hint))
@@ -244,8 +240,11 @@ def main() -> None:
 
     # Report success Check Run
     report_check_run(
-        resource_name, "build", "success",
-        f"Built and pushed {resource_name}", trigger_sha,
+        resource_name,
+        "build",
+        "success",
+        f"Built and pushed {resource_name}",
+        trigger_sha,
     )
 
     # Set outputs

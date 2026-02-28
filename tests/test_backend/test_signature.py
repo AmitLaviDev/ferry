@@ -37,9 +37,7 @@ class TestVerifySignature:
         assert verify_signature(BODY, "", SECRET) is False
 
     def test_signature_without_prefix_returns_false(self):
-        mac = hmac.new(
-            SECRET.encode("utf-8"), BODY.encode("utf-8"), hashlib.sha256
-        )
+        mac = hmac.new(SECRET.encode("utf-8"), BODY.encode("utf-8"), hashlib.sha256)
         signature_no_prefix = mac.hexdigest()
         assert verify_signature(BODY, signature_no_prefix, SECRET) is False
 

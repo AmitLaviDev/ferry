@@ -175,7 +175,7 @@ class TestWriteSummary:
         write_summary("## Second\n")
 
         content = summary_file.read_text()
-        assert "## First\n## Second\n" == content
+        assert content == "## First\n## Second\n"
 
     def test_fallback_without_step_summary(
         self,

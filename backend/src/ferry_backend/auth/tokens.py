@@ -51,8 +51,7 @@ def get_installation_token(
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise GitHubAuthError(
-            f"Installation token exchange failed: "
-            f"{exc.response.status_code} {exc.response.text}"
+            f"Installation token exchange failed: {exc.response.status_code} {exc.response.text}"
         ) from exc
 
     return resp.json()["token"]

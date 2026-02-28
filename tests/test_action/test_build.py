@@ -7,9 +7,7 @@ orchestration, never actually invoke Docker.
 
 from __future__ import annotations
 
-import os
-import subprocess
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -71,7 +69,10 @@ class TestBuildDockerCommand:
         # Check tag
         assert "--tag" in cmd
         tag_idx = cmd.index("--tag")
-        assert cmd[tag_idx + 1] == "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor:pr-42"
+        assert (
+            cmd[tag_idx + 1]
+            == "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor:pr-42"
+        )
         # Check file
         assert "--file" in cmd
         file_idx = cmd.index("--file")
@@ -138,12 +139,13 @@ class TestPushImage:
         push_result.returncode = 0
         # docker inspect returns the repo digest
         inspect_result = MagicMock()
-        inspect_result.stdout = "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor@sha256:abcdef1234567890\n"
+        ecr_base = "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor"
+        inspect_result.stdout = f"{ecr_base}@sha256:abcdef1234567890\n"
         mock_run.side_effect = [push_result, inspect_result]
 
-        digest = push_image("123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor:pr-42")
+        digest = push_image(f"{ecr_base}:pr-42")
 
-        assert digest == "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/order-processor@sha256:abcdef1234567890"
+        assert digest == f"{ecr_base}@sha256:abcdef1234567890"
         assert mock_run.call_count == 2
         # First call: docker push
         push_call = mock_run.call_args_list[0]

@@ -51,9 +51,7 @@ def lambda_role(moto_aws: None) -> str:
     iam = boto3.client("iam", region_name="us-east-1")
     iam.create_role(
         RoleName="lambda-role",
-        AssumeRolePolicyDocument=json.dumps(
-            {"Version": "2012-10-17", "Statement": []}
-        ),
+        AssumeRolePolicyDocument=json.dumps({"Version": "2012-10-17", "Statement": []}),
         Path="/",
     )
     return iam.get_role(RoleName="lambda-role")["Role"]["Arn"]
@@ -141,9 +139,7 @@ class TestDeployLambda:
     ) -> None:
         from ferry_action.deploy import deploy_lambda
 
-        deploy_lambda(
-            lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live"
-        )
+        deploy_lambda(lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live")
 
         gf = lambda_client.get_function(FunctionName=lambda_function)
         assert IMAGE_URI_V2 in gf["Code"]["ImageUri"]
@@ -155,13 +151,9 @@ class TestDeployLambda:
     ) -> None:
         from ferry_action.deploy import deploy_lambda
 
-        deploy_lambda(
-            lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live"
-        )
+        deploy_lambda(lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live")
 
-        versions = lambda_client.list_versions_by_function(
-            FunctionName=lambda_function
-        )["Versions"]
+        versions = lambda_client.list_versions_by_function(FunctionName=lambda_function)["Versions"]
         # $LATEST + published version
         assert len(versions) >= 2
         published = [v for v in versions if v["Version"] != "$LATEST"]
@@ -184,13 +176,9 @@ class TestDeployLambda:
             FunctionVersion="1",
         )
 
-        result = deploy_lambda(
-            lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live"
-        )
+        result = deploy_lambda(lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live")
 
-        alias = lambda_client.get_alias(
-            FunctionName=lambda_function, Name="live"
-        )
+        alias = lambda_client.get_alias(FunctionName=lambda_function, Name="live")
         assert alias["FunctionVersion"] == result["version"]
 
     def test_creates_alias_if_not_exists(
@@ -201,13 +189,9 @@ class TestDeployLambda:
         from ferry_action.deploy import deploy_lambda
 
         # No alias exists yet -- deploy_lambda should create it
-        result = deploy_lambda(
-            lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live"
-        )
+        result = deploy_lambda(lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live")
 
-        alias = lambda_client.get_alias(
-            FunctionName=lambda_function, Name="live"
-        )
+        alias = lambda_client.get_alias(FunctionName=lambda_function, Name="live")
         assert alias["Name"] == "live"
         assert alias["FunctionVersion"] == result["version"]
 
@@ -218,9 +202,7 @@ class TestDeployLambda:
     ) -> None:
         from ferry_action.deploy import deploy_lambda
 
-        result = deploy_lambda(
-            lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live"
-        )
+        result = deploy_lambda(lambda_client, lambda_function, IMAGE_URI_V2, "pr-43", "live")
 
         assert "version" in result
         assert "alias" in result

@@ -171,9 +171,7 @@ class TestShouldSkipDeploy:
         from ferry_action.deploy_apigw import should_skip_deploy
 
         mock_client = MagicMock()
-        mock_client.get_tags.return_value = {
-            "tags": {"ferry:content-hash": "abc123def456"}
-        }
+        mock_client.get_tags.return_value = {"tags": {"ferry:content-hash": "abc123def456"}}
 
         result = should_skip_deploy(mock_client, "test-api-id", REGION, "abc123def456")
         assert result is True
@@ -182,9 +180,7 @@ class TestShouldSkipDeploy:
         from ferry_action.deploy_apigw import should_skip_deploy
 
         mock_client = MagicMock()
-        mock_client.get_tags.return_value = {
-            "tags": {"ferry:content-hash": "old-hash"}
-        }
+        mock_client.get_tags.return_value = {"tags": {"ferry:content-hash": "old-hash"}}
 
         result = should_skip_deploy(mock_client, "test-api-id", REGION, "new-hash")
         assert result is False
@@ -228,9 +224,7 @@ class TestDeployApiGateway:
         canonical = json.dumps(VALID_MOTO_SPEC, sort_keys=True, separators=(",", ":"))
 
         with patch.object(apigw_client, "tag_resource"):
-            deploy_api_gateway(
-                apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42"
-            )
+            deploy_api_gateway(apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42")
 
         # Verify the API still exists (put_rest_api succeeded)
         resp = apigw_client.get_rest_api(restApiId=rest_api)
@@ -247,9 +241,7 @@ class TestDeployApiGateway:
         canonical = json.dumps(VALID_MOTO_SPEC, sort_keys=True, separators=(",", ":"))
 
         with patch.object(apigw_client, "tag_resource"):
-            deploy_api_gateway(
-                apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42"
-            )
+            deploy_api_gateway(apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42")
 
         deployments = apigw_client.get_deployments(restApiId=rest_api)
         assert len(deployments["items"]) >= 1
@@ -270,9 +262,7 @@ class TestDeployApiGateway:
         expected_arn = f"arn:aws:apigateway:{REGION}::/restapis/{rest_api}"
 
         with patch.object(apigw_client, "tag_resource") as mock_tag:
-            deploy_api_gateway(
-                apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42"
-            )
+            deploy_api_gateway(apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42")
 
         mock_tag.assert_called_once_with(
             resourceArn=expected_arn,
@@ -290,14 +280,10 @@ class TestDeployApiGateway:
         canonical = json.dumps(VALID_MOTO_SPEC, sort_keys=True, separators=(",", ":"))
 
         with (
-            patch.object(
-                apigw_client, "put_rest_api", wraps=apigw_client.put_rest_api
-            ) as mock_put,
+            patch.object(apigw_client, "put_rest_api", wraps=apigw_client.put_rest_api) as mock_put,
             patch.object(apigw_client, "tag_resource"),
         ):
-            deploy_api_gateway(
-                apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42"
-            )
+            deploy_api_gateway(apigw_client, rest_api, STAGE, spec_body, canonical, REGION, "pr-42")
 
         call_args = mock_put.call_args
         assert isinstance(call_args.kwargs.get("body") or call_args[1].get("body"), bytes)

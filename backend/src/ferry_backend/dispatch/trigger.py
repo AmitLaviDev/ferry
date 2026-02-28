@@ -140,9 +140,7 @@ def trigger_dispatches(
 
     for rtype, resources in grouped.items():
         # Build dispatch resources from config
-        dispatch_resources = [
-            _build_resource(rtype, r.name, config) for r in resources
-        ]
+        dispatch_resources = [_build_resource(rtype, r.name, config) for r in resources]
 
         payload = DispatchPayload(
             resource_type=rtype,

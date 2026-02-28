@@ -94,17 +94,24 @@ class TestTriggerDispatches:
         )
         affected = [
             self._make_affected(
-                "order", changed_files=("services/order/main.py",),
+                "order",
+                changed_files=("services/order/main.py",),
             ),
             self._make_affected(
-                "payment", changed_files=("services/payment/main.py",),
+                "payment",
+                changed_files=("services/payment/main.py",),
             ),
         ]
 
         client = GitHubClient()
         results = trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
         )
         assert len(results) == 1
         assert results[0]["type"] == "lambda"
@@ -155,7 +162,8 @@ class TestTriggerDispatches:
         )
         affected = [
             self._make_affected(
-                "order", changed_files=("services/order/main.py",),
+                "order",
+                changed_files=("services/order/main.py",),
             ),
             self._make_affected(
                 "checkout",
@@ -166,8 +174,13 @@ class TestTriggerDispatches:
 
         client = GitHubClient()
         results = trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
         )
         assert len(results) == 2
         types = {r["type"] for r in results}
@@ -178,8 +191,13 @@ class TestTriggerDispatches:
         config = self._make_config()
         client = GitHubClient()
         results = trigger_dispatches(
-            client, "owner/repo", config, [],
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            [],
+            "sha123",
+            "main-sha123",
+            "",
         )
         assert results == []
         assert len(httpx_mock.get_requests()) == 0
@@ -205,14 +223,20 @@ class TestTriggerDispatches:
         )
         affected = [
             self._make_affected(
-                "order", changed_files=("services/order/main.py",),
+                "order",
+                changed_files=("services/order/main.py",),
             ),
         ]
 
         client = GitHubClient()
         trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "deadbeef123", "pr-42", "42",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "deadbeef123",
+            "pr-42",
+            "42",
         )
 
         request = httpx_mock.get_requests()[0]
@@ -255,14 +279,20 @@ class TestTriggerDispatches:
         )
         affected = [
             self._make_affected(
-                "order", changed_files=("services/order/main.py",),
+                "order",
+                changed_files=("services/order/main.py",),
             ),
         ]
 
         client = GitHubClient()
         trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
         )
 
         request = httpx_mock.get_requests()[0]
@@ -308,7 +338,8 @@ class TestTriggerDispatches:
         )
         affected = [
             self._make_affected(
-                "order", changed_files=("services/order/main.py",),
+                "order",
+                changed_files=("services/order/main.py",),
             ),
             self._make_affected(
                 "checkout",
@@ -319,8 +350,13 @@ class TestTriggerDispatches:
 
         client = GitHubClient()
         results = trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
         )
 
         workflows = {r["workflow"] for r in results}
@@ -355,8 +391,13 @@ class TestTriggerDispatches:
 
         client = GitHubClient()
         trigger_dispatches(
-            client, "owner/repo", config, affected,
-            "sha123", "main-sha123", "",
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
         )
 
         request = httpx_mock.get_requests()[0]

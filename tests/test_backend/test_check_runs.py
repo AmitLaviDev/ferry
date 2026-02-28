@@ -91,9 +91,7 @@ class TestFormatDeploymentPlan:
 
 
 class TestCreateCheckRun:
-    _CHECK_RUNS_URL = (
-        "https://api.github.com/repos/owner/repo/check-runs"
-    )
+    _CHECK_RUNS_URL = "https://api.github.com/repos/owner/repo/check-runs"
 
     def test_create_check_run_with_affected(self, httpx_mock):
         """Posts Check Run with deployment plan for affected resources."""
@@ -114,7 +112,10 @@ class TestCreateCheckRun:
 
         client = GitHubClient()
         result = create_check_run(
-            client, "owner/repo", "sha123", affected,
+            client,
+            "owner/repo",
+            "sha123",
+            affected,
         )
 
         assert result["id"] == 1
@@ -155,7 +156,10 @@ class TestCreateCheckRun:
 
         client = GitHubClient()
         create_check_run(
-            client, "owner/repo", "sha123", [],
+            client,
+            "owner/repo",
+            "sha123",
+            [],
             error="Missing required field: name",
         )
 
@@ -176,10 +180,7 @@ class TestFindOpenPrs:
     def test_find_open_prs_found(self, httpx_mock):
         """Mock returns open PR -> returns it."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[{"number": 42, "state": "open"}],
         )
 
@@ -191,10 +192,7 @@ class TestFindOpenPrs:
     def test_find_open_prs_none(self, httpx_mock):
         """Mock returns closed/merged PRs -> returns empty list."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 10, "state": "closed"},
                 {"number": 11, "state": "closed"},
@@ -208,10 +206,7 @@ class TestFindOpenPrs:
     def test_find_open_prs_filters_closed(self, httpx_mock):
         """Mix of open and closed -> only open returned."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 42, "state": "open"},
                 {"number": 10, "state": "closed"},
@@ -235,10 +230,7 @@ class TestFindMergedPr:
     def test_find_merged_pr_returns_merged(self, httpx_mock):
         """Returns PR with merged_at set."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 10, "state": "closed", "merged_at": None},
                 {"number": 42, "state": "closed", "merged_at": "2026-02-28T00:00:00Z"},
@@ -253,10 +245,7 @@ class TestFindMergedPr:
     def test_find_merged_pr_returns_none_when_no_merged(self, httpx_mock):
         """Returns None when no PRs have merged_at set."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 10, "state": "closed", "merged_at": None},
                 {"number": 11, "state": "open", "merged_at": None},
@@ -270,10 +259,7 @@ class TestFindMergedPr:
     def test_find_merged_pr_returns_first_merged(self, httpx_mock):
         """Returns the first merged PR when multiple exist."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/commits/sha123/pulls"
-            ),
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 42, "state": "closed", "merged_at": "2026-02-28T00:00:00Z"},
                 {"number": 43, "state": "closed", "merged_at": "2026-02-28T01:00:00Z"},
@@ -295,17 +281,17 @@ class TestPostPrComment:
     def test_post_pr_comment_posts_to_issues_api(self, httpx_mock):
         """Verify post_pr_comment sends POST to issues comments endpoint."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/issues/42/comments"
-            ),
+            url=("https://api.github.com/repos/owner/repo/issues/42/comments"),
             json={"id": 100, "body": "test comment"},
             status_code=201,
         )
 
         client = GitHubClient()
         result = post_pr_comment(
-            client, "owner/repo", 42, "test comment",
+            client,
+            "owner/repo",
+            42,
+            "test comment",
         )
         assert result["id"] == 100
 

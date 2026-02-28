@@ -112,7 +112,10 @@ def handler(event: dict, context: object) -> dict:
 
     # 7. Deduplicate
     if is_duplicate(
-        delivery_id, payload, settings.table_name, dynamodb_client,
+        delivery_id,
+        payload,
+        settings.table_name,
+        dynamodb_client,
     ):
         log.info("webhook_duplicate_delivery")
         return _response(200, {"status": "duplicate"})
@@ -126,7 +129,9 @@ def handler(event: dict, context: object) -> dict:
         jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
         github_client.app_auth(jwt_token)
         inst_token = get_installation_token(
-            github_client, jwt_token, settings.installation_id,
+            github_client,
+            jwt_token,
+            settings.installation_id,
         )
         github_client.installation_auth(inst_token)
 
@@ -160,7 +165,10 @@ def handler(event: dict, context: object) -> dict:
             # Three-dot compare uses merge-base automatically for PR branches
             compare_base = before_sha if is_default_branch else default_branch
             changed_files = get_changed_files(
-                github_client, repo, compare_base, after_sha,
+                github_client,
+                repo,
+                compare_base,
+                after_sha,
             )
             affected = match_resources(config, changed_files)
 
@@ -168,14 +176,17 @@ def handler(event: dict, context: object) -> dict:
             if "ferry.yaml" in changed_files:
                 try:
                     old_raw = fetch_ferry_config(
-                        github_client, repo, before_sha,
+                        github_client,
+                        repo,
+                        before_sha,
                     )
                     old_parsed = parse_config(old_raw)
                     old_config = validate_config(old_parsed)
                 except ConfigError:
                     old_config = None  # Old config invalid -> all new
                 config_affected = detect_config_changes(
-                    old_config, config,
+                    old_config,
+                    config,
                 )
                 affected = merge_affected(affected, config_affected)
 
@@ -189,8 +200,13 @@ def handler(event: dict, context: object) -> dict:
             pr_number = str(prs[0]["number"]) if prs else ""
             tag = build_deployment_tag(pr_number, branch, after_sha)
             trigger_dispatches(
-                github_client, repo, config, affected,
-                after_sha, tag, pr_number,
+                github_client,
+                repo,
+                config,
+                affected,
+                after_sha,
+                tag,
+                pr_number,
                 default_branch=default_branch,
             )
             log.info(
@@ -203,33 +219,41 @@ def handler(event: dict, context: object) -> dict:
             prs = find_open_prs(github_client, repo, after_sha)
             if prs:
                 create_check_run(
-                    github_client, repo, after_sha, affected,
+                    github_client,
+                    repo,
+                    after_sha,
+                    affected,
                 )
 
         return _response(
-            200, {"status": "processed", "affected": len(affected)},
+            200,
+            {"status": "processed", "affected": len(affected)},
         )
 
     except ConfigError as exc:
         log.error("config_error", error=str(exc))
         # Surface config errors as PR comments (not Check Runs)
         comment_body = (
-            "**Ferry: Configuration Error**\n\n"
-            "ferry.yaml validation failed:\n"
-            f"```\n{exc!s}\n```"
+            f"**Ferry: Configuration Error**\n\nferry.yaml validation failed:\n```\n{exc!s}\n```"
         )
         # PR branches: comment on the open PR
         prs = find_open_prs(github_client, repo, after_sha)
         if prs:
             post_pr_comment(
-                github_client, repo, prs[0]["number"], comment_body,
+                github_client,
+                repo,
+                prs[0]["number"],
+                comment_body,
             )
         else:
             # Default branch: find the merged PR
             merged_pr = find_merged_pr(github_client, repo, after_sha)
             if merged_pr:
                 post_pr_comment(
-                    github_client, repo, merged_pr["number"], comment_body,
+                    github_client,
+                    repo,
+                    merged_pr["number"],
+                    comment_body,
                 )
             else:
                 log.warning(
@@ -237,19 +261,22 @@ def handler(event: dict, context: object) -> dict:
                     reason="no open or merged PR found for comment",
                 )
         return _response(
-            200, {"status": "config_error", "error": str(exc)},
+            200,
+            {"status": "config_error", "error": str(exc)},
         )
 
     except GitHubAuthError as exc:
         log.error("auth_error", error=str(exc), exc_info=True)
         return _response(
-            500, {"status": "auth_error", "error": str(exc)},
+            500,
+            {"status": "auth_error", "error": str(exc)},
         )
 
     except Exception as exc:
         log.error("unhandled_error", error=str(exc), exc_info=True)
         return _response(
-            500, {"status": "internal_error", "error": "internal server error"},
+            500,
+            {"status": "internal_error", "error": "internal server error"},
         )
 
 

@@ -15,17 +15,19 @@ import uuid
 
 # Set env vars BEFORE any imports that trigger Settings
 SECRET = "test-webhook-secret-123"
-os.environ.update({
-    "FERRY_APP_ID": "12345",
-    "FERRY_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-    "FERRY_WEBHOOK_SECRET": SECRET,
-    "FERRY_TABLE_NAME": "ferry-dedup-test",
-    "FERRY_INSTALLATION_ID": "67890",
-    "FERRY_LOG_LEVEL": "DEBUG",
-    "AWS_DEFAULT_REGION": "us-east-1",
-    "AWS_ACCESS_KEY_ID": "testing",
-    "AWS_SECRET_ACCESS_KEY": "testing",
-})
+os.environ.update(
+    {
+        "FERRY_APP_ID": "12345",
+        "FERRY_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+        "FERRY_WEBHOOK_SECRET": SECRET,
+        "FERRY_TABLE_NAME": "ferry-dedup-test",
+        "FERRY_INSTALLATION_ID": "67890",
+        "FERRY_LOG_LEVEL": "DEBUG",
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "testing",
+        "AWS_SECRET_ACCESS_KEY": "testing",
+    }
+)
 
 import boto3
 from moto import mock_aws

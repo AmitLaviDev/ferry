@@ -90,9 +90,7 @@ def iam_role(moto_aws: None) -> str:
     iam = boto3.client("iam", region_name="us-east-1")
     iam.create_role(
         RoleName="sfn-role",
-        AssumeRolePolicyDocument=json.dumps(
-            {"Version": "2012-10-17", "Statement": []}
-        ),
+        AssumeRolePolicyDocument=json.dumps({"Version": "2012-10-17", "Statement": []}),
         Path="/",
     )
     return iam.get_role(RoleName="sfn-role")["Role"]["Arn"]
@@ -120,25 +118,19 @@ def state_machine(sfn_client: boto3.client, iam_role: str) -> str:
 
 
 class TestShouldSkipDeploy:
-    def test_skip_when_hash_matches(
-        self, sfn_client: boto3.client, state_machine: str
-    ) -> None:
+    def test_skip_when_hash_matches(self, sfn_client: boto3.client, state_machine: str) -> None:
         from ferry_action.deploy_stepfunctions import should_skip_deploy
 
         matching_hash = compute_content_hash(SIMPLE_DEFINITION)
         assert should_skip_deploy(sfn_client, state_machine, matching_hash) is True
 
-    def test_deploy_when_hash_differs(
-        self, sfn_client: boto3.client, state_machine: str
-    ) -> None:
+    def test_deploy_when_hash_differs(self, sfn_client: boto3.client, state_machine: str) -> None:
         from ferry_action.deploy_stepfunctions import should_skip_deploy
 
         different_hash = compute_content_hash(UPDATED_DEFINITION)
         assert should_skip_deploy(sfn_client, state_machine, different_hash) is False
 
-    def test_deploy_when_no_tag_exists(
-        self, sfn_client: boto3.client, iam_role: str
-    ) -> None:
+    def test_deploy_when_no_tag_exists(self, sfn_client: boto3.client, iam_role: str) -> None:
         from ferry_action.deploy_stepfunctions import should_skip_deploy
 
         # Create a state machine with NO ferry:content-hash tag
@@ -162,51 +154,37 @@ class TestDeployStepFunction:
     ) -> None:
         from ferry_action.deploy_stepfunctions import deploy_step_function
 
-        deploy_step_function(
-            sfn_client, state_machine, UPDATED_DEFINITION, "pr-42"
-        )
+        deploy_step_function(sfn_client, state_machine, UPDATED_DEFINITION, "pr-42")
 
         desc = sfn_client.describe_state_machine(stateMachineArn=state_machine)
         assert json.loads(desc["definition"]) == json.loads(UPDATED_DEFINITION)
 
-    def test_publishes_version(
-        self, sfn_client: boto3.client, state_machine: str
-    ) -> None:
+    def test_publishes_version(self, sfn_client: boto3.client, state_machine: str) -> None:
         from ferry_action.deploy_stepfunctions import deploy_step_function
 
         # update_state_machine with publish=True should work
         # moto may or may not return a real versionArn, but the call should succeed
-        result = deploy_step_function(
-            sfn_client, state_machine, UPDATED_DEFINITION, "pr-42"
-        )
+        result = deploy_step_function(sfn_client, state_machine, UPDATED_DEFINITION, "pr-42")
         # Verify the definition was updated (confirms update_state_machine was called)
         desc = sfn_client.describe_state_machine(stateMachineArn=state_machine)
         assert json.loads(desc["definition"]) == json.loads(UPDATED_DEFINITION)
         # version_arn key must exist in result (may be empty string if moto doesn't support it)
         assert "version_arn" in result
 
-    def test_tags_content_hash(
-        self, sfn_client: boto3.client, state_machine: str
-    ) -> None:
+    def test_tags_content_hash(self, sfn_client: boto3.client, state_machine: str) -> None:
         from ferry_action.deploy_stepfunctions import deploy_step_function
 
-        deploy_step_function(
-            sfn_client, state_machine, UPDATED_DEFINITION, "pr-42"
-        )
+        deploy_step_function(sfn_client, state_machine, UPDATED_DEFINITION, "pr-42")
 
         tags_resp = sfn_client.list_tags_for_resource(resourceArn=state_machine)
         expected_hash = compute_content_hash(UPDATED_DEFINITION)
         tag_map = {t["key"]: t["value"] for t in tags_resp["tags"]}
         assert tag_map["ferry:content-hash"] == expected_hash
 
-    def test_returns_result_dict(
-        self, sfn_client: boto3.client, state_machine: str
-    ) -> None:
+    def test_returns_result_dict(self, sfn_client: boto3.client, state_machine: str) -> None:
         from ferry_action.deploy_stepfunctions import deploy_step_function
 
-        result = deploy_step_function(
-            sfn_client, state_machine, UPDATED_DEFINITION, "pr-42"
-        )
+        result = deploy_step_function(sfn_client, state_machine, UPDATED_DEFINITION, "pr-42")
 
         assert "version_arn" in result
         assert "skipped" in result
