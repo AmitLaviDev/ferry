@@ -43,11 +43,10 @@ on:
         description: "Ferry dispatch payload (JSON)"  # Sent by Ferry App
         required: true
 
-# OIDC requires id-token:write to request the JWT
-# contents:read is needed to check out the repository
 permissions:
-  id-token: write
-  contents: read
+  id-token: write    # OIDC JWT for AWS authentication
+  contents: read     # Repository checkout
+  checks: write      # Check Run status reporting
 
 jobs:
   # Step 1: Parse the dispatch payload into a matrix
@@ -87,6 +86,7 @@ jobs:
           deployment-tag: ${{ matrix.deployment_tag }} # Deployment tag (e.g., pr-42)
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}    # IAM role for OIDC auth
           aws-region: us-east-1                        # AWS region (adjust as needed)
+          github-token: ${{ github.token }}            # Check Run reporting (auto-granted, not a PAT)
 ```
 
 ## Spec Format
