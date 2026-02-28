@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 9: Tech Debt Cleanup Round 2
+**Current focus:** Phase 10: Docs & Dead Code Cleanup
 
 ## Current Position
 
-Phase: 9 of 9 (Tech Debt Cleanup R2)
+Phase: 10 of 10 (Docs & Dead Code Cleanup)
 Plan: 1 of 1 in current phase (COMPLETE)
 Status: Complete
-Last activity: 2026-02-28 -- Completed 09-01 (Dependency & Export Cleanup)
+Last activity: 2026-02-28 -- Completed 10-01 (Workflow Doc Gaps & Dead Code)
 
 Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
+- Total plans completed: 20
 - Average duration: 4min
-- Total execution time: 1.24 hours
+- Total execution time: 1.27 hours
 
 **By Phase:**
 
@@ -35,9 +35,10 @@ Progress: [##########] 100%
 | 07-tech-debt-cleanup | 3 | 8min | 2.7min |
 | 08-error-surfacing | 2 | 10min | 5min |
 | 09-tech-debt-cleanup-r2 | 1 | 2min | 2min |
+| 10-docs-and-dead-code-cleanup | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 2min, 4min, 6min, 2min
+- Last 5 plans: 2min, 3min, 2min, 4min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -102,6 +103,8 @@ Recent decisions affecting current work:
 - 08-02: Reused existing github-token input in build/action.yml for dual purpose (private deps + Check Runs)
 - 08-02: trigger-sha input added to deploy/action.yml (was missing) for Check Run attachment
 - 09-01: Removed all four webhook re-exports (PushEvent, WebhookHeaders, Pusher, Repository) for consistency, not just the two flagged
+- 10-01: Inline comments per permission line instead of block comment above permissions block
+- 10-01: Deploy github-token uses github.token (auto-granted) not secrets.GH_PAT (private deps)
 
 ### Pending Todos
 
@@ -116,5 +119,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 09-01-PLAN.md (Dependency & Export Cleanup)
+Stopped at: Completed 10-01-PLAN.md (Workflow Doc Gaps & Dead Code Cleanup)
 Resume file: None

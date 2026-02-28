@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter (completed 2026-02-27)
 - [x] **Phase 8: Error Surfacing and Failure Reporting** - Close WHOOK-03: surface build/deploy failures in PR status checks and workflow logs (completed 2026-02-28)
 - [x] **Phase 9: Tech Debt Cleanup (Round 2)** - Resolve remaining low-severity tech debt from second audit (completed 2026-02-28)
-- [ ] **Phase 10: Docs and Dead Code Cleanup** - Fix workflow doc gaps for Check Run reporting + remove unused error classes
+- [x] **Phase 10: Docs and Dead Code Cleanup** - Fix workflow doc gaps for Check Run reporting + remove unused error classes (completed 2026-02-28)
 
 ## Phase Details
 
@@ -186,4 +186,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5(superseded) → 6 →
 | 7. Tech Debt Cleanup | 3/3 | Complete | 2026-02-27 |
 | 8. Error Surfacing and Failure Reporting | 0/? | Complete    | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | 1/1 | Complete    | 2026-02-28 |
-| 10. Docs and Dead Code Cleanup | 0/? | Not Started | — |
+| 10. Docs and Dead Code Cleanup | 1/1 | Complete   | 2026-02-28 |
