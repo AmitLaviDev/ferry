@@ -336,6 +336,7 @@ source = { editable = "action" }
 dependencies = [
     { name = "boto3" },
     { name = "ferry-utils" },
+    { name = "httpx" },
     { name = "pyyaml" },
 ]
 
@@ -343,6 +344,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3" },
     { name = "ferry-utils", editable = "utils" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 

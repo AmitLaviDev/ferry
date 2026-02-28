@@ -8,6 +8,7 @@ from ferry_action.gha import (
     begin_group,
     end_group,
     error,
+    mask_account_id,
     mask_value,
     set_output,
     warning,
@@ -116,6 +117,30 @@ class TestWarning:
 
         captured = capsys.readouterr()
         assert captured.out.strip() == "::warning::Heads up"
+
+
+class TestMaskAccountId:
+    """Tests for mask_account_id()."""
+
+    def test_standard_12_digit(self) -> None:
+        """12-digit account ID returns ****{last4}."""
+        assert mask_account_id("123456789012") == "****9012"
+
+    def test_short_4_chars(self) -> None:
+        """4-character string returned as-is."""
+        assert mask_account_id("1234") == "1234"
+
+    def test_short_3_chars(self) -> None:
+        """3-character string returned as-is."""
+        assert mask_account_id("abc") == "abc"
+
+    def test_5_chars(self) -> None:
+        """5-character string shows only last 4."""
+        assert mask_account_id("12345") == "****2345"
+
+    def test_empty_string(self) -> None:
+        """Empty string returned as-is."""
+        assert mask_account_id("") == ""
 
 
 class TestWriteSummary:

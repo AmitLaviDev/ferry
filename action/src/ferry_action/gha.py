@@ -76,6 +76,20 @@ def warning(message: str) -> None:
     sys.stdout.flush()
 
 
+def mask_account_id(account_id: str) -> str:
+    """Mask an AWS account ID to show only the last 4 digits.
+
+    Args:
+        account_id: The full AWS account ID string.
+
+    Returns:
+        Masked string like ``'****1234'``.
+    """
+    if len(account_id) > 4:
+        return f"****{account_id[-4:]}"
+    return account_id
+
+
 def write_summary(markdown: str) -> None:
     """Append markdown content to the GHA job step summary.
 
