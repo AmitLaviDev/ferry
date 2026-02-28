@@ -29,7 +29,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Stand up Ferry's AWS infrastructure from scratch — Terraform IaC, Lambda backend, self-deploy pipeline — so we can test end-to-end and inform future milestones.
 
-- [ ] **Phase 11: Bootstrap + Global Resources** — S3 state backend, ECR repo, placeholder image
+- [x] **Phase 11: Bootstrap + Global Resources** — S3 state backend, ECR repo, placeholder image (completed 2026-02-28)
 - [ ] **Phase 12: Shared IAM + Secrets** — Lambda execution role, OIDC provider, GHA deploy role, Secrets Manager
 - [ ] **Phase 13: Backend Core** — Lambda + Function URL + DynamoDB dedup table + CloudWatch logs
 - [ ] **Phase 14: Self-Deploy + Manual Setup** — Dockerfile, GHA workflow, GitHub App registration, setup runbook
@@ -128,7 +128,7 @@ Plans:
 | 8. Error Surfacing and Failure Reporting | v1.0 | 2/2 | Complete | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
-| 11. Bootstrap + Global Resources | 1/2 | In Progress|  | — |
+| 11. Bootstrap + Global Resources | 2/2 | Complete   | 2026-02-28 | — |
 | 12. Shared IAM + Secrets | v1.1 | 0/? | Not started | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |

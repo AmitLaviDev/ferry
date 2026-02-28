@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 11 of 14 (Bootstrap + Global Resources)
-Plan: 1 of 2
-Status: Executing
-Last activity: 2026-02-28 — Completed 11-01 (Terraform projects)
+Plan: 2 of 2 (Phase 11 COMPLETE)
+Status: Phase Complete
+Last activity: 2026-02-28 — Completed 11-02 (Bootstrap script)
 
-Progress: [#####################.........] 71% (v1.0 complete, v1.1 Phase 11: 1/2 plans)
+Progress: [#######################.......] 75% (v1.0 complete, v1.1 Phase 11: 2/2 plans)
 
 ## Performance Metrics
 
@@ -27,6 +27,7 @@ Progress: [#####################.........] 71% (v1.0 complete, v1.1 Phase 11: 1/
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 11 | 01 | 1min | 2 | 10 |
+| 11 | 02 | 1min | 1 | 1 |
 
 ## Accumulated Context
 
@@ -41,6 +42,8 @@ v1.1 decisions so far:
 - No assume_role in global bootstrap projects -- ambient credentials for one-time setup (Phase 11)
 - default_tags on provider for ManagedBy + Project tags; resource-specific tags only where needed (Phase 11)
 - aws_caller_identity data source for account ID in ECR outputs -- no hardcoded IDs (Phase 11)
+- terraform -chdir= pattern and -input=false for non-interactive bootstrap execution (Phase 11)
+- Idempotency via AWS API checks (head-bucket, describe-repos, describe-images) at each bootstrap step (Phase 11)
 
 ### Pending Todos
 
@@ -55,5 +58,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 11-01-PLAN.md (Terraform projects for S3 backend + ECR)
+Stopped at: Completed 11-02-PLAN.md (Bootstrap script — Phase 11 complete)
 Resume file: None
