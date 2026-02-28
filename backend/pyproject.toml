@@ -6,10 +6,10 @@ dependencies = [
     "ferry-utils",
     "httpx>=0.27",
     "pydantic-settings>=2.2",
+    "PyYAML>=6.0.1",
     "PyJWT[crypto]>=2.8",
     "boto3>=1.34",
     "structlog>=24.1",
-    "tenacity>=8.3",
 ]
 
 [tool.uv.sources]
