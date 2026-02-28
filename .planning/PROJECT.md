@@ -4,7 +4,7 @@
 
 Ferry is a hosted GitHub App that automates deploying serverless AWS resources (Lambda functions, Step Functions, API Gateways). It follows the Digger Cloud model: a thin backend receives GitHub webhooks, detects which resources changed, and triggers GitHub Actions workflows. The actual build and deploy logic runs in the user's GHA runners via a reusable Ferry Action. Users install the Ferry GitHub App, add a `ferry.yaml` to their repo, and Ferry handles change detection, container builds, and deployments.
 
-"Serverless deploys serverless" — Ferry's backend is 1-2 Lambdas. The heavy lifting runs in users' GHA runners.
+"Serverless deploys serverless" — Ferry's backend is 1 Lambda + DynamoDB. The heavy lifting runs in users' GHA runners.
 
 ## Core Value
 
@@ -14,63 +14,45 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Receive and validate GitHub webhooks (HMAC-SHA256 signature) — v1.0
+- ✓ Deduplicate webhook deliveries (DynamoDB conditional write) — v1.0
+- ✓ Read ferry.yaml from user's repo via GitHub API (App JWT auth) — v1.0
+- ✓ Detect changed resources by comparing commit diff against ferry.yaml path mappings — v1.0
+- ✓ Trigger one workflow_dispatch per resource type for changed resources — v1.0
+- ✓ Post PR Check Runs via GitHub Checks API (preview of what will deploy) — v1.0
+- ✓ Build Lambda containers using Magic Dockerfile pattern, push to ECR — v1.0
+- ✓ Deploy Lambda functions (update code, publish version, point alias) — v1.0
+- ✓ Deploy Step Functions (update state machine definition with envsubst) — v1.0
+- ✓ Deploy API Gateways (update OpenAPI spec, create deployment) — v1.0
+- ✓ Handle AWS authentication via OIDC (user passes role ARN, Ferry Action does the exchange) — v1.0
+- ✓ Surface build/deploy failures in PR Check Runs and GHA workflow logs — v1.0
 
 ### Active
 
-- [ ] Receive and validate GitHub webhooks (push events, HMAC-SHA256 signature)
-- [ ] Deduplicate webhook deliveries (DynamoDB conditional write)
-- [ ] Read ferry.yaml from user's repo via GitHub API (App JWT auth)
-- [ ] Detect changed resources by comparing commit diff against ferry.yaml path mappings
-- [ ] Trigger one workflow_dispatch per resource type for changed resources
-- [ ] Post PR status checks via GitHub Checks API (preview of what will deploy)
-- [ ] Build Lambda containers using magic Dockerfile pattern, push to ECR
-- [ ] Deploy Lambda functions (update code, publish version, point alias)
-- [ ] Deploy Step Functions (update state machine definition with envsubst)
-- [ ] Deploy API Gateways (update OpenAPI spec, create deployment)
-- [ ] Handle AWS authentication via OIDC (user passes role ARN, Ferry Action does the exchange)
+(None — next milestone requirements TBD via `/gsd:new-milestone`)
 
 ### Out of Scope
 
-- Web dashboard — no UI beyond GitHub PR status
+- Web dashboard — the PR is the dashboard, no frontend/auth investment
 - AI discovery — no automatic resource detection, ferry.yaml is explicit
-- SageMaker model deployment — different workflow, not serverless
-- Multi-account AWS — single target account per workflow run
-- Environment/branch mapping — v2 feature
+- SageMaker model deployment — different workflow, not serverless compute
+- Multi-account AWS — single target account per workflow run for v1
+- Environment/branch mapping — v2 feature (ENV-01, ENV-02, ENV-03 defined)
 - RBAC / permissions — relies on GitHub App installation permissions
-- SQS / complex event processing — keep backend thin
-- Rollback capability — user re-deploys previous commit manually
+- SQS / complex event processing — keep backend thin, process synchronously
+- Rollback capability — user re-deploys previous commit; cross-resource rollback is unsolved for serverless
 - ECR repo creation — user's IaC creates ECR repos, Ferry pushes to them
+- Drift detection — process problem, not a tooling problem for v1
+- Local dev/testing — Ferry is a CI/CD tool, not a dev tool
 
 ## Context
 
-### Reference Implementation
+### Current State
 
-Two existing repos at ConvergeBio demonstrate the full pattern Ferry must replicate:
-
-**pipelines-hub** (code + CI):
-- Repo structure: `{pipeline}/lambdas/{FunctionName}/` with `main.py` + `requirements.txt`
-- Change detection: `tj-actions/changed-files` with merge-base comparison
-- Build: "Magic Dockerfile" that works for ANY Lambda (optional `system-requirements.txt`, `system-config.sh`)
-- Deploy Lambdas: `int128/deploy-lambda-action` (digest-based skip, version/alias management)
-- Deploy Step Functions: `aws stepfunctions update-state-machine` with envsubst
-- Deploy API Gateway: `aws apigateway put-rest-api` + `create-deployment`
-- Auth: OIDC → management account → role-chain to target account
-- Deployment tags: `pr-{number}` from main, `{branch}-{commit}` from manual dispatch
-
-**iac-tf** (infrastructure):
-- Terraform creates Lambda/StepFunction/APIGateway with placeholder images
-- Uses `lifecycle { ignore_changes = [image_uri] }` — IaC owns infrastructure, Ferry owns code deployment
-- Three connection points per resource: code directory ↔ IaC resource/module ↔ ECR repo name
-
-### The Magic Dockerfile (Key Differentiator)
-
-A single generic Dockerfile that builds ANY Lambda function:
-- Requires only `main.py` + `requirements.txt`
-- Optional `system-requirements.txt` for OS packages (glob trick: `COPY system-requirements.tx[t]`)
-- Optional `system-config.sh` for post-install scripts
-- Supports private GitHub repos via build secrets (`org_repos_token`)
-- No per-function Dockerfile needed — this is Ferry's core UX win
+Shipped v1.0 with 9,092 lines of Python across 167 files.
+Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto.
+Three packages: ferry-app (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models).
+272 tests passing, 0 lint errors.
 
 ### Architecture
 
@@ -80,17 +62,18 @@ GitHub push event → Ferry Lambda (webhook validation, dedup)
   → Read ferry.yaml from repo (GitHub API, App JWT)
   → Compare commit diff against path mappings
   → Trigger workflow_dispatch per resource type (only changed resources)
-  → Post PR status check (shows what will deploy)
+  → Post PR Check Run (shows what will deploy)
+  → Surface config errors as PR comments
 ```
-Multi-tenant: single Lambda handles all GitHub App installations, identified by installation ID. Backend = 1-2 Lambdas + DynamoDB.
+Multi-tenant: single Lambda handles all GitHub App installations, identified by installation ID. Backend = 1 Lambda + DynamoDB.
 
 **Ferry Action (GHA Runner):**
 ```
 workflow_dispatch → User's workflow calls ferry-action
   → Ferry Action authenticates to AWS (OIDC, user-provided role ARN)
-  → Builds containers (magic Dockerfile) → pushes to ECR
+  → Builds containers (Magic Dockerfile) → pushes to ECR
   → Deploys: Lambda / Step Function / API Gateway
-  → Reports result
+  → Reports success/failure via Check Runs
 ```
 Runs entirely in user's GHA runner. Zero Ferry infrastructure for execution.
 
@@ -124,6 +107,12 @@ api_gateways:
     iac: module.api_gateway
 ```
 
+### Known Tech Debt
+
+- `build.py` CalledProcessError exits via `raise` instead of `sys.exit(1)` — produces Python traceback in GHA logs (cosmetic)
+- Webhook models (WebhookHeaders, PushEvent, Pusher, Repository) defined and tested but unused in production code
+- `gha.mask_account_id()` defined but never called — `build.py` uses `gha.mask_value()` instead
+
 ## Constraints
 
 - **Language**: Python — both backend Lambda and GHA action logic
@@ -139,14 +128,18 @@ api_gateways:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| GitHub App + Action (not action-only) | PR previews + smart triggering justify the backend complexity | — Pending |
-| Hosted SaaS (not self-hosted) | Lower friction for users — install and go | — Pending |
-| One dispatch per resource type | Clean separation — each type has different build/deploy steps | — Pending |
-| No defaults in ferry.yaml | Explicit > magical — what you see is what you get | — Pending |
-| Magic Dockerfile as core pattern | One Dockerfile for all Lambdas — key differentiator and UX win | — Pending |
-| OIDC auth (Digger model) | No stored AWS credentials — user passes role ARN, action does OIDC exchange | — Pending |
-| Pre-existing ECR repos | IaC owns infrastructure, Ferry owns code deployment — clean separation | — Pending |
-| No rollbacks in v1 | Keep scope tight — user re-deploys previous commit | — Pending |
+| GitHub App + Action (not action-only) | PR previews + smart triggering justify the backend complexity | ✓ Good — enables Check Run previews and type-based dispatch |
+| Hosted SaaS (not self-hosted) | Lower friction for users — install and go | ✓ Good — 1 Lambda + DynamoDB, minimal infra |
+| One dispatch per resource type | Clean separation — each type has different build/deploy steps | ✓ Good — clean matrix per type, independent deploy scripts |
+| No defaults in ferry.yaml | Explicit > magical — what you see is what you get | ✓ Good — function_name defaults to key name at parse time |
+| Magic Dockerfile as core pattern | One Dockerfile for all Lambdas — key differentiator and UX win | ✓ Good — supports private deps, system packages, multi-runtime |
+| OIDC auth (Digger model) | No stored AWS credentials — user passes role ARN, action does OIDC exchange | ✓ Good — clean separation, works in GHA runners |
+| Pre-existing ECR repos | IaC owns infrastructure, Ferry owns code deployment — clean separation | ✓ Good — no resource creation in deploy path |
+| No rollbacks in v1 | Keep scope tight — user re-deploys previous commit | ✓ Good — kept scope focused |
+| Composite action (not Docker action) | Ferry needs host Docker daemon for builds; Docker-in-Docker is fragile | ✓ Good — direct access to Docker, clean Python scripts |
+| Config errors as PR comments (not Check Runs) | PR comments persist across pushes; Check Runs are per-commit | ✓ Good — errors visible without navigating checks tab |
+| Digest-based deploy skip | Skip Lambda/SF/APGW deploy when content unchanged | ✓ Good — saves deploy time and avoids unnecessary versions |
+| Envsubst for Step Functions | Safe regex: only ${ACCOUNT_ID} and ${AWS_REGION}, preserves JSONPath | ✓ Good — avoids corrupting state machine definitions |
 
 ---
-*Last updated: 2026-02-21 after initialization*
+*Last updated: 2026-02-28 after v1.0 milestone*
