@@ -19,11 +19,3 @@ class GitHubAuthError(FerryError):
 
 class ConfigError(FerryError):
     """ferry.yaml parsing or validation failed (Phase 2+)."""
-
-
-class BuildError(FerryError):
-    """Container image build or push failed."""
-
-
-class DeployError(FerryError):
-    """AWS resource deployment failed (Lambda, Step Functions, API Gateway)."""
