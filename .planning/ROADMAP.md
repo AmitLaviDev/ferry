@@ -133,10 +133,11 @@ Plans:
   2. Invalid ferry.yaml on the default branch after merge produces a clear error in logs — not a silent HTTP 200
   3. A build failure (e.g., bad requirements.txt) surfaces as a failed GitHub Check Run on the PR and a clear error message in the GHA workflow log
   4. A deploy failure (e.g., invalid Lambda handler) surfaces the same way — failed Check Run plus clear workflow log output
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — Backend structured error handling: top-level exception handler, config error as PR comment, GitHubClient.patch(), error hierarchy
+- [ ] 08-02-PLAN.md — Action Check Run reporter: per-resource success/failure Check Runs, mask_account_id, FERRY_DEBUG, github-token input
 
 ### Phase 9: Tech Debt Cleanup (Round 2)
 **Goal:** Resolve remaining low-severity tech debt items identified by the second milestone audit
