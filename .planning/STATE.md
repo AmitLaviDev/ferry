@@ -5,41 +5,36 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging
+**Current focus:** v1.1 Deploy to Staging — Phase 11: Bootstrap + Global Resources
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-28 — Milestone v1.1 started
+Phase: 11 of 14 (Bootstrap + Global Resources)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-02-28 — Roadmap created for v1.1 milestone
 
-## Performance Metrics (v1.0)
+Progress: [####################..........] 67% (v1.0 complete, v1.1 0/4 phases)
 
-**Velocity:**
+## Performance Metrics
+
+**Velocity (v1.0):**
 - Total plans completed: 20
 - Average duration: 4min
 - Total execution time: 1.27 hours
 
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01-foundation | 3 | 12min | 4min |
-| 02-app-core | 3 | 17min | 6min |
-| 03-build-and-lambda-deploy | 3 | 8min | 2.7min |
-| 04-extended-resource-types | 3 | 14min | 4.7min |
-| 06-fix-lambda-function-name-pipeline | 1 | 4min | 4min |
-| 07-tech-debt-cleanup | 3 | 8min | 2.7min |
-| 08-error-surfacing | 2 | 10min | 5min |
-| 09-tech-debt-cleanup-r2 | 1 | 2min | 2min |
-| 10-docs-and-dead-code-cleanup | 1 | 2min | 2min |
+**v1.1:** No plans executed yet.
 
 ## Accumulated Context
 
 ### Decisions
 
-All v1.0 decisions logged in PROJECT.md Key Decisions table and archived in milestones/v1.0-ROADMAP.md.
+All v1.0 decisions logged in PROJECT.md Key Decisions table.
+v1.1 decisions so far:
+- Raw Terraform resources over terraform-aws-modules (5-6 resources, modules add overhead)
+- Secrets Manager containers in TF, values populated manually via CLI (never in TF state)
+- settings.py will load secrets from Secrets Manager ARNs at cold start (code change required)
+- lifecycle { ignore_changes = [image_uri] } on Lambda — TF owns infra, GHA owns deployed code
 
 ### Pending Todos
 
@@ -47,10 +42,12 @@ None.
 
 ### Blockers/Concerns
 
-None — v1.0 complete.
+- Python 3.14 arm64 Lambda base image availability on public.ecr.aws must be verified (fallback: Python 3.13 or custom base)
+- AWS provider version should be verified at implementation time (research used ~5.80 range)
+- OIDC trust policy `sub` claim is case-sensitive — verify with `aws sts get-caller-identity` on first GHA run
 
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: v1.0 milestone archived
+Stopped at: v1.1 roadmap created, ready to plan Phase 11
 Resume file: None

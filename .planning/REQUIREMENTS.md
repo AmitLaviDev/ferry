@@ -45,13 +45,13 @@ Manual steps mapped to when they happen relative to phases:
 
 | When | Action | Blocks |
 |------|--------|--------|
-| **Before Phase 1** | Have AWS account credentials ready | Everything |
-| **Phase 1** | `terraform apply` locally (bootstrap S3), then `terraform init -migrate-state` | All subsequent TF projects |
-| **Phase 1** | `terraform apply` for ECR, then pull+tag+push placeholder image | Lambda creation (Phase 3) |
-| **After Phase 3** | Note Function URL from `terraform output` | GitHub App registration |
-| **Phase 4** | Register GitHub App at github.com using Function URL | Webhook delivery |
-| **Phase 4** | `aws secretsmanager put-secret-value` for app ID, private key, webhook secret | Lambda functionality |
-| **Phase 4** | Trigger first deploy (push to main) | End-to-end verification |
+| **Before Phase 11** | Have AWS account credentials ready | Everything |
+| **Phase 11** | `terraform apply` locally (bootstrap S3), then `terraform init -migrate-state` | All subsequent TF projects |
+| **Phase 11** | `terraform apply` for ECR, then pull+tag+push placeholder image | Lambda creation (Phase 13) |
+| **After Phase 13** | Note Function URL from `terraform output` | GitHub App registration |
+| **Phase 14** | Register GitHub App at github.com using Function URL | Webhook delivery |
+| **Phase 14** | `aws secretsmanager put-secret-value` for app ID, private key, webhook secret | Lambda functionality |
+| **Phase 14** | Trigger first deploy (push to main) | End-to-end verification |
 
 ## v2 Requirements
 
@@ -88,29 +88,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | — | Pending |
-| BOOT-02 | — | Pending |
-| BOOT-03 | — | Pending |
-| IAM-01 | — | Pending |
-| IAM-02 | — | Pending |
-| IAM-03 | — | Pending |
-| IAM-04 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| DEPLOY-01 | — | Pending |
-| DEPLOY-02 | — | Pending |
-| DEPLOY-03 | — | Pending |
-| SETUP-01 | — | Pending |
-| SETUP-02 | — | Pending |
-| SETUP-03 | — | Pending |
+| BOOT-01 | Phase 11 | Pending |
+| BOOT-02 | Phase 11 | Pending |
+| BOOT-03 | Phase 11 | Pending |
+| IAM-01 | Phase 12 | Pending |
+| IAM-02 | Phase 12 | Pending |
+| IAM-03 | Phase 12 | Pending |
+| IAM-04 | Phase 12 | Pending |
+| INFRA-01 | Phase 13 | Pending |
+| INFRA-02 | Phase 13 | Pending |
+| INFRA-03 | Phase 13 | Pending |
+| INFRA-04 | Phase 13 | Pending |
+| DEPLOY-01 | Phase 14 | Pending |
+| DEPLOY-02 | Phase 14 | Pending |
+| DEPLOY-03 | Phase 14 | Pending |
+| SETUP-01 | Phase 14 | Pending |
+| SETUP-02 | Phase 14 | Pending |
+| SETUP-03 | Phase 14 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after initial definition*
+*Last updated: 2026-02-28 after roadmap creation*
