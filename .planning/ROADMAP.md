@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Tech Debt Cleanup** - Resolve inconsistent defaults, add workflow docs, fix SUMMARY frontmatter (completed 2026-02-27)
 - [x] **Phase 8: Error Surfacing and Failure Reporting** - Close WHOOK-03: surface build/deploy failures in PR status checks and workflow logs (completed 2026-02-28)
 - [x] **Phase 9: Tech Debt Cleanup (Round 2)** - Resolve remaining low-severity tech debt from second audit (completed 2026-02-28)
+- [ ] **Phase 10: Docs and Dead Code Cleanup** - Fix workflow doc gaps for Check Run reporting + remove unused error classes
 
 ## Phase Details
 
@@ -155,6 +156,20 @@ Plans:
 Plans:
 - [x] 09-01-PLAN.md — Dependency hygiene (tenacity removal, PyYAML move, moto extras) + export cleanup (PushEvent/WebhookHeaders)
 
+### Phase 10: Docs and Dead Code Cleanup
+**Goal:** Workflow documentation examples include all necessary permissions and inputs for Check Run reporting, and unused error classes are removed
+**Depends on**: Phase 8
+**Requirements**: None (doc fixes + dead code cleanup)
+**Gap Closure:** Closes INT-01, INT-02, FLOW-01 from third audit + dead code tech debt
+**Success Criteria** (what must be TRUE):
+  1. All three workflow docs (`docs/lambdas.md`, `docs/step-functions.md`, `docs/api-gateways.md`) include `checks:write` in the `permissions:` block
+  2. `docs/lambdas.md` deploy step includes `trigger-sha` and `github-token` inputs matching `action/deploy/action.yml`
+  3. `BuildError` and `DeployError` in `ferry_utils/errors.py` are either used in action code or removed
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01-PLAN.md — Fix workflow doc permissions/inputs + remove unused error classes
+
 ## Progress
 
 **Execution Order:**
@@ -171,3 +186,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5(superseded) → 6 →
 | 7. Tech Debt Cleanup | 3/3 | Complete | 2026-02-27 |
 | 8. Error Surfacing and Failure Reporting | 0/? | Complete    | 2026-02-28 |
 | 9. Tech Debt Cleanup (Round 2) | 1/1 | Complete    | 2026-02-28 |
+| 10. Docs and Dead Code Cleanup | 0/? | Not Started | — |
