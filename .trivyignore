@@ -1,0 +1,5 @@
+# DS-0002: Lambda base images manage user context at runtime
+DS-0002
+
+# AWS-0031: Mutable tags are deliberate — Ferry uses :latest-style deploys
+AWS-0031

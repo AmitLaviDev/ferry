@@ -26,4 +26,3 @@
 **What's next:** v1.1 — environment management, multi-account support, or reliability features
 
 ---
-

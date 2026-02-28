@@ -1,4 +1,12 @@
 repos:
+  # Ruff (Python linter + formatter)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
   # Terraform hooks
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.99.1
@@ -55,7 +63,7 @@ repos:
           - '--severity=HIGH,CRITICAL'
           - '--format=table'
           - '--exit-code=1'
-          - '--skip-dirs=**/.terraform/'
+          - '--skip-dirs=**/.terraform/,.venv/'
           - '.'
         pass_filenames: false
 
@@ -64,5 +72,8 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: \.terraform/
       - id: end-of-file-fixer
+        exclude: \.terraform/
       - id: mixed-line-ending
+        exclude: \.terraform/

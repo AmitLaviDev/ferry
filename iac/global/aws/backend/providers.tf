@@ -1,5 +1,5 @@
 terraform {
-  required_version = "~> 1.14"
+  required_version = "~> 1.12.0"
 
   # NOTE: During initial bootstrap, run 'terraform init -backend=false' first,
   # then after apply, run 'terraform init -migrate-state -force-copy' to migrate to S3.
