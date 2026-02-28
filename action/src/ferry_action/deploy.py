@@ -19,6 +19,7 @@ import boto3
 from botocore.exceptions import ClientError, WaiterError
 
 from ferry_action import gha
+from ferry_action.report import format_error_detail, report_check_run
 
 
 def get_current_image_digest(
@@ -172,6 +173,7 @@ def main() -> None:
     image_uri = os.environ["INPUT_IMAGE_URI"]
     image_digest = os.environ["INPUT_IMAGE_DIGEST"]
     deployment_tag = os.environ["INPUT_DEPLOYMENT_TAG"]
+    trigger_sha = os.environ.get("INPUT_TRIGGER_SHA", "")
 
     client = boto3.client("lambda")
 
@@ -184,6 +186,11 @@ def main() -> None:
             print(f"Skipping deploy for {resource_name} -- image unchanged")
             gha.set_output("skipped", "true")
             gha.set_output("lambda-version", "")
+
+            report_check_run(
+                resource_name, "deploy", "success",
+                f"Skipped {resource_name} (image unchanged)", trigger_sha,
+            )
 
             gha.write_summary(
                 f"\n## {resource_name}\n"
@@ -201,6 +208,11 @@ def main() -> None:
 
         gha.set_output("skipped", "false")
         gha.set_output("lambda-version", result["version"])
+
+        report_check_run(
+            resource_name, "deploy", "success",
+            f"Deployed {resource_name} v{result['version']}", trigger_sha,
+        )
 
         gha.write_summary(
             f"\n## {resource_name}\n"
@@ -228,14 +240,14 @@ def main() -> None:
             ),
         }
         hint = hints.get(error_code, str(exc))
-        gha.error(f"Deploy failed for {resource_name}: {hint}")
+        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
+        report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
         sys.exit(1)
 
-    except WaiterError:
-        gha.error(
-            f"Deploy failed for {resource_name}: "
-            f"Lambda update timed out after 5 minutes"
-        )
+    except WaiterError as exc:
+        hint = "Lambda update timed out after 5 minutes"
+        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
+        report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
         sys.exit(1)
 
     finally:

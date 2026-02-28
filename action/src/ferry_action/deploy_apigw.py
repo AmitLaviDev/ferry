@@ -25,6 +25,7 @@ from botocore.exceptions import ClientError
 
 from ferry_action import gha
 from ferry_action.envsubst import compute_content_hash, envsubst, get_content_hash_tag
+from ferry_action.report import format_error_detail, report_check_run
 
 # Fields that API Gateway manages via stages -- these should not be in the spec
 _STRIP_FIELDS = frozenset({"host", "schemes", "basePath", "servers"})
@@ -172,7 +173,7 @@ def main() -> None:
     spec_file = os.environ["INPUT_SPEC_FILE"]
     source_dir = os.environ["INPUT_SOURCE_DIR"]
     deployment_tag = os.environ["INPUT_DEPLOYMENT_TAG"]
-    _trigger_sha = os.environ.get("INPUT_TRIGGER_SHA", "unknown")
+    trigger_sha = os.environ.get("INPUT_TRIGGER_SHA", "unknown")
 
     # AWS clients
     sts_client = boto3.client("sts")
@@ -212,6 +213,11 @@ def main() -> None:
             gha.set_output("skipped", "true")
             gha.set_output("deployment-id", "")
 
+            report_check_run(
+                resource_name, "deploy", "success",
+                f"Skipped {resource_name} (spec unchanged)", trigger_sha,
+            )
+
             gha.write_summary(
                 f"\n## {resource_name}\n"
                 f"| Field | Value |\n"
@@ -231,6 +237,11 @@ def main() -> None:
 
         gha.set_output("skipped", "false")
         gha.set_output("deployment-id", result["deployment_id"])
+
+        report_check_run(
+            resource_name, "deploy", "success",
+            f"Deployed {resource_name}", trigger_sha,
+        )
 
         gha.write_summary(
             f"\n## {resource_name}\n"
@@ -257,7 +268,8 @@ def main() -> None:
             ),
         }
         hint = hints.get(error_code, str(exc))
-        gha.error(f"Deploy failed for {resource_name}: {hint}")
+        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
+        report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
         sys.exit(1)
 
     finally:

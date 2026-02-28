@@ -19,6 +19,7 @@ from pathlib import Path
 import boto3
 
 from ferry_action import gha
+from ferry_action.report import format_error_detail, report_check_run
 
 
 def parse_runtime_version(runtime: str) -> str:
@@ -180,6 +181,7 @@ def main() -> None:
     # Build
     gha.begin_group(f"Building {resource_name}")
     try:
+        print(f"[1/3] Building Docker image for {resource_name}...")
         cmd = build_docker_command(
             dockerfile_path=dockerfile_path,
             source_dir=source_dir,
@@ -188,21 +190,30 @@ def main() -> None:
             github_token=github_token or None,
         )
         subprocess.run(cmd, check=True)
-    except FileNotFoundError:
-        gha.error("Docker not found. Ensure Docker is installed and available on PATH.")
+    except FileNotFoundError as exc:
+        hint = "Docker not found. Ensure Docker is installed and available on PATH."
+        gha.error(format_error_detail(exc, hint))
+        report_check_run(resource_name, "build", "failure", hint, trigger_sha)
         sys.exit(1)
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr or "" if hasattr(exc, "stderr") and exc.stderr else ""
         if "requirements.txt" in stderr:
-            gha.error(
+            hint = (
                 "pip install failed. Check requirements.txt for syntax errors "
                 "or unavailable packages."
             )
         elif "main.py" in stderr:
-            gha.error(
+            hint = (
                 "Lambda handler not found. Ensure main.py exists in source_dir "
                 "with a handler() function."
             )
+        else:
+            hint = (
+                f"Build failed for {resource_name}: "
+                f"docker build exited with code {exc.returncode}"
+            )
+        gha.error(format_error_detail(exc, hint))
+        report_check_run(resource_name, "build", "failure", hint, trigger_sha)
         raise
     finally:
         gha.end_group()
@@ -210,18 +221,32 @@ def main() -> None:
     # Push to ECR
     gha.begin_group(f"Pushing {resource_name} to ECR")
     try:
+        print("[2/3] Authenticating to ECR...")
         ecr_login(aws_region, ecr_uri)
+        print("[3/3] Pushing to ECR...")
         digest = push_image(image_tag)
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr or "" if hasattr(exc, "stderr") and exc.stderr else ""
         if "ecr" in stderr.lower() or "authorization" in stderr.lower():
-            gha.error(
+            hint = (
                 "ECR login failed. Verify the IAM role has "
                 "ecr:GetAuthorizationToken permission."
             )
+        else:
+            hint = f"Push failed for {resource_name}: ECR push exited with code {exc.returncode}"
+        gha.error(format_error_detail(exc, hint))
+        report_check_run(resource_name, "build", "failure", hint, trigger_sha)
         raise
     finally:
         gha.end_group()
+
+    print(f"Done: {resource_name} built and pushed")
+
+    # Report success Check Run
+    report_check_run(
+        resource_name, "build", "success",
+        f"Built and pushed {resource_name}", trigger_sha,
+    )
 
     # Set outputs
     gha.set_output("image-uri", image_tag)

@@ -30,6 +30,10 @@ inputs:
     description: "AWS region"
     required: false
     default: "us-east-1"
+  github-token:
+    description: "GitHub token for creating Check Runs. Pass ${{ github.token }}"
+    required: false
+    default: ""
 
 outputs:
   skipped:
@@ -66,4 +70,5 @@ runs:
         INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
         INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}
         INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python -m ferry_action.deploy_apigw

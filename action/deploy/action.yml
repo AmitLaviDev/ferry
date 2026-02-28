@@ -17,6 +17,10 @@ inputs:
   deployment-tag:
     description: "Deployment tag (e.g. pr-42)"
     required: true
+  trigger-sha:
+    description: "Git commit SHA that triggered the deployment"
+    required: false
+    default: ""
   aws-role-arn:
     description: "IAM role ARN for OIDC authentication"
     required: true
@@ -24,6 +28,10 @@ inputs:
     description: "AWS region"
     required: false
     default: "us-east-1"
+  github-token:
+    description: "GitHub token for creating Check Runs. Pass ${{ github.token }}"
+    required: false
+    default: ""
 
 outputs:
   skipped:
@@ -58,4 +66,6 @@ runs:
         INPUT_IMAGE_URI: ${{ inputs.image-uri }}
         INPUT_IMAGE_DIGEST: ${{ inputs.image-digest }}
         INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
+        INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python -m ferry_action.deploy

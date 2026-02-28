@@ -68,4 +68,5 @@ runs:
         INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
         INPUT_RUNTIME: ${{ inputs.runtime }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python -m ferry_action.build
