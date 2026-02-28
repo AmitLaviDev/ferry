@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Phase 7: Tech Debt Cleanup
+**Current focus:** Phase 8: Error Surfacing and Failure Reporting
 
 ## Current Position
 
-Phase: 7 of 7 (Tech Debt Cleanup)
-Plan: 3 of 3 in current phase (COMPLETE)
+Phase: 8 of 9 (Error Surfacing)
+Plan: 2 of 2 in current phase (COMPLETE)
 Status: Complete
-Last activity: 2026-02-27 -- Completed 07-03 (SUMMARY metadata fix and codebase sweep)
+Last activity: 2026-02-28 -- Completed 08-02 (Action-side Check Run reporting)
 
 Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
+- Total plans completed: 18
 - Average duration: 4min
-- Total execution time: 1.04 hours
+- Total execution time: 1.21 hours
 
 **By Phase:**
 
@@ -33,9 +33,10 @@ Progress: [##########] 100%
 | 04-extended-resource-types | 3 | 14min | 4.7min |
 | 06-fix-lambda-function-name-pipeline | 1 | 4min | 4min |
 | 07-tech-debt-cleanup | 3 | 8min | 2.7min |
+| 08-error-surfacing | 2 | 10min | 5min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 4min, 3min, 3min, 2min
+- Last 5 plans: 3min, 3min, 2min, 4min, 6min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -92,6 +93,13 @@ Recent decisions affecting current work:
 - 07-02: Workflow YAML examples use real action paths and real input names from composite action YAML files
 - 07-02: Documentation structure: shared setup.md + one file per resource type in docs/ directory
 - 07-03: build.py docstring examples are illustrative, not prescriptive -- updated to python3.14 for consistency
+- [Phase 08]: Config errors surface as PR comments (not Check Runs) per user decision -- applies to both PR and default branches
+- [Phase 08]: Auth errors return structured 500 with logging only -- not surfaced to developers (infra-visible)
+- [Phase 08]: Catch-all Exception returns generic 500 without leaking internal details
+- 08-02: GITHUB_TOKEN read from env in report.py (not passed as parameter) for clean API surface
+- 08-02: Check Run creation is non-critical: wrapped in try/except to never fail the build/deploy
+- 08-02: Reused existing github-token input in build/action.yml for dual purpose (private deps + Check Runs)
+- 08-02: trigger-sha input added to deploy/action.yml (was missing) for Check Run attachment
 
 ### Pending Todos
 
@@ -105,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-27
-Stopped at: Completed 07-03-PLAN.md (SUMMARY metadata fix and codebase sweep)
+Last session: 2026-02-28
+Stopped at: Completed 08-02-PLAN.md (Action-side Check Run reporting)
 Resume file: None
