@@ -8,18 +8,15 @@ from ferry_utils.models.dispatch import (
     Resource,
     StepFunctionResource,
 )
-from ferry_utils.models.webhook import PushEvent, WebhookHeaders
 
 __all__ = [
     "SCHEMA_VERSION",
     "ApiGatewayResource",
     "DispatchPayload",
     "LambdaResource",
-    "PushEvent",
     "Resource",
     "ResourceType",
     "StepFunctionResource",
-    "WebhookHeaders",
 ]
 
 __version__ = "0.1.0"

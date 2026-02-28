@@ -7,21 +7,11 @@ from ferry_utils.models.dispatch import (
     Resource,
     StepFunctionResource,
 )
-from ferry_utils.models.webhook import (
-    Pusher,
-    PushEvent,
-    Repository,
-    WebhookHeaders,
-)
 
 __all__ = [
     "ApiGatewayResource",
     "DispatchPayload",
     "LambdaResource",
-    "PushEvent",
-    "Pusher",
-    "Repository",
     "Resource",
     "StepFunctionResource",
-    "WebhookHeaders",
 ]
