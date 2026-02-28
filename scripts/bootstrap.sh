@@ -162,7 +162,23 @@ step_backend() {
     terraform -chdir="$BACKEND_DIR" apply -auto-approve -input=false
     log_success "S3 bucket '$BUCKET_NAME' created"
   else
-    log_info "S3 bucket '$BUCKET_NAME' already exists"
+    # Bucket exists (created manually or from a previous run) — import into TF state
+    log_info "S3 bucket '$BUCKET_NAME' already exists, importing into Terraform..."
+    terraform -chdir="$BACKEND_DIR" init -backend=false -input=false
+
+    # Check if already in state (re-run safety)
+    if ! terraform -chdir="$BACKEND_DIR" state show 'module.s3_bucket.aws_s3_bucket.this[0]' &>/dev/null; then
+      terraform -chdir="$BACKEND_DIR" import 'module.s3_bucket.aws_s3_bucket.this[0]' "$BUCKET_NAME"
+      terraform -chdir="$BACKEND_DIR" import 'module.s3_bucket.aws_s3_bucket_versioning.this[0]' "$BUCKET_NAME"
+      terraform -chdir="$BACKEND_DIR" import 'module.s3_bucket.aws_s3_bucket_server_side_encryption_configuration.this[0]' "$BUCKET_NAME"
+      terraform -chdir="$BACKEND_DIR" import 'module.s3_bucket.aws_s3_bucket_public_access_block.this[0]' "$BUCKET_NAME"
+      log_success "Imported existing bucket into Terraform state"
+    else
+      log_skip "Bucket already in Terraform state"
+    fi
+
+    # Apply to reconcile any drift
+    terraform -chdir="$BACKEND_DIR" apply -auto-approve -input=false
   fi
 
   if ! $state_is_remote; then
