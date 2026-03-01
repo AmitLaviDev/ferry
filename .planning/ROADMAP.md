@@ -129,6 +129,6 @@ Plans:
 | 9. Tech Debt Cleanup (Round 2) | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 11. Bootstrap + Global Resources | 2/2 | Complete    | 2026-02-28 | — |
-| 12. Shared IAM + Secrets | 1/1 | Complete   | 2026-03-01 | — |
+| 12. Shared IAM + Secrets | 1/1 | Complete    | 2026-03-01 | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |
