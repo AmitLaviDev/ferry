@@ -63,14 +63,14 @@ Plans:
   2. OIDC identity provider for GitHub Actions is registered in the AWS account
   3. GHA deploy role can be assumed from a GitHub Actions workflow in the ferry repo and has ECR push + Lambda update permissions
   4. Secrets Manager contains secret containers for GitHub App credentials (app ID, private key, webhook secret) — values empty, structure exists
-**Plans**: TBD
+**Plans**: 1 plan
 
 **Manual Steps:**
-- Run `terraform apply` for the shared project
+- Run `terraform apply` for the OIDC project first, then the shared project
 - No secret values populated yet (that happens in Phase 14 after GitHub App registration)
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — OIDC provider (global) + shared IAM roles, policies, and Secrets Manager containers (staging)
 
 ### Phase 13: Backend Core
 **Goal**: Ferry Lambda is deployed and accessible via a public Function URL, with DynamoDB dedup table and structured logging, ready to receive webhooks
@@ -129,6 +129,6 @@ Plans:
 | 9. Tech Debt Cleanup (Round 2) | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 11. Bootstrap + Global Resources | 2/2 | Complete    | 2026-02-28 | — |
-| 12. Shared IAM + Secrets | v1.1 | 0/? | Not started | — |
+| 12. Shared IAM + Secrets | v1.1 | 0/1 | Planned | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |
