@@ -26,7 +26,7 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_bucket_name"></a> [bucket\_name](#input\_bucket\_name) | Name of the S3 bucket for Terraform remote state | `string` | `"ferry-terraform-state"` | no |
+| <a name="input_bucket_name"></a> [bucket\_name](#input\_bucket\_name) | Name of the S3 bucket for Terraform remote state | `string` | `"ferry-global-terraform-state"` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region for the state bucket | `string` | `"us-east-1"` | no |
 
 ## Outputs

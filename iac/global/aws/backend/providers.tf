@@ -4,7 +4,7 @@ terraform {
   # NOTE: During initial bootstrap, run 'terraform init -backend=false' first,
   # then after apply, run 'terraform init -migrate-state -force-copy' to migrate to S3.
   backend "s3" {
-    bucket       = "ferry-terraform-state"
+    bucket       = "ferry-global-terraform-state"
     key          = "global/aws/backend/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true

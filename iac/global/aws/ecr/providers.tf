@@ -2,7 +2,7 @@ terraform {
   required_version = "~> 1.12.0"
 
   backend "s3" {
-    bucket       = "ferry-terraform-state"
+    bucket       = "ferry-global-terraform-state"
     key          = "global/aws/ecr/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
