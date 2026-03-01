@@ -15,10 +15,10 @@ Requirements for deploying Ferry to its own AWS account. Each maps to roadmap ph
 
 ### Shared Infrastructure
 
-- [ ] **IAM-01**: Lambda execution role with least-privilege policies (DynamoDB, Secrets Manager, CloudWatch Logs)
-- [ ] **IAM-02**: OIDC identity provider for GitHub Actions in Ferry AWS account
-- [ ] **IAM-03**: GHA deploy role with ECR push + Lambda update permissions, scoped to ferry repo
-- [ ] **IAM-04**: Secrets Manager secret containers for GitHub App credentials (app ID, private key, webhook secret)
+- [x] **IAM-01**: Lambda execution role with least-privilege policies (DynamoDB, Secrets Manager, CloudWatch Logs)
+- [x] **IAM-02**: OIDC identity provider for GitHub Actions in Ferry AWS account
+- [x] **IAM-03**: GHA deploy role with ECR push + Lambda update permissions, scoped to ferry repo
+- [x] **IAM-04**: Secrets Manager secret containers for GitHub App credentials (app ID, private key, webhook secret)
 
 ### Backend Infrastructure
 
@@ -91,10 +91,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BOOT-01 | Phase 11 | Complete |
 | BOOT-02 | Phase 11 | Complete |
 | BOOT-03 | Phase 11 | Complete |
-| IAM-01 | Phase 12 | Pending |
-| IAM-02 | Phase 12 | Pending |
-| IAM-03 | Phase 12 | Pending |
-| IAM-04 | Phase 12 | Pending |
+| IAM-01 | Phase 12 | Complete |
+| IAM-02 | Phase 12 | Complete |
+| IAM-03 | Phase 12 | Complete |
+| IAM-04 | Phase 12 | Complete |
 | INFRA-01 | Phase 13 | Pending |
 | INFRA-02 | Phase 13 | Pending |
 | INFRA-03 | Phase 13 | Pending |

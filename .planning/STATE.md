@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging — Phase 11: Bootstrap + Global Resources
+**Current focus:** v1.1 Deploy to Staging — Phase 12: Shared IAM + Secrets
 
 ## Current Position
 
-Phase: 11 of 14 (Bootstrap + Global Resources)
-Plan: 2 of 2 (Phase 11 COMPLETE)
+Phase: 12 of 14 (Shared IAM + Secrets)
+Plan: 1 of 1 (Phase 12 COMPLETE)
 Status: Phase Complete
-Last activity: 2026-02-28 — Completed 11-02 (Bootstrap script)
+Last activity: 2026-03-01 — Completed 12-01 (OIDC provider + IAM roles + Secrets Manager)
 
-Progress: [#######################.......] 75% (v1.0 complete, v1.1 Phase 11: 2/2 plans)
+Progress: [##########################....] 83% (v1.0 complete, v1.1 Phases 11-12: 3/3 plans)
 
 ## Performance Metrics
 
@@ -28,6 +28,7 @@ Progress: [#######################.......] 75% (v1.0 complete, v1.1 Phase 11: 2/
 |-------|------|----------|-------|-------|
 | 11 | 01 | 1min | 2 | 10 |
 | 11 | 02 | 1min | 1 | 1 |
+| 12 | 01 | 3min | 2 | 11 |
 
 ## Accumulated Context
 
@@ -44,6 +45,10 @@ v1.1 decisions so far:
 - aws_caller_identity data source for account ID in ECR outputs -- no hardcoded IDs (Phase 11)
 - terraform -chdir= pattern and -input=false for non-interactive bootstrap execution (Phase 11)
 - Idempotency via AWS API checks (head-bucket, describe-repos, describe-images) at each bootstrap step (Phase 11)
+- kebab-case IAM naming (ferry-lambda-execution, ferry-gha-self-deploy) for consistency with project naming (Phase 12)
+- Direct policy attachments over locals map pattern -- 9 attachments, direct is more readable at this scale (Phase 12)
+- gha_ecr_auth policy shared between both GHA roles via separate attachment resources (Phase 12)
+- No secret versions created -- empty Secrets Manager containers populated via CLI in Phase 14 (Phase 12)
 
 ### Pending Todos
 
@@ -57,6 +62,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed 11-02-PLAN.md (Bootstrap script — Phase 11 complete)
+Last session: 2026-03-01
+Stopped at: Completed 12-01-PLAN.md (OIDC + IAM + Secrets — Phase 12 complete)
 Resume file: None
