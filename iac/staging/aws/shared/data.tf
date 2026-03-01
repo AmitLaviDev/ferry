@@ -17,7 +17,7 @@ data "terraform_remote_state" "oidc" {
 }
 
 # -----------------------------------------------------------------------------
-# Trust policy: Lambda execution role
+# Trust policies: assume-role
 # -----------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "lambda_assume_role" {
@@ -29,6 +29,56 @@ data "aws_iam_policy_document" "lambda_assume_role" {
     principals {
       type        = "Service"
       identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "gha_self_deploy_assume_role" {
+  statement {
+    sid     = "GHASelfDeployOIDC"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.terraform_remote_state.oidc.outputs.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "gha_dispatch_assume_role" {
+  statement {
+    sid     = "GHADispatchOIDC"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.terraform_remote_state.oidc.outputs.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_org}/*:*"]
     }
   }
 }
@@ -48,7 +98,7 @@ data "aws_iam_policy_document" "lambda_dynamodb" {
       "dynamodb:Query",
     ]
     resources = [
-      "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/ferry-*",
+      "arn:aws:dynamodb:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:table/ferry-*",
     ]
   }
 }
@@ -61,7 +111,7 @@ data "aws_iam_policy_document" "lambda_secrets" {
       "secretsmanager:GetSecretValue",
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:ferry/*",
+      "arn:aws:secretsmanager:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:secret:ferry/*",
     ]
   }
 }
@@ -75,7 +125,7 @@ data "aws_iam_policy_document" "lambda_logs" {
       "logs:PutLogEvents",
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/ferry-*:*",
+      "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/ferry-*:*",
     ]
   }
 }
@@ -113,7 +163,7 @@ data "aws_iam_policy_document" "gha_self_deploy_ecr" {
       "ecr:UploadLayerPart",
     ]
     resources = [
-      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/lambda-ferry-backend",
+      "arn:aws:ecr:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:repository/lambda-ferry-backend",
     ]
   }
 }
@@ -127,7 +177,7 @@ data "aws_iam_policy_document" "gha_self_deploy_lambda" {
       "lambda:GetFunction",
     ]
     resources = [
-      "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:ferry-backend",
+      "arn:aws:lambda:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:function:ferry-backend",
     ]
   }
 }
@@ -150,7 +200,7 @@ data "aws_iam_policy_document" "gha_dispatch_ecr" {
       "ecr:UploadLayerPart",
     ]
     resources = [
-      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/ferry/*",
+      "arn:aws:ecr:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:repository/ferry/*",
     ]
   }
 }
@@ -164,7 +214,7 @@ data "aws_iam_policy_document" "gha_dispatch_lambda" {
       "lambda:GetFunction",
     ]
     resources = [
-      "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:ferry-*",
+      "arn:aws:lambda:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:function:ferry-*",
     ]
   }
 }
