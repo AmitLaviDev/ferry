@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging — Phase 12: Shared IAM + Secrets
+**Current focus:** v1.1 Deploy to Staging — Phase 12.1: IaC Directory Restructure and State Migration
 
 ## Current Position
 
-Phase: 12 of 14 (Shared IAM + Secrets)
-Plan: 1 of 1 (Phase 12 COMPLETE)
+Phase: 12.1 of 14 (IaC Directory Restructure and State Migration)
+Plan: 1 of 1 (Phase 12.1 COMPLETE)
 Status: Phase Complete
-Last activity: 2026-03-01 — Completed 12-01 (OIDC provider + IAM roles + Secrets Manager)
+Last activity: 2026-03-02 — Completed 12.1-01 (backend keys + migration script)
 
-Progress: [##########################....] 83% (v1.0 complete, v1.1 Phases 11-12: 3/3 plans)
+Progress: [###########################...] 87% (v1.0 complete, v1.1 Phases 11-12.1: 4/4 plans)
 
 ## Performance Metrics
 
@@ -29,6 +29,7 @@ Progress: [##########################....] 83% (v1.0 complete, v1.1 Phases 11-12
 | 11 | 01 | 1min | 2 | 10 |
 | 11 | 02 | 1min | 1 | 1 |
 | 12 | 01 | 3min | 2 | 11 |
+| 12.1 | 01 | 2min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -49,6 +50,8 @@ v1.1 decisions so far:
 - Direct policy attachments over locals map pattern -- 9 attachments, direct is more readable at this scale (Phase 12)
 - gha_ecr_auth policy shared between both GHA roles via separate attachment resources (Phase 12)
 - No secret versions created -- empty Secrets Manager containers populated via CLI in Phase 14 (Phase 12)
+- No explicit state backup -- S3 versioning + copy-not-move behavior of -migrate-state is sufficient (Phase 12.1)
+- DRY migrate_project helper function in migration script for per-project logic (Phase 12.1)
 
 ### Pending Todos
 
@@ -66,6 +69,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-01
-Stopped at: Completed 12-01-PLAN.md (OIDC + IAM + Secrets — Phase 12 complete)
+Last session: 2026-03-02
+Stopped at: Completed 12.1-01-PLAN.md (backend keys + migration script — Phase 12.1 complete)
 Resume file: None

@@ -84,7 +84,7 @@ Plans:
 - Commit the directory restructure
 
 Plans:
-- [ ] 12.1-01-PLAN.md — Update TF backend keys, remote state references, and create migration script
+- [x] 12.1-01-PLAN.md — Update TF backend keys, remote state references, and create migration script (completed 2026-03-02)
 
 ### Phase 13: Backend Core
 **Goal**: Ferry Lambda is deployed and accessible via a public Function URL, with DynamoDB dedup table and structured logging, ready to receive webhooks
@@ -144,5 +144,6 @@ Plans:
 | 10. Docs and Dead Code Cleanup | v1.0 | 1/1 | Complete | 2026-02-28 |
 | 11. Bootstrap + Global Resources | 2/2 | Complete    | 2026-02-28 | — |
 | 12. Shared IAM + Secrets | 1/1 | Complete    | 2026-03-01 | — |
+| 12.1. IaC Directory Restructure | 1/1 | Complete    | 2026-03-02 | — |
 | 13. Backend Core | v1.1 | 0/? | Not started | — |
 | 14. Self-Deploy + Manual Setup | v1.1 | 0/? | Not started | — |
