@@ -28,7 +28,7 @@ Deploy Ferry's Lambda backend with Function URL, DynamoDB dedup table, and Cloud
 - Follows ConvergeBio/iac-tf conventions
 - Phase 12.1 (separate phase) restructures the entire iac directory first:
   - Global: `iac/global/cloud/aws/{backend,ecr,oidc}`
-  - Staging shared (non-regional): `iac/aws/staging/shared/{iam,secrets}` — split from current single `shared/` project
+  - Staging shared (non-regional): `iac/aws/staging/shared/` — single project, NOT split (iam.tf + secrets.tf stay together)
   - Staging regional: `iac/aws/staging/us-east-1/ferry_backend/`
 - State migration required for all existing TF projects during Phase 12.1
 
@@ -63,7 +63,7 @@ Deploy Ferry's Lambda backend with Function URL, DynamoDB dedup table, and Cloud
 
 - Directory structure should mirror ConvergeBio/iac-tf conventions exactly
 - "us-east-1" is the region directory name (not us_east_1)
-- The shared project must be split into separate iam/ and secrets/ projects during the restructure (Phase 12.1)
+- The shared project stays as one project during the restructure (Phase 12.1) — iam.tf + secrets.tf together, just directory move
 
 </specifics>
 
