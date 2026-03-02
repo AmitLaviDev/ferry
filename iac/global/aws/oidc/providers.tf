@@ -3,7 +3,7 @@ terraform {
 
   backend "s3" {
     bucket       = "ferry-global-terraform-state"
-    key          = "global/aws/oidc/terraform.tfstate"
+    key          = "global/cloud/aws/oidc/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
   }

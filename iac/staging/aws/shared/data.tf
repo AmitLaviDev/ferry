@@ -11,7 +11,7 @@ data "terraform_remote_state" "oidc" {
 
   config = {
     bucket = "ferry-global-terraform-state"
-    key    = "global/aws/oidc/terraform.tfstate"
+    key    = "global/cloud/aws/oidc/terraform.tfstate"
     region = "us-east-1"
   }
 }
