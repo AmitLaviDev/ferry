@@ -54,6 +54,10 @@ v1.1 decisions so far:
 
 None.
 
+### Roadmap Evolution
+
+- Phase 12.1 inserted after Phase 12: IaC directory restructure and state migration (URGENT)
+
 ### Blockers/Concerns
 
 - Python 3.14 arm64 Lambda base image availability on public.ecr.aws must be verified (fallback: Python 3.13 or custom base)
