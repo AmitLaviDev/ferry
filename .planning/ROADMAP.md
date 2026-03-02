@@ -96,14 +96,14 @@ Plans:
   3. CloudWatch log group exists with 30-day retention and Lambda writes logs to it
   4. Lambda environment variables reference Secrets Manager ARNs and the DynamoDB table name via Terraform outputs (not hardcoded)
   5. `curl <function-url>` returns a response (even if an error, proving the Lambda is live)
-**Plans**: TBD
+**Plans**: 1 plan
 
 **Manual Steps:**
 - Run `terraform apply` for the ferry_backend project
 - Note the Function URL from `terraform output` — needed for GitHub App registration in Phase 14
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Lambda + Function URL + DynamoDB + CloudWatch Terraform project
 
 ### Phase 14: Self-Deploy + Manual Setup
 **Goal**: Ferry can deploy itself on every push to main, the GitHub App is registered and receiving webhooks, and anyone can reproduce the full setup from the runbook
