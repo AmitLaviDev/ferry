@@ -1,24 +1,29 @@
-output "function_url" {
+output "lambda_function_name" {
+  description = "Name of the Lambda function"
+  value       = module.backend.lambda_function_name
+}
+
+output "lambda_function_arn" {
+  description = "ARN of the Lambda function"
+  value       = module.backend.lambda_function_arn
+}
+
+output "lambda_function_url" {
   description = "Public Function URL for the Ferry backend Lambda"
-  value       = aws_lambda_function_url.backend.function_url
+  value       = module.backend.lambda_function_url
+}
+
+output "lambda_cloudwatch_log_group_name" {
+  description = "Name of the CloudWatch log group"
+  value       = module.backend.lambda_cloudwatch_log_group_name
 }
 
 output "dynamodb_table_name" {
   description = "Name of the DynamoDB dedup table"
-  value       = aws_dynamodb_table.dedup.name
+  value       = module.dedup.dynamodb_table_id
 }
 
 output "dynamodb_table_arn" {
   description = "ARN of the DynamoDB dedup table"
-  value       = aws_dynamodb_table.dedup.arn
-}
-
-output "log_group_name" {
-  description = "Name of the CloudWatch log group"
-  value       = aws_cloudwatch_log_group.backend.name
-}
-
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
-  value       = aws_lambda_function.backend.function_name
+  value       = module.dedup.dynamodb_table_arn
 }
