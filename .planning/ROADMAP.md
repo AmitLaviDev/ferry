@@ -72,6 +72,20 @@ Plans:
 Plans:
 - [ ] 12-01-PLAN.md — OIDC provider (global) + shared IAM roles, policies, and Secrets Manager containers (staging)
 
+### Phase 12.1: IaC directory restructure and state migration (INSERTED)
+
+**Goal:** Reorganize IaC directory layout to match ConvergeBio/iac-tf conventions and migrate all Terraform remote state to new S3 keys — no new resources, pure restructure
+**Depends on:** Phase 12
+**Plans:** 1 plan
+
+**Manual Steps:**
+- Run `scripts/migrate-iac-layout.sh` after code changes are committed (requires AWS credentials)
+- Verify each `terraform plan` shows "No changes"
+- Commit the directory restructure
+
+Plans:
+- [ ] 12.1-01-PLAN.md — Update TF backend keys, remote state references, and create migration script
+
 ### Phase 13: Backend Core
 **Goal**: Ferry Lambda is deployed and accessible via a public Function URL, with DynamoDB dedup table and structured logging, ready to receive webhooks
 **Depends on**: Phase 11 (ECR placeholder image), Phase 12 (IAM role, Secrets Manager ARNs)
