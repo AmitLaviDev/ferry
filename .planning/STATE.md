@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging — Phase 12.1: IaC Directory Restructure and State Migration
+**Current focus:** v1.1 Deploy to Staging — Phase 13: Backend Core
 
 ## Current Position
 
-Phase: 12.1 of 14 (IaC Directory Restructure and State Migration)
-Plan: 1 of 1 (Phase 12.1 COMPLETE)
+Phase: 13 of 14 (Backend Core)
+Plan: 1 of 1 (Phase 13 COMPLETE)
 Status: Phase Complete
-Last activity: 2026-03-02 — Completed 12.1-01 (backend keys + migration script)
+Last activity: 2026-03-02 — Completed 13-01 (ferry_backend Terraform project)
 
-Progress: [###########################...] 87% (v1.0 complete, v1.1 Phases 11-12.1: 4/4 plans)
+Progress: [############################..] 90% (v1.0 complete, v1.1 Phases 11-13: 5/5 plans)
 
 ## Performance Metrics
 
@@ -30,6 +30,7 @@ Progress: [###########################...] 87% (v1.0 complete, v1.1 Phases 11-12
 | 11 | 02 | 1min | 1 | 1 |
 | 12 | 01 | 3min | 2 | 11 |
 | 12.1 | 01 | 2min | 2 | 6 |
+| 13 | 01 | 2min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -52,6 +53,9 @@ v1.1 decisions so far:
 - No secret versions created -- empty Secrets Manager containers populated via CLI in Phase 14 (Phase 12)
 - No explicit state backup -- S3 versioning + copy-not-move behavior of -migrate-state is sufficient (Phase 12.1)
 - DRY migrate_project helper function in migration script for per-project logic (Phase 12.1)
+- Hardcoded secret names (ferry/github-app/*) -- deterministic from secrets.tf for_each keys (Phase 13)
+- FERRY_INSTALLATION_ID as TF variable with placeholder '0' -- deferred to Phase 14 (Phase 13)
+- All 4 resources in main.tf -- tightly coupled, splitting is over-engineering at this scale (Phase 13)
 
 ### Pending Todos
 
@@ -70,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 12.1-01-PLAN.md (backend keys + migration script — Phase 12.1 complete)
+Stopped at: Completed 13-01-PLAN.md (ferry_backend Terraform project — Phase 13 complete)
 Resume file: None

@@ -22,10 +22,10 @@ Requirements for deploying Ferry to its own AWS account. Each maps to roadmap ph
 
 ### Backend Infrastructure
 
-- [ ] **INFRA-01**: Ferry Lambda deployed as arm64 container image with Function URL (auth=NONE)
-- [ ] **INFRA-02**: DynamoDB dedup table with PAY_PER_REQUEST billing and TTL on expires_at
-- [ ] **INFRA-03**: CloudWatch log group with 30-day retention
-- [ ] **INFRA-04**: Lambda env vars reference Secrets Manager ARNs and DynamoDB table name via Terraform
+- [x] **INFRA-01**: Ferry Lambda deployed as arm64 container image with Function URL (auth=NONE)
+- [x] **INFRA-02**: DynamoDB dedup table with PAY_PER_REQUEST billing and TTL on expires_at
+- [x] **INFRA-03**: CloudWatch log group with 30-day retention
+- [x] **INFRA-04**: Lambda env vars reference Secrets Manager ARNs and DynamoDB table name via Terraform
 
 ### Deployment Pipeline
 
@@ -95,10 +95,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | IAM-02 | Phase 12 | Complete |
 | IAM-03 | Phase 12 | Complete |
 | IAM-04 | Phase 12 | Complete |
-| INFRA-01 | Phase 13 | Pending |
-| INFRA-02 | Phase 13 | Pending |
-| INFRA-03 | Phase 13 | Pending |
-| INFRA-04 | Phase 13 | Pending |
+| INFRA-01 | Phase 13 | Complete |
+| INFRA-02 | Phase 13 | Complete |
+| INFRA-03 | Phase 13 | Complete |
+| INFRA-04 | Phase 13 | Complete |
 | DEPLOY-01 | Phase 14 | Pending |
 | DEPLOY-02 | Phase 14 | Pending |
 | DEPLOY-03 | Phase 14 | Pending |
