@@ -76,7 +76,7 @@ Plans:
 
 **Goal:** Reorganize IaC directory layout to match ConvergeBio/iac-tf conventions and migrate all Terraform remote state to new S3 keys — no new resources, pure restructure
 **Depends on:** Phase 12
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 **Manual Steps:**
 - Run `scripts/migrate-iac-layout.sh` after code changes are committed (requires AWS credentials)
