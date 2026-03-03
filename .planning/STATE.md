@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging — Phase 13: Backend Core
+**Current focus:** v1.1 Deploy to Staging — Phase 14: Self-Deploy + Manual Setup
 
 ## Current Position
 
-Phase: 13 of 14 (Backend Core)
-Plan: 1 of 1 (Phase 13 COMPLETE)
-Status: Phase Complete
-Last activity: 2026-03-02 — Completed 13-01 (ferry_backend Terraform project)
+Phase: 14 of 14 (Self-Deploy + Manual Setup)
+Plan: 1 of 3 (14-01 complete)
+Status: In Progress
+Last activity: 2026-03-03 — Completed 14-01 (Backend Dockerfile + Secrets Manager resolution)
 
-Progress: [############################..] 90% (v1.0 complete, v1.1 Phases 11-13: 5/5 plans)
+Progress: [############################..] 93% (v1.0 complete, v1.1 Phases 11-14: 6/8 plans)
 
 ## Performance Metrics
 
@@ -31,6 +31,7 @@ Progress: [############################..] 90% (v1.0 complete, v1.1 Phases 11-13
 | 12 | 01 | 3min | 2 | 11 |
 | 12.1 | 01 | 2min | 2 | 6 |
 | 13 | 01 | 2min | 2 | 6 |
+| 14 | 01 | 3min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -56,6 +57,8 @@ v1.1 decisions so far:
 - Hardcoded secret names (ferry/github-app/*) -- deterministic from secrets.tf for_each keys (Phase 13)
 - FERRY_INSTALLATION_ID as TF variable with placeholder '0' -- deferred to Phase 14 (Phase 13)
 - All 4 resources in main.tf -- tightly coupled, splitting is over-engineering at this scale (Phase 13)
+- Hardcoded region_name='us-east-1' in SM boto3 client for explicit behavior (Phase 14)
+- Two-stage uv export pattern: --no-emit-workspace for cached deps layer, full export for workspace members (Phase 14)
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 13-01-PLAN.md (ferry_backend Terraform project — Phase 13 complete)
+Last session: 2026-03-03
+Stopped at: Completed 14-01-PLAN.md (Backend Dockerfile + Secrets Manager resolution)
 Resume file: None

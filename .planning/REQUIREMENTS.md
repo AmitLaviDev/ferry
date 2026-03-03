@@ -29,9 +29,9 @@ Requirements for deploying Ferry to its own AWS account. Each maps to roadmap ph
 
 ### Deployment Pipeline
 
-- [ ] **DEPLOY-01**: Backend Dockerfile builds ferry-utils + ferry-backend from repo root context
+- [x] **DEPLOY-01**: Backend Dockerfile builds ferry-utils + ferry-backend from repo root context
 - [ ] **DEPLOY-02**: Self-deploy GHA workflow builds, pushes to ECR, and updates Lambda on push to main
-- [ ] **DEPLOY-03**: settings.py modified to load secrets from Secrets Manager at cold start
+- [x] **DEPLOY-03**: settings.py modified to load secrets from Secrets Manager at cold start
 
 ### Manual Setup
 
@@ -99,9 +99,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-02 | Phase 13 | Complete |
 | INFRA-03 | Phase 13 | Complete |
 | INFRA-04 | Phase 13 | Complete |
-| DEPLOY-01 | Phase 14 | Pending |
+| DEPLOY-01 | Phase 14 | Complete |
 | DEPLOY-02 | Phase 14 | Pending |
-| DEPLOY-03 | Phase 14 | Pending |
+| DEPLOY-03 | Phase 14 | Complete |
 | SETUP-01 | Phase 14 | Pending |
 | SETUP-02 | Phase 14 | Pending |
 | SETUP-03 | Phase 14 | Pending |
