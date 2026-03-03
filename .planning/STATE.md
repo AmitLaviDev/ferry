@@ -2,19 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-28)
+See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.1 Deploy to Staging — Phase 14: Self-Deploy + Manual Setup
+**Current focus:** v1.2 End-to-End Validation
 
 ## Current Position
 
-Phase: 14 of 14 (Self-Deploy + Manual Setup)
-Plan: 3 of 3 (14-03 complete)
-Status: Complete
-Last activity: 2026-03-03 — Completed 14-03 (Setup Runbook)
-
-Progress: [##############################] 100% (v1.0 complete, v1.1 Phases 11-14: 8/8 plans)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-03 — Milestone v1.2 started
 
 ## Performance Metrics
 

@@ -26,19 +26,25 @@ When a developer pushes code, every affected serverless resource is automaticall
 - ✓ Deploy API Gateways (update OpenAPI spec, create deployment) — v1.0
 - ✓ Handle AWS authentication via OIDC (user passes role ARN, Ferry Action does the exchange) — v1.0
 - ✓ Surface build/deploy failures in PR Check Runs and GHA workflow logs — v1.0
+- ✓ Bootstrap Terraform state backend (S3 bucket) in Ferry's own AWS account — v1.1
+- ✓ Create ECR repo for Ferry Lambda container — v1.1
+- ✓ Set up shared IAM roles and policies for Lambda execution — v1.1
+- ✓ Store GitHub App secrets in Secrets Manager — v1.1
+- ✓ Deploy Ferry Lambda with Function URL — v1.1
+- ✓ Deploy DynamoDB table for webhook dedup — v1.1
+- ✓ Create self-deploy GHA workflow (build, push ECR, update Lambda) — v1.1
+- ✓ Register GitHub App setup runbook — v1.1
 
 ### Active
 
-<!-- v1.1: Deploy Ferry to Staging -->
+<!-- v1.2: End-to-End Validation -->
 
-- [ ] Bootstrap Terraform state backend (S3 bucket) in Ferry's own AWS account
-- [ ] Create ECR repo for Ferry Lambda container
-- [ ] Set up shared IAM roles and policies for Lambda execution
-- [ ] Store GitHub App secrets in Secrets Manager
-- [ ] Deploy Ferry Lambda with Function URL
-- [ ] Deploy DynamoDB table for webhook dedup
-- [ ] Create self-deploy GHA workflow (build, push ECR, update Lambda)
-- [ ] Register GitHub App (manual step)
+- [ ] Apply Terraform IaC and deploy Ferry infrastructure to AWS
+- [ ] Register GitHub App and populate Secrets Manager credentials
+- [ ] Create test repo with ferry.yaml, hello-world Lambda, and dispatch workflow
+- [ ] Set up test infrastructure (ECR repo + OIDC role for test repo GHA)
+- [ ] Full push-to-deploy loop works: push → webhook → detect → dispatch → build → deploy
+- [ ] Fix all bugs surfaced during end-to-end testing
 
 ### Out of Scope
 
@@ -54,26 +60,16 @@ When a developer pushes code, every affected serverless resource is automaticall
 - Drift detection — process problem, not a tooling problem for v1
 - Local dev/testing — Ferry is a CI/CD tool, not a dev tool
 
-## Current Milestone: v1.1 Deploy to Staging
+## Current Milestone: v1.2 End-to-End Validation
 
-**Goal:** Stand up Ferry's AWS infrastructure from scratch so we can test it end-to-end and inform future milestones.
+**Goal:** Deploy Ferry infrastructure, prove the full push-to-deploy loop works end-to-end with a real test repo, and fix all bugs found.
 
 **Target features:**
-- Terraform IaC following ConvergeBio/iac-tf patterns (global/cloud/aws + teams/platform/aws hierarchy)
-- Bootstrap: S3 state backend, ECR repo
-- Staging environment: Lambda + Function URL + DynamoDB + IAM + Secrets Manager
-- Self-deploy GHA workflow for the Ferry Lambda container
-- GitHub App registration (manual)
-
-**Structure:**
-```
-iac/
-├── global/cloud/aws/backend/    # TF state S3 bucket
-├── global/cloud/aws/ecr/        # Ferry Lambda ECR repo
-└── teams/platform/aws/staging/
-    ├── shared/                   # IAM roles, Secrets Manager
-    └── us_east_1/ferry_backend/  # Lambda + Function URL + DynamoDB
-```
+- Apply all IaC modules (terraform init/apply for bootstrap, ECR, shared IAM, backend)
+- Register GitHub App and populate Secrets Manager credentials
+- Create test repo with ferry.yaml + hello-world Lambda + GHA workflow
+- Set up test infrastructure (ECR repo + OIDC IAM role for test repo)
+- Execute full push-to-deploy loop and fix bugs until reliable
 
 ## Context
 
@@ -172,4 +168,4 @@ api_gateways:
 | Envsubst for Step Functions | Safe regex: only ${ACCOUNT_ID} and ${AWS_REGION}, preserves JSONPath | ✓ Good — avoids corrupting state machine definitions |
 
 ---
-*Last updated: 2026-02-28 after v1.1 milestone started*
+*Last updated: 2026-03-03 after v1.2 milestone started*
