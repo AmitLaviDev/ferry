@@ -63,7 +63,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_github_org"></a> [github\_org](#input\_github\_org) | GitHub organization name for OIDC trust policy scoping | `string` | `"get-ferry"` | no |
+| <a name="input_github_org"></a> [github\_org](#input\_github\_org) | GitHub organization name for OIDC trust policy scoping | `string` | `"AmitLaviDev"` | no |
 | <a name="input_github_repo"></a> [github\_repo](#input\_github\_repo) | GitHub repository name for self-deploy OIDC trust policy | `string` | `"ferry"` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region | `string` | `"us-east-1"` | no |
 

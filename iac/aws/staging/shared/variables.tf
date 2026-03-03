@@ -7,7 +7,7 @@ variable "region" {
 variable "github_org" {
   description = "GitHub organization name for OIDC trust policy scoping"
   type        = string
-  default     = "get-ferry"
+  default     = "AmitLaviDev"
 }
 
 variable "github_repo" {
