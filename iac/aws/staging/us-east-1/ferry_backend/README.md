@@ -33,7 +33,7 @@
 |------|-------------|------|---------|:--------:|
 | <a name="input_dynamodb_billing_mode"></a> [dynamodb\_billing\_mode](#input\_dynamodb\_billing\_mode) | DynamoDB billing mode | `string` | `"PAY_PER_REQUEST"` | no |
 | <a name="input_dynamodb_table_name"></a> [dynamodb\_table\_name](#input\_dynamodb\_table\_name) | Name of the DynamoDB dedup table | `string` | `"ferry-webhook-dedup"` | no |
-| <a name="input_installation_id"></a> [installation\_id](#input\_installation\_id) | GitHub App installation ID (placeholder until App registration) | `string` | `"0"` | no |
+| <a name="input_installation_id"></a> [installation\_id](#input\_installation\_id) | GitHub App installation ID (placeholder until App registration) | `string` | `"113729879"` | no |
 | <a name="input_lambda_function_name"></a> [lambda\_function\_name](#input\_lambda\_function\_name) | Name of the Ferry backend Lambda function | `string` | `"ferry-backend"` | no |
 | <a name="input_lambda_logging_log_format"></a> [lambda\_logging\_log\_format](#input\_lambda\_logging\_log\_format) | Log format for Lambda function (JSON or Text) | `string` | `"JSON"` | no |
 | <a name="input_lambda_memory_size"></a> [lambda\_memory\_size](#input\_lambda\_memory\_size) | Amount of memory in MB for the Lambda function | `number` | `256` | no |

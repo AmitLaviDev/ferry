@@ -44,7 +44,7 @@ variable "log_level" {
 variable "installation_id" {
   description = "GitHub App installation ID (placeholder until App registration)"
   type        = string
-  default     = "0"
+  default     = "113729879"
 }
 
 # --- Secrets ---
