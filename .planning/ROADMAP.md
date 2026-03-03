@@ -115,16 +115,19 @@ Plans:
   3. `settings.py` loads GitHub App credentials from Secrets Manager ARNs at Lambda cold start (not from direct env var values)
   4. GitHub App is registered at github.com with the Function URL as webhook endpoint and can receive test webhook deliveries
   5. Setup runbook in the repo documents the complete apply order and all manual steps so a fresh setup can be reproduced
-**Plans**: TBD
+**Plans**: 3 plans
 
 **Manual Steps:**
 - Register GitHub App at github.com/settings/apps using the Function URL from Phase 13
 - Populate Secrets Manager values via `aws secretsmanager put-secret-value` for app ID, private key, and webhook secret
+- Set `AWS_DEPLOY_ROLE_ARN` repo secret in GitHub
 - Trigger first deploy by pushing to main
 - Verify end-to-end: webhook delivery reaches Lambda, Lambda responds
 
 Plans:
-- [ ] 14-01: TBD
+- [ ] 14-01-PLAN.md — Backend Dockerfile + .dockerignore + settings.py Secrets Manager resolution
+- [ ] 14-02-PLAN.md — Self-deploy GHA workflow (test + build + deploy)
+- [ ] 14-03-PLAN.md — Setup runbook + manual setup checkpoint
 
 ## Progress
 
