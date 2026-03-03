@@ -35,9 +35,9 @@ Requirements for deploying Ferry to its own AWS account. Each maps to roadmap ph
 
 ### Manual Setup
 
-- [ ] **SETUP-01**: GitHub App registered with Function URL as webhook endpoint
-- [ ] **SETUP-02**: Secrets Manager values populated via CLI after GitHub App registration
-- [ ] **SETUP-03**: Setup runbook documented in repo (apply order + manual steps)
+- [x] **SETUP-01**: GitHub App registered with Function URL as webhook endpoint
+- [x] **SETUP-02**: Secrets Manager values populated via CLI after GitHub App registration
+- [x] **SETUP-03**: Setup runbook documented in repo (apply order + manual steps)
 
 ## Manual Action Timeline
 
@@ -102,9 +102,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-01 | Phase 14 | Complete |
 | DEPLOY-02 | Phase 14 | Complete |
 | DEPLOY-03 | Phase 14 | Complete |
-| SETUP-01 | Phase 14 | Pending |
-| SETUP-02 | Phase 14 | Pending |
-| SETUP-03 | Phase 14 | Pending |
+| SETUP-01 | Phase 14 | Complete |
+| SETUP-02 | Phase 14 | Complete |
+| SETUP-03 | Phase 14 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 17 total

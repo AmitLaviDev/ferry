@@ -32,7 +32,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 11: Bootstrap + Global Resources** — S3 state backend, ECR repo, placeholder image (completed 2026-02-28)
 - [x] **Phase 12: Shared IAM + Secrets** — Lambda execution role, OIDC provider, GHA deploy role, Secrets Manager (completed 2026-03-01)
 - [x] **Phase 13: Backend Core** — Lambda + Function URL + DynamoDB dedup table + CloudWatch logs (completed 2026-03-02)
-- [ ] **Phase 14: Self-Deploy + Manual Setup** — Dockerfile, GHA workflow, GitHub App registration, setup runbook
+- [x] **Phase 14: Self-Deploy + Manual Setup** — Dockerfile, GHA workflow, GitHub App registration, setup runbook (completed 2026-03-03)
 
 ## Phase Details
 
@@ -149,4 +149,4 @@ Plans:
 | 12. Shared IAM + Secrets | 1/1 | Complete    | 2026-03-01 | — |
 | 12.1. IaC Directory Restructure | 1/1 | Complete    | 2026-03-02 | — |
 | 13. Backend Core | 1/1 | Complete   | 2026-03-02 | — |
-| 14. Self-Deploy + Manual Setup | 2/3 | In Progress|  | — |
+| 14. Self-Deploy + Manual Setup | 3/3 | Complete   | 2026-03-03 | — |
