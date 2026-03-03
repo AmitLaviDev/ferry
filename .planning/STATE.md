@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 14 of 14 (Self-Deploy + Manual Setup)
-Plan: 1 of 3 (14-01 complete)
+Plan: 2 of 3 (14-02 complete)
 Status: In Progress
-Last activity: 2026-03-03 — Completed 14-01 (Backend Dockerfile + Secrets Manager resolution)
+Last activity: 2026-03-03 — Completed 14-02 (Self-Deploy GHA Workflow)
 
-Progress: [############################..] 93% (v1.0 complete, v1.1 Phases 11-14: 6/8 plans)
+Progress: [#############################.] 96% (v1.0 complete, v1.1 Phases 11-14: 7/8 plans)
 
 ## Performance Metrics
 
@@ -32,6 +32,7 @@ Progress: [############################..] 93% (v1.0 complete, v1.1 Phases 11-14
 | 12.1 | 01 | 2min | 2 | 6 |
 | 13 | 01 | 2min | 2 | 6 |
 | 14 | 01 | 3min | 2 | 4 |
+| 14 | 02 | 1min | 1 | 1 |
 
 ## Accumulated Context
 
@@ -59,6 +60,8 @@ v1.1 decisions so far:
 - All 4 resources in main.tf -- tightly coupled, splitting is over-engineering at this scale (Phase 13)
 - Hardcoded region_name='us-east-1' in SM boto3 client for explicit behavior (Phase 14)
 - Two-stage uv export pattern: --no-emit-workspace for cached deps layer, full export for workspace members (Phase 14)
+- No path filtering on push trigger -- every push to main triggers deploy for simplicity (Phase 14)
+- Image tagged with github.sha for traceability back to exact commit (Phase 14)
 
 ### Pending Todos
 
@@ -77,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 14-01-PLAN.md (Backend Dockerfile + Secrets Manager resolution)
+Stopped at: Completed 14-02-PLAN.md (Self-Deploy GHA Workflow)
 Resume file: None
