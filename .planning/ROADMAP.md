@@ -149,4 +149,4 @@ Plans:
 | 12. Shared IAM + Secrets | 1/1 | Complete    | 2026-03-01 | — |
 | 12.1. IaC Directory Restructure | 1/1 | Complete    | 2026-03-02 | — |
 | 13. Backend Core | 1/1 | Complete   | 2026-03-02 | — |
-| 14. Self-Deploy + Manual Setup | 3/3 | Complete   | 2026-03-03 | — |
+| 14. Self-Deploy + Manual Setup | 3/3 | Complete    | 2026-03-03 | — |
