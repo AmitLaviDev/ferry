@@ -5,14 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.2 End-to-End Validation
+**Current focus:** v1.2 End-to-End Validation -- Phase 15: Deploy Ferry Infrastructure
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-03 — Milestone v1.2 started
+Phase: 15 of 17 (Deploy Ferry Infrastructure)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-03-03 -- Roadmap created for v1.2
+
+Progress: [░░░░░░░░░░] 0% (v1.2)
 
 ## Performance Metrics
 
@@ -37,49 +39,20 @@ Last activity: 2026-03-03 — Milestone v1.2 started
 
 ### Decisions
 
-All v1.0 decisions logged in PROJECT.md Key Decisions table.
-v1.1 decisions so far:
-- Raw Terraform resources over terraform-aws-modules (5-6 resources, modules add overhead)
-- Secrets Manager containers in TF, values populated manually via CLI (never in TF state)
-- settings.py will load secrets from Secrets Manager ARNs at cold start (code change required)
-- lifecycle { ignore_changes = [image_uri] } on Lambda — TF owns infra, GHA owns deployed code
-- No assume_role in global bootstrap projects -- ambient credentials for one-time setup (Phase 11)
-- default_tags on provider for ManagedBy + Project tags; resource-specific tags only where needed (Phase 11)
-- aws_caller_identity data source for account ID in ECR outputs -- no hardcoded IDs (Phase 11)
-- terraform -chdir= pattern and -input=false for non-interactive bootstrap execution (Phase 11)
-- Idempotency via AWS API checks (head-bucket, describe-repos, describe-images) at each bootstrap step (Phase 11)
-- kebab-case IAM naming (ferry-lambda-execution, ferry-gha-self-deploy) for consistency with project naming (Phase 12)
-- Direct policy attachments over locals map pattern -- 9 attachments, direct is more readable at this scale (Phase 12)
-- gha_ecr_auth policy shared between both GHA roles via separate attachment resources (Phase 12)
-- No secret versions created -- empty Secrets Manager containers populated via CLI in Phase 14 (Phase 12)
-- No explicit state backup -- S3 versioning + copy-not-move behavior of -migrate-state is sufficient (Phase 12.1)
-- DRY migrate_project helper function in migration script for per-project logic (Phase 12.1)
-- Hardcoded secret names (ferry/github-app/*) -- deterministic from secrets.tf for_each keys (Phase 13)
-- FERRY_INSTALLATION_ID as TF variable with placeholder '0' -- deferred to Phase 14 (Phase 13)
-- All 4 resources in main.tf -- tightly coupled, splitting is over-engineering at this scale (Phase 13)
-- Hardcoded region_name='us-east-1' in SM boto3 client for explicit behavior (Phase 14)
-- Two-stage uv export pattern: --no-emit-workspace for cached deps layer, full export for workspace members (Phase 14)
-- No path filtering on push trigger -- every push to main triggers deploy for simplicity (Phase 14)
-- Image tagged with github.sha for traceability back to exact commit (Phase 14)
-- Option A (CLI) and Option B (Terraform) for installation ID update -- recommended Option B for persistence (Phase 14)
-- Runbook scoped to Phase 14 manual steps only, not Phases 11-13 apply order (Phase 14)
+All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions table and STATE.md history.
 
 ### Pending Todos
 
 None.
 
-### Roadmap Evolution
-
-- Phase 12.1 inserted after Phase 12: IaC directory restructure and state migration (URGENT)
-
 ### Blockers/Concerns
 
 - Python 3.14 arm64 Lambda base image availability on public.ecr.aws must be verified (fallback: Python 3.13 or custom base)
-- AWS provider version should be verified at implementation time (research used ~5.80 range)
-- OIDC trust policy `sub` claim is case-sensitive — verify with `aws sts get-caller-identity` on first GHA run
+- Known bug: `find_open_prs` in checks/runs.py crashes on 403 response -- will surface during E2E testing
+- OIDC trust policy `sub` claim is case-sensitive -- verify with `aws sts get-caller-identity` on first GHA run
 
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 14-03-PLAN.md (Setup Runbook)
+Stopped at: v1.2 roadmap created -- Phase 15 ready to plan
 Resume file: None

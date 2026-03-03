@@ -1,7 +1,7 @@
 # Requirements: Ferry
 
 **Defined:** 2026-03-03
-**Core Value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed — with full visibility on the PR before merge.
+**Core Value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
 
 ## v1.2 Requirements
 
@@ -13,7 +13,7 @@ Requirements for End-to-End Validation milestone. Each maps to roadmap phases.
 - [ ] **INFRA-02**: GitHub App registered with webhook URL pointing to Ferry Lambda Function URL
 - [ ] **INFRA-03**: Secrets Manager populated with GitHub App private key, app ID, and webhook secret
 - [ ] **INFRA-04**: Ferry Lambda responds to HTTP requests and validates webhook signatures
-- [ ] **INFRA-05**: Self-deploy pipeline succeeds (push to ferry/main → Docker build → ECR push → Lambda update)
+- [ ] **INFRA-05**: Self-deploy pipeline succeeds (push to ferry/main -> Docker build -> ECR push -> Lambda update)
 
 ### Test Environment
 
@@ -39,7 +39,7 @@ Requirements for End-to-End Validation milestone. Each maps to roadmap phases.
 ## v1.1 Requirements (Completed)
 
 <details>
-<summary>v1.1 Deploy to Staging — all 17 requirements complete</summary>
+<summary>v1.1 Deploy to Staging -- all 17 requirements complete</summary>
 
 ### Bootstrap
 
@@ -104,10 +104,10 @@ Requirements for End-to-End Validation milestone. Each maps to roadmap phases.
 
 | Feature | Reason |
 |---------|--------|
-| PR event handling | v2 feature — focus on push-to-deploy loop first |
-| Multi-tenant / other orgs | v2 — prove single-tenant works first |
-| Step Functions / API Gateway e2e | v1.3 — Lambda loop is the priority |
-| Environment/branch mapping | v2 — single environment for now |
+| PR event handling | v2 feature -- focus on push-to-deploy loop first |
+| Multi-tenant / other orgs | v2 -- prove single-tenant works first |
+| Step Functions / API Gateway e2e | v1.3 -- Lambda loop is the priority |
+| Environment/branch mapping | v2 -- single environment for now |
 | Dashboard or UI | PR is the dashboard |
 | Rollback capability | User re-deploys previous commit |
 | Production environment | Staging only for this milestone |
@@ -118,32 +118,32 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| INFRA-05 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
-| TEST-06 | — | Pending |
-| E2E-01 | — | Pending |
-| E2E-02 | — | Pending |
-| E2E-03 | — | Pending |
-| E2E-04 | — | Pending |
-| E2E-05 | — | Pending |
-| E2E-06 | — | Pending |
-| E2E-07 | — | Pending |
-| E2E-08 | — | Pending |
-| E2E-09 | — | Pending |
+| INFRA-01 | Phase 15 | Pending |
+| INFRA-02 | Phase 15 | Pending |
+| INFRA-03 | Phase 15 | Pending |
+| INFRA-04 | Phase 15 | Pending |
+| INFRA-05 | Phase 15 | Pending |
+| TEST-01 | Phase 16 | Pending |
+| TEST-02 | Phase 16 | Pending |
+| TEST-03 | Phase 16 | Pending |
+| TEST-04 | Phase 16 | Pending |
+| TEST-05 | Phase 16 | Pending |
+| TEST-06 | Phase 16 | Pending |
+| E2E-01 | Phase 17 | Pending |
+| E2E-02 | Phase 17 | Pending |
+| E2E-03 | Phase 17 | Pending |
+| E2E-04 | Phase 17 | Pending |
+| E2E-05 | Phase 17 | Pending |
+| E2E-06 | Phase 17 | Pending |
+| E2E-07 | Phase 17 | Pending |
+| E2E-08 | Phase 17 | Pending |
+| E2E-09 | Phase 17 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20 ⚠️
+- Mapped to phases: 20/20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-03-03 after roadmap creation*
