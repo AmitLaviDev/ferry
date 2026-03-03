@@ -23,14 +23,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --no-cache-dir -r requirements.txt \
       --target /build/deps
 
-# Copy workspace source and install workspace members
+# Copy workspace source
 COPY utils/src /build/utils/src
 COPY backend/src /build/backend/src
 
+# Install workspace members (ferry-utils, ferry-backend) on top of third-party deps
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv export --frozen --no-dev --no-editable --package ferry-backend \
-      -o requirements-all.txt && \
-    uv pip install --no-cache-dir -r requirements-all.txt \
+    cp -r /build/deps /build/all && \
+    uv pip install --no-cache-dir --no-deps \
+      /build/utils /build/backend \
       --target /build/all
 
 # --- Stage 2: Runtime ---
