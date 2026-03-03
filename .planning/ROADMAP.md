@@ -137,7 +137,12 @@ Plans:
   3. Secrets Manager contains valid GitHub App credentials (app ID, private key, webhook secret) and the Lambda can read them at cold start
   4. Sending a test webhook from the GitHub App settings page returns a 200 response from the Ferry Lambda
   5. Pushing a commit to ferry/main triggers the self-deploy workflow, which builds the Docker image, pushes to ECR, and updates the Lambda successfully
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 15-01-PLAN.md -- Terraform apply chain (bootstrap + OIDC + shared + backend) and resource verification
+- [ ] 15-02-PLAN.md -- GitHub App registration, secrets population, installation ID, and repo secret
+- [ ] 15-03-PLAN.md -- Lambda liveness verification, webhook delivery test, and self-deploy pipeline proof
 
 **Manual Steps:**
 - Follow the setup runbook from Phase 14 (`docs/setup-runbook.md`)
@@ -204,6 +209,6 @@ Plans:
 | 12.1. IaC Directory Restructure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 13. Backend Core | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 14. Self-Deploy + Manual Setup | v1.1 | 3/3 | Complete | 2026-03-03 |
-| 15. Deploy Ferry Infrastructure | v1.2 | 0/TBD | Not started | -- |
+| 15. Deploy Ferry Infrastructure | v1.2 | 0/3 | Not started | -- |
 | 16. Provision Test Environment | v1.2 | 0/TBD | Not started | -- |
 | 17. End-to-End Loop Validation | v1.2 | 0/TBD | Not started | -- |
