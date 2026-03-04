@@ -3,6 +3,12 @@ name: Self-Deploy Backend
 on:
   push:
     branches: [main]
+    paths:
+      - "backend/**"
+      - "shared/**"
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "uv.lock"
 
 permissions:
   id-token: write
