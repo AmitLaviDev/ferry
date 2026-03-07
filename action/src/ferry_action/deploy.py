@@ -228,6 +228,7 @@ def main() -> None:
 
     except ClientError as exc:
         error_code = exc.response["Error"]["Code"]
+        error_message = exc.response["Error"].get("Message", "")
         hints = {
             "AccessDeniedException": (
                 f"IAM role lacks lambda:UpdateFunctionCode permission for '{function_name}'"
@@ -239,7 +240,10 @@ def main() -> None:
             ),
         }
         hint = hints.get(error_code, str(exc))
-        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
+        raw = f"[{error_code}] {error_message}"
+        gha.error(
+            format_error_detail(exc, f"Deploy failed for {resource_name}: {hint} (raw: {raw})")
+        )
         report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
         sys.exit(1)
 
