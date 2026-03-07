@@ -108,6 +108,15 @@ data "aws_iam_policy_document" "test_lambda_ecr_pull" {
       "arn:aws:ecr:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repository_name}",
     ]
   }
+
+  statement {
+    sid    = "ECRAuth"
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
 }
 
 # -----------------------------------------------------------------------------
