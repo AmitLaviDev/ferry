@@ -154,6 +154,14 @@ def find_open_prs(
         List of open PR dicts (filtered by state=="open").
     """
     resp = client.get(f"/repos/{repo}/commits/{sha}/pulls")
+    if resp.status_code != 200:
+        logger.warning(
+            "pr_lookup_failed",
+            status_code=resp.status_code,
+            repo=repo,
+            sha=sha[:7],
+        )
+        return []
     prs = resp.json()
     return [pr for pr in prs if pr.get("state") == "open"]
 
@@ -178,6 +186,14 @@ def find_merged_pr(
         The first merged PR dict, or None if no merged PR found.
     """
     resp = client.get(f"/repos/{repo}/commits/{sha}/pulls")
+    if resp.status_code != 200:
+        logger.warning(
+            "pr_lookup_failed",
+            status_code=resp.status_code,
+            repo=repo,
+            sha=sha[:7],
+        )
+        return None
     prs = resp.json()
     for pr in prs:
         if pr.get("merged_at") is not None:
