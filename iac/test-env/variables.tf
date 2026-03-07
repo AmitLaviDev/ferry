@@ -29,6 +29,7 @@ variable "lambda_function_name" {
 }
 
 variable "lambda_placeholder_image_uri" {
-  description = "Placeholder image URI from ECR -- set after first ECR push or use public.ecr.aws/lambda/python:3.12"
+  description = "Placeholder image URI -- replaced on first Ferry deploy"
   type        = string
+  default     = "050068574410.dkr.ecr.us-east-1.amazonaws.com/lambda-ferry-backend:placeholder"
 }
