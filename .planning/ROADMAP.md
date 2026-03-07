@@ -188,6 +188,13 @@ Plans:
 - E2E-08 (all blocking bugs fixed) is satisfied when criteria 1-4 pass without manual intervention
 - Known bug to watch for: `find_open_prs` in checks/runs.py crashes on 403 response
 
+**Plans**: 3 plans
+
+Plans:
+- [ ] 17-01-PLAN.md -- Fix known find_open_prs 403 bug and add tests
+- [ ] 17-02-PLAN.md -- Pre-flight health check and first E2E push-to-deploy loop
+- [ ] 17-03-PLAN.md -- Repeatability proof (second push + no-op test) and validation report
+
 ## Progress
 
 **Execution Order:** Phases 15 through 17, sequential.
@@ -209,6 +216,6 @@ Plans:
 | 12.1. IaC Directory Restructure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 13. Backend Core | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 14. Self-Deploy + Manual Setup | v1.1 | 3/3 | Complete | 2026-03-03 |
-| 15. Deploy Ferry Infrastructure | 3/3 | Complete    | 2026-03-07 | 2026-03-04 |
-| 16. Provision Test Environment | 3/3 | Complete    | 2026-03-07 | -- |
-| 17. End-to-End Loop Validation | v1.2 | 0/TBD | Not started | -- |
+| 15. Deploy Ferry Infrastructure | v1.2 | 3/3 | Complete | 2026-03-04 |
+| 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
+| 17. End-to-End Loop Validation | v1.2 | 0/3 | Not started | -- |
