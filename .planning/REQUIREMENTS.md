@@ -20,8 +20,8 @@ Requirements for End-to-End Validation milestone. Each maps to roadmap phases.
 - [x] **TEST-01**: Test repo created with ferry.yaml defining one hello-world Lambda resource
 - [x] **TEST-02**: Test repo contains hello-world Lambda source (main.py + requirements.txt)
 - [x] **TEST-03**: Test repo has GHA workflow that triggers ferry-action on workflow_dispatch
-- [ ] **TEST-04**: ECR repo exists for test Lambda container images
-- [ ] **TEST-05**: OIDC IAM role allows test repo GHA runner to deploy Lambdas + push ECR
+- [x] **TEST-04**: ECR repo exists for test Lambda container images
+- [x] **TEST-05**: OIDC IAM role allows test repo GHA runner to deploy Lambdas + push ECR
 - [ ] **TEST-06**: GitHub App installed on test repo
 
 ### End-to-End Validation
@@ -126,8 +126,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-01 | Phase 16 | Complete |
 | TEST-02 | Phase 16 | Complete |
 | TEST-03 | Phase 16 | Complete |
-| TEST-04 | Phase 16 | Pending |
-| TEST-05 | Phase 16 | Pending |
+| TEST-04 | Phase 16 | Complete |
+| TEST-05 | Phase 16 | Complete |
 | TEST-06 | Phase 16 | Pending |
 | E2E-01 | Phase 17 | Pending |
 | E2E-02 | Phase 17 | Pending |

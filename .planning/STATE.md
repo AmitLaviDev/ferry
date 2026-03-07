@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-03-03)
 ## Current Position
 
 Phase: 16 of 17 (Provision Test Environment)
-Plan: 2 of 3
+Plan: 2 of 3 (16-01 + 16-02 complete)
 Status: Executing
-Last activity: 2026-03-07 -- Completed 16-02 (test repo content)
+Last activity: 2026-03-07 -- Completed 16-01 (test-env Terraform project)
 
-Progress: [###░░░░░░░] 33% (v1.2)
+Progress: [######░░░░] 66% (v1.2)
 
 ## Performance Metrics
 
@@ -38,6 +38,7 @@ Progress: [###░░░░░░░] 33% (v1.2)
 **v1.2:**
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
+| 16 | 01 | 2min | 2 | 6 |
 | 16 | 02 | 1min | 2 | 5 |
 
 ## Accumulated Context
@@ -49,6 +50,8 @@ All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions table and STATE.m
 **v1.2:**
 - External composite action syntax: `{owner}/{repo}/{path}@{ref}` (not `path:` input)
 - Test repo runtime: python3.12 (latest stable Lambda runtime)
+- Lambda deploy IAM policy needs 6 actions: UpdateFunctionCode, GetFunction, PublishVersion, UpdateAlias, CreateAlias, GetAlias
+- Combined TF tasks when tflint enforces unused declarations rule
 
 ### Pending Todos
 
@@ -63,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-07
-Stopped at: Completed 16-02-PLAN.md (test repo content)
+Stopped at: Completed 16-01-PLAN.md (test-env Terraform project)
 Resume file: None
