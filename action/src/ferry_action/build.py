@@ -117,6 +117,7 @@ def ecr_login(aws_region: str, ecr_uri: str) -> None:
             registry,
         ],
         input=password_result.stdout.strip(),
+        text=True,
         check=True,
     )
 
