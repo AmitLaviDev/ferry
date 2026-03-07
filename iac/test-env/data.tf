@@ -93,6 +93,24 @@ data "aws_iam_policy_document" "test_ecr_push" {
 }
 
 # -----------------------------------------------------------------------------
+# Permission policies: Lambda execution (ECR pull for container image)
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_lambda_ecr_pull" {
+  statement {
+    sid    = "ECRPull"
+    effect = "Allow"
+    actions = [
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+    resources = [
+      "arn:aws:ecr:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repository_name}",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Permission policies: Lambda deploy
 # -----------------------------------------------------------------------------
 

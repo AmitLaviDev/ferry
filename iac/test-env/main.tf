@@ -107,6 +107,20 @@ resource "aws_iam_role_policy_attachment" "test_lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_policy" "test_lambda_ecr_pull" {
+  name   = "ferry-test-lambda-ecr-pull"
+  policy = data.aws_iam_policy_document.test_lambda_ecr_pull.json
+
+  tags = {
+    Name = "ferry-test-lambda-ecr-pull"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "test_lambda_ecr_pull" {
+  role       = aws_iam_role.test_lambda_execution.name
+  policy_arn = aws_iam_policy.test_lambda_ecr_pull.arn
+}
+
 # -----------------------------------------------------------------------------
 # Lambda Function: Test hello-world (pre-created for E2E validation)
 # -----------------------------------------------------------------------------
