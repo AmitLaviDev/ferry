@@ -110,6 +110,7 @@ data "aws_iam_policy_document" "test_lambda_deploy" {
     ]
     resources = [
       "arn:aws:lambda:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}",
+      "arn:aws:lambda:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}:*",
     ]
   }
 }
