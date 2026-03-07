@@ -31,7 +31,7 @@ inputs:
     required: false
     default: "us-east-1"
   github-token:
-    description: "GitHub token for creating Check Runs. Pass ${{ github.token }}"
+    description: "GitHub token for creating Check Runs"
     required: false
     default: ""
 
@@ -51,6 +51,11 @@ runs:
       with:
         role-to-assume: ${{ inputs.aws-role-arn }}
         aws-region: ${{ inputs.aws-region }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.14"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v4
