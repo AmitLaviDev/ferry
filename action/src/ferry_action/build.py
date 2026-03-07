@@ -11,10 +11,10 @@ Usage::
 
 from __future__ import annotations
 
+import importlib.resources
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import boto3
 
@@ -174,9 +174,8 @@ def main() -> None:
     ecr_uri = build_ecr_uri(account_id, aws_region, ecr_repo)
     image_tag = f"{ecr_uri}:{deployment_tag}"
 
-    # Locate the Dockerfile relative to this module
-    # action/src/ferry_action/build.py -> action/Dockerfile
-    dockerfile_path = str(Path(__file__).resolve().parent.parent.parent / "Dockerfile")
+    # Locate the Magic Dockerfile bundled inside the package
+    dockerfile_path = str(importlib.resources.files("ferry_action").joinpath("Dockerfile"))
 
     # Build
     gha.begin_group(f"Building {resource_name}")
