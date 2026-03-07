@@ -218,4 +218,4 @@ Plans:
 | 14. Self-Deploy + Manual Setup | v1.1 | 3/3 | Complete | 2026-03-03 |
 | 15. Deploy Ferry Infrastructure | v1.2 | 3/3 | Complete | 2026-03-04 |
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
-| 17. End-to-End Loop Validation | v1.2 | 0/3 | Not started | -- |
+| 17. End-to-End Loop Validation | 1/3 | In Progress|  | -- |

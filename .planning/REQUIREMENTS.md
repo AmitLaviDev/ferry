@@ -33,7 +33,7 @@ Requirements for End-to-End Validation milestone. Each maps to roadmap phases.
 - [ ] **E2E-05**: Built container pushed to ECR successfully
 - [ ] **E2E-06**: Test Lambda deployed (function updated, version published, alias pointed)
 - [ ] **E2E-07**: Deployed test Lambda executes correctly
-- [ ] **E2E-08**: All bugs blocking the push-to-deploy loop are fixed
+- [x] **E2E-08**: All bugs blocking the push-to-deploy loop are fixed
 - [ ] **E2E-09**: Second push also triggers successful deploy (repeatable)
 
 ## v1.1 Requirements (Completed)
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | E2E-05 | Phase 17 | Pending |
 | E2E-06 | Phase 17 | Pending |
 | E2E-07 | Phase 17 | Pending |
-| E2E-08 | Phase 17 | Pending |
+| E2E-08 | Phase 17 | Complete |
 | E2E-09 | Phase 17 | Pending |
 
 **Coverage:**
