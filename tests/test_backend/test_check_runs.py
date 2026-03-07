@@ -273,6 +273,67 @@ class TestFindMergedPr:
 
 
 # ---------------------------------------------------------------------------
+# find_open_prs -- 403 / error handling
+# ---------------------------------------------------------------------------
+
+
+class TestFindOpenPrs403:
+    _PULLS_URL = "https://api.github.com/repos/owner/repo/commits/sha123/pulls"
+
+    def test_find_open_prs_403_returns_empty_list(self, httpx_mock):
+        """403 response -> returns empty list instead of crashing."""
+        httpx_mock.add_response(
+            url=self._PULLS_URL,
+            json={"message": "Resource not accessible by integration"},
+            status_code=403,
+        )
+
+        client = GitHubClient()
+        result = find_open_prs(client, "owner/repo", "sha123")
+        assert result == []
+
+    def test_find_merged_pr_403_returns_none(self, httpx_mock):
+        """403 response -> returns None instead of crashing."""
+        httpx_mock.add_response(
+            url=self._PULLS_URL,
+            json={"message": "Resource not accessible by integration"},
+            status_code=403,
+        )
+
+        client = GitHubClient()
+        result = find_merged_pr(client, "owner/repo", "sha123")
+        assert result is None
+
+    def test_find_open_prs_200_still_works(self, httpx_mock):
+        """200 response with open PR -> returns the PR (regression guard)."""
+        httpx_mock.add_response(
+            url=self._PULLS_URL,
+            json=[
+                {"number": 42, "state": "open"},
+                {"number": 10, "state": "closed"},
+            ],
+            status_code=200,
+        )
+
+        client = GitHubClient()
+        result = find_open_prs(client, "owner/repo", "sha123")
+        assert len(result) == 1
+        assert result[0]["number"] == 42
+
+    def test_find_open_prs_500_returns_empty_list(self, httpx_mock):
+        """500 server error -> returns empty list gracefully."""
+        httpx_mock.add_response(
+            url=self._PULLS_URL,
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        )
+
+        client = GitHubClient()
+        result = find_open_prs(client, "owner/repo", "sha123")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
 # post_pr_comment
 # ---------------------------------------------------------------------------
 
