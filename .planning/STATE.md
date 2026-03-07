@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.2 End-to-End Validation -- Phase 15: Deploy Ferry Infrastructure
+**Current focus:** v1.2 End-to-End Validation -- Phase 16: Provision Test Environment
 
 ## Current Position
 
-Phase: 15 of 17 (Deploy Ferry Infrastructure)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-03 -- Roadmap created for v1.2
+Phase: 16 of 17 (Provision Test Environment)
+Plan: 2 of 3
+Status: Executing
+Last activity: 2026-03-07 -- Completed 16-02 (test repo content)
 
-Progress: [░░░░░░░░░░] 0% (v1.2)
+Progress: [###░░░░░░░] 33% (v1.2)
 
 ## Performance Metrics
 
@@ -35,11 +35,20 @@ Progress: [░░░░░░░░░░] 0% (v1.2)
 | 14 | 02 | 1min | 1 | 1 |
 | 14 | 03 | 2min | 1 | 1 |
 
+**v1.2:**
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 16 | 02 | 1min | 2 | 5 |
+
 ## Accumulated Context
 
 ### Decisions
 
 All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions table and STATE.md history.
+
+**v1.2:**
+- External composite action syntax: `{owner}/{repo}/{path}@{ref}` (not `path:` input)
+- Test repo runtime: python3.12 (latest stable Lambda runtime)
 
 ### Pending Todos
 
@@ -53,6 +62,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-03
-Stopped at: v1.2 roadmap created -- Phase 15 ready to plan
+Last session: 2026-03-07
+Stopped at: Completed 16-02-PLAN.md (test repo content)
 Resume file: None
