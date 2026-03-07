@@ -209,6 +209,6 @@ Plans:
 | 12.1. IaC Directory Restructure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 13. Backend Core | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 14. Self-Deploy + Manual Setup | v1.1 | 3/3 | Complete | 2026-03-03 |
-| 15. Deploy Ferry Infrastructure | v1.2 | 3/3 | Complete | 2026-03-04 |
+| 15. Deploy Ferry Infrastructure | 3/3 | Complete    | 2026-03-07 | 2026-03-04 |
 | 16. Provision Test Environment | 3/3 | Complete    | 2026-03-07 | -- |
 | 17. End-to-End Loop Validation | v1.2 | 0/TBD | Not started | -- |
