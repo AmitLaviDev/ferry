@@ -1,7 +1,0 @@
-version: 1
-lambdas:
-  - name: hello-world
-    source_dir: lambdas/hello-world
-    ecr_repo: ferry-test/hello-world
-    function_name: ferry-test-hello-world
-    runtime: python3.12

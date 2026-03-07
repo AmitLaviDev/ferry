@@ -1,1 +1,0 @@
-# No external dependencies -- empty file required by Ferry Magic Dockerfile
