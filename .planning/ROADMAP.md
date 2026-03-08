@@ -62,7 +62,9 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 - [x] **Phase 19: Test Infrastructure for SF + APGW** (1/1 plan) -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
   Plans:
   - [x] 19-01-PLAN.md -- SF state machine + REST API + execution roles + deploy permissions
-- [ ] **Phase 20: Test Repo Updates** -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
+- [ ] **Phase 20: Test Repo Updates** (1/1 plan) -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
+  Plans:
+  - [ ] 20-01-PLAN.md -- ASL definition, OpenAPI spec, ferry.yaml, SF + APGW workflow files
 - [ ] **Phase 21: Full-Chain E2E Validation** -- Push changes, verify all dispatches fire, all deploys succeed, invoke APGW → SF → Lambda chain, prove repeatability
 
 ## Phase Details
@@ -152,5 +154,5 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
 | 18. Tech Debt Cleanup | v1.3 | 2/2 | Complete | 2026-03-08 |
 | 19. Test Infrastructure for SF + APGW | v1.3 | 1/1 | Complete | 2026-03-08 |
-| 20. Test Repo Updates | v1.3 | 0/? | Pending | -- |
+| 20. Test Repo Updates | v1.3 | 0/1 | Pending | -- |
 | 21. Full-Chain E2E Validation | v1.3 | 0/? | Pending | -- |
