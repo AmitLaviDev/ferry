@@ -425,9 +425,13 @@ class TestMain:
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
 
         mock_client = MagicMock()
-        mock_client.get_function.side_effect = ClientError(
+        # get_function returns normally (digest check); update raises error
+        mock_client.get_function.return_value = {
+            "Code": {"ResolvedImageUri": f"{ECR_BASE}/{REPO}@sha256:old"},
+        }
+        mock_client.update_function_code.side_effect = ClientError(
             {"Error": {"Code": "ResourceNotFoundException", "Message": "Function not found"}},
-            "GetFunction",
+            "UpdateFunctionCode",
         )
 
         with patch("ferry_action.deploy.boto3") as mock_boto:

@@ -229,21 +229,36 @@ def main() -> None:
     except ClientError as exc:
         error_code = exc.response["Error"]["Code"]
         error_message = exc.response["Error"].get("Message", "")
-        hints = {
-            "AccessDeniedException": (
-                f"IAM role lacks lambda:UpdateFunctionCode permission for '{function_name}'"
-            ),
-            "ResourceNotFoundException": (
+        if error_code == "AccessDeniedException":
+            msg_lower = error_message.lower()
+            if "not authorized to perform" in msg_lower:
+                hint = (
+                    f"Deploy role lacks permissions for '{function_name}'. "
+                    f"Check that the IAM role has lambda:UpdateFunctionCode, "
+                    f"lambda:GetFunction, and lambda:GetFunctionConfiguration."
+                )
+            elif "cannot be assumed" in msg_lower or "role defined for the function" in msg_lower:
+                hint = (
+                    f"Lambda '{function_name}' execution role cannot be assumed. "
+                    f"Check the Lambda's execution role trust policy and permissions."
+                )
+            else:
+                hint = (
+                    f"Permission denied for '{function_name}'. "
+                    f"Either the deploy role lacks Lambda permissions, "
+                    f"or the function's execution role cannot be assumed. "
+                    f"Check IAM policies for both roles."
+                )
+        elif error_code == "ResourceNotFoundException":
+            hint = (
                 f"Lambda function '{function_name}' not found. "
                 f"Check ferry.yaml function_name or verify the "
                 f"Lambda exists in the target account."
-            ),
-        }
-        hint = hints.get(error_code, str(exc))
-        raw = f"[{error_code}] {error_message}"
-        gha.error(
-            format_error_detail(exc, f"Deploy failed for {resource_name}: {hint} (raw: {raw})")
-        )
+            )
+        else:
+            hint = f"Deploy failed: [{error_code}] {error_message}"
+
+        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
         report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
         sys.exit(1)
 
