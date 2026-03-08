@@ -43,9 +43,12 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Active
 
-<!-- Next milestone requirements will be defined via /gsd:new-milestone -->
-
-(None — define next milestone to add requirements)
+- v1.3: Prove Step Functions and API Gateway deploy paths end-to-end with integrated chain (APGW → SF → Lambda)
+- v1.3: Clean up 5 pending tech debt items from v1.2 (debug logging, IAM, docs, Docker warning, error mapping)
+- v1.3: Add test IaC — Step Functions state machine, API Gateway REST API, execution roles, deploy permissions
+- v1.3: Extend test repo — ASL definition, OpenAPI spec, ferry.yaml entries, dispatch workflow files
+- v1.3: Full-chain validation — APGW endpoint triggers SF which invokes Lambda, all deployed via Ferry
+- v1.3: No-op skip detection works for SF and APGW, multi-type dispatch in single push
 
 ### Out of Scope
 
@@ -65,7 +68,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Current State
 
-Shipped v1.2 (End-to-End Validation). Ferry is deployed and proven working in staging.
+v1.2 shipped. Ferry is deployed and proven working in staging. Starting v1.3 (Full-Chain E2E).
 - 9,384 lines of Python across ~170 files + 1,290 lines of Terraform
 - Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto
 - Three packages: ferry-backend (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models)

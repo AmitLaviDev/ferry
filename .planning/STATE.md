@@ -5,13 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** Planning next milestone
+**Current focus:** v1.3 Full-Chain E2E (APGW → SF → Lambda)
 
 ## Current Position
 
-Milestone: v1.2 archived. No active milestone.
-Status: Between milestones -- ready for /gsd:new-milestone
-Last activity: 2026-03-08 -- v1.2 archived, PROJECT.md evolved
+Milestone: v1.3 Full-Chain E2E
+Status: Planning complete -- ready for /gsd:plan-phase 18
+Last activity: 2026-03-08 -- v1.3 milestone created
+
+## Phase Overview
+
+| Phase | Goal | Status |
+|-------|------|--------|
+| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Pending |
+| 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Pending |
+| 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Pending |
+| 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
 
 ## Performance Metrics
 
@@ -25,13 +34,22 @@ Last activity: 2026-03-08 -- v1.2 archived, PROJECT.md evolved
 
 ## Accumulated Context
 
-### Pending Todos (carried from v1.2)
+### Pending Todos (carried from v1.2 → Phase 18)
 
 - Remove debug logging from deploy.py (raw error output)
 - Verify self-deploy IAM policy also has GetFunctionConfiguration (shared/data.tf)
 - Add `name: "Ferry: deploy ${{ matrix.name }}"` to deploy job in workflow template (docs/lambdas.md)
 - Suppress Docker credential warning in build.py (cosmetic, low priority)
 - Improve deploy.py error mapping (AccessDeniedException can mean target role lacks perms, not caller)
+
+### Key Context for v1.3
+
+- SF and APGW deploy code already exists and is tested (v1.0 Phase 4) -- never proven E2E
+- Test repo: AmitLaviDev/ferry-test-app (from v1.2)
+- Test Lambda: ferry-test-hello-world (already deployed and working)
+- Deploy role: ferry-test-deploy (needs SF + APGW permissions added)
+- Dispatch workflow names are hardcoded: ferry-step_functions.yml, ferry-api_gateways.yml
+- Full chain: REST API → StartExecution (Standard SF) → Task state invokes Lambda
 
 ### Blockers/Concerns
 
@@ -40,4 +58,4 @@ Last activity: 2026-03-08 -- v1.2 archived, PROJECT.md evolved
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: v1.2 milestone archived. Starting v1.3 via /gsd:new-milestone.
+Stopped at: v1.3 milestone planning complete. Next: /gsd:plan-phase 18
