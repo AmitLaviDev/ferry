@@ -62,7 +62,7 @@ runs:
 
     - name: Install ferry-action package
       shell: bash
-      run: uv pip install --system "${{ github.action_path }}/.."
+      run: uv pip install --quiet --system "${{ github.action_path }}/.."
 
     - name: Deploy API Gateway
       id: deploy

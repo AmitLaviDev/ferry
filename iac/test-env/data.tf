@@ -211,7 +211,7 @@ data "aws_iam_policy_document" "test_apgw_start_execution" {
     sid       = "StartExecution"
     effect    = "Allow"
     actions   = ["states:StartExecution"]
-    resources = [module.step_function.state_machine_arn]
+    resources = [aws_sfn_state_machine.test.arn]
   }
 }
 
@@ -225,11 +225,12 @@ data "aws_iam_policy_document" "test_sf_deploy" {
     effect = "Allow"
     actions = [
       "states:UpdateStateMachine",
+      "states:PublishStateMachineVersion",
       "states:DescribeStateMachine",
       "states:TagResource",
       "states:ListTagsForResource",
     ]
-    resources = [module.step_function.state_machine_arn]
+    resources = [aws_sfn_state_machine.test.arn]
   }
 }
 
@@ -242,15 +243,23 @@ data "aws_iam_policy_document" "test_apgw_deploy" {
     sid    = "APIGatewayDeploy"
     effect = "Allow"
     actions = [
-      "apigateway:PutRestApi",
-      "apigateway:CreateDeployment",
-      "apigateway:GetRestApi",
-      "apigateway:GetTags",
-      "apigateway:TagResource",
+      "apigateway:PUT",
+      "apigateway:POST",
+      "apigateway:GET",
+      "apigateway:PATCH",
     ]
     resources = [
       "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}",
       "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}/*",
     ]
+  }
+
+  # PutRestApi with credentials in the OpenAPI spec requires PassRole
+  # so API Gateway can assume the invocation role at runtime
+  statement {
+    sid       = "PassInvokeRole"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.test_apgw_invoke.arn]
   }
 }

@@ -68,7 +68,7 @@ resource "aws_api_gateway_rest_api" "test" {
   }
 
   lifecycle {
-    ignore_changes = [body]
+    ignore_changes = [body, tags["ferry:content-hash"]]
   }
 
   tags = {

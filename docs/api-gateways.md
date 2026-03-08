@@ -95,6 +95,26 @@ Ferry supports OpenAPI/Swagger specification files in both YAML and JSON format.
 
 Your spec should include `x-amazon-apigateway-integration` extensions on each path/method to define the backend integrations (Lambda proxy, HTTP, mock, etc.). Without these extensions, API Gateway will accept the spec but the API will have no backend integrations configured.
 
+## Terraform Lifecycle
+
+Since Ferry manages the API spec at deploy time, your Terraform (or other IaC) should ignore changes to the `body` and the `ferry:content-hash` tag. Otherwise Terraform will try to revert Ferry's deployments:
+
+```hcl
+resource "aws_api_gateway_rest_api" "example" {
+  name = "my-api"
+
+  body = jsonencode({
+    openapi = "3.0.1"
+    info    = { title = "my-api", version = "1.0" }
+    paths   = {}
+  })
+
+  lifecycle {
+    ignore_changes = [body, tags["ferry:content-hash"]]
+  }
+}
+```
+
 ## Content-Hash Skip Detection
 
 Ferry computes a SHA-256 hash of the canonical JSON representation of your spec and stores it as a tag on the REST API (`ferry:content-hash`). On subsequent deployments, if the content hash matches the existing tag, the deployment is skipped. This avoids unnecessary API Gateway deployments when the spec has not actually changed.

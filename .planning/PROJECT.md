@@ -56,6 +56,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 - AI discovery — no automatic resource detection, ferry.yaml is explicit
 - SageMaker model deployment — different workflow, not serverless compute
 - Multi-account AWS — single target account per workflow run for v1
+- Unified workflow (single `ferry.yml` instead of per-type workflow files) — v2 feature
 - Environment/branch mapping — v2 feature
 - RBAC / permissions — relies on GitHub App installation permissions
 - SQS / complex event processing — keep backend thin, process synchronously
@@ -171,5 +172,10 @@ api_gateways:
 | importlib.resources for bundled files | `__file__` unreliable in installed packages | ✓ Good — correct Python pattern for package data |
 | ECR repo policy with Lambda service principal | Lambda pulls images via its own service principal, not execution role | ✓ Good — required for container image Lambdas |
 
+## v2 Design Notes
+
+### Unified workflow file
+Currently users create one workflow file per resource type (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`). For v2, consolidate into a single `ferry.yml` with one job per type. The backend dispatches to `ferry.yml` with the resource type in the payload, and conditional jobs (`if: needs.setup.outputs.has_lambdas == 'true'`) skip unaffected types. Simplest approach: backend still sends one dispatch per type (Option B — minimal backend change), all targeting the same `ferry.yml`. Touches: dispatch.py (workflow filename), setup action (type output), docs/templates, user workflow files.
+
 ---
-*Last updated: 2026-03-08 after v1.2 milestone completed*
+*Last updated: 2026-03-08 after v1.3 Phase 20 completed*

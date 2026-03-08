@@ -20,12 +20,12 @@ output "lambda_function_arn" {
 
 output "state_machine_name" {
   description = "Step Functions state machine name"
-  value       = module.step_function.state_machine_name
+  value       = aws_sfn_state_machine.test.name
 }
 
 output "state_machine_arn" {
   description = "Step Functions state machine ARN"
-  value       = module.step_function.state_machine_arn
+  value       = aws_sfn_state_machine.test.arn
 }
 
 output "rest_api_id" {

@@ -43,12 +43,10 @@ resource "aws_iam_role_policy_attachment" "test_sf_logs" {
 # Step Functions State Machine
 # -----------------------------------------------------------------------------
 
-module "step_function" {
-  source  = "terraform-aws-modules/step-functions/aws"
-  version = "5.1.0"
-
-  name = var.sf_name
-  type = "STANDARD"
+resource "aws_sfn_state_machine" "test" {
+  name     = var.sf_name
+  type     = "STANDARD"
+  role_arn = aws_iam_role.test_sf_execution.arn
 
   definition = jsonencode({
     Comment = "Placeholder -- overwritten by Ferry deploy"
@@ -61,9 +59,10 @@ module "step_function" {
     }
   })
 
-  create_role       = false
-  use_existing_role = true
-  role_arn          = aws_iam_role.test_sf_execution.arn
+  # Ferry deploys overwrite the definition and add ferry:content-hash tag
+  lifecycle {
+    ignore_changes = [definition, tags["ferry:content-hash"]]
+  }
 
   tags = {
     Name = var.sf_name

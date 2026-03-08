@@ -10,8 +10,8 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Milestone: v1.3 Full-Chain E2E
-Status: Phase 19 complete
-Last activity: 2026-03-08 -- completed Phase 19 (SF + APGW test infrastructure Terraform)
+Status: Phase 20 complete (auto tasks done, manual commit/push pending)
+Last activity: 2026-03-08 -- completed Phase 20 (test repo updates for SF + APGW)
 
 ## Phase Overview
 
@@ -19,7 +19,7 @@ Last activity: 2026-03-08 -- completed Phase 19 (SF + APGW test infrastructure T
 |-------|------|--------|
 | 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Complete (18-01 + 18-02) |
 | 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Complete (19-01) |
-| 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Pending |
+| 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Complete (20-01) |
 | 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
 
 ## Performance Metrics
@@ -37,6 +37,7 @@ Last activity: 2026-03-08 -- completed Phase 19 (SF + APGW test infrastructure T
 | 18-01 | Action Code Tech Debt | 219s | 2 | 4 |
 | 18-02 | IAM + Workflow Docs | ~60s | 2 | 2 |
 | 19-01 | SF + APGW Test Infra TF | 195s | 4 | 7 |
+| 20-01 | Test Repo SF + APGW Files | ~45s | 2 | 5 |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Last activity: 2026-03-08 -- completed Phase 19 (SF + APGW test infrastructure T
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Phase 19 complete. Next: Phase 20 (test repo updates).
+Stopped at: Phase 20 complete. Next: commit/push ferry-test-app, then Phase 21 (full-chain E2E).
 Manual follow-up: `terraform apply` in `iac/test-env/` to create SF + APGW resources (19-01)
 Manual follow-up: `terraform apply` in `iac/aws/staging/shared/` for IAM policy change (TD-02)
+Manual follow-up: commit and push ferry-test-app changes (20-01)

@@ -112,6 +112,32 @@ This allows you to write portable definitions without hardcoding account-specifi
 
 Only `${ACCOUNT_ID}` and `${AWS_REGION}` are supported. Other `${...}` patterns (such as JSONPath expressions like `$.input`) are left untouched.
 
+## Terraform Lifecycle
+
+Since Ferry manages the state machine definition at deploy time, your Terraform (or other IaC) should ignore changes to the `definition` and the `ferry:content-hash` tag. Otherwise Terraform will try to revert Ferry's deployments:
+
+```hcl
+resource "aws_sfn_state_machine" "example" {
+  name     = "my-state-machine"
+  role_arn = aws_iam_role.sf_execution.arn
+
+  definition = jsonencode({
+    Comment = "Placeholder -- overwritten by Ferry deploy"
+    StartAt = "Placeholder"
+    States = {
+      Placeholder = {
+        Type = "Pass"
+        End  = true
+      }
+    }
+  })
+
+  lifecycle {
+    ignore_changes = [definition, tags["ferry:content-hash"]]
+  }
+}
+```
+
 ## Content-Hash Skip Detection
 
 Ferry computes a SHA-256 hash of the substituted definition and stores it as a tag on the state machine (`ferry:content-hash`). On subsequent deployments, if the content hash matches the existing tag, the deployment is skipped. This avoids unnecessary state machine version publications when the definition has not actually changed.

@@ -20,7 +20,6 @@
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_ecr_test"></a> [ecr\_test](#module\_ecr\_test) | terraform-aws-modules/ecr/aws | 2.4.0 |
-| <a name="module_step_function"></a> [step\_function](#module\_step\_function) | terraform-aws-modules/step-functions/aws | 5.1.0 |
 | <a name="module_test_lambda"></a> [test\_lambda](#module\_test\_lambda) | terraform-aws-modules/lambda/aws | 8.7.0 |
 
 ## Resources
@@ -53,6 +52,7 @@
 | [aws_iam_role_policy_attachment.test_sf_deploy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_iam_role_policy_attachment.test_sf_invoke_lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_iam_role_policy_attachment.test_sf_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_sfn_state_machine.test](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sfn_state_machine) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.test_apgw_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.test_apgw_deploy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
