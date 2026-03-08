@@ -10,14 +10,14 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Milestone: v1.3 Full-Chain E2E
-Status: Planning complete -- ready for /gsd:plan-phase 18
-Last activity: 2026-03-08 -- v1.3 milestone created
+Status: Phase 18 in progress -- 18-02 complete
+Last activity: 2026-03-08 -- completed 18-02 (non-code tech debt)
 
 ## Phase Overview
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Pending |
+| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | In Progress (18-02 done) |
 | 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Pending |
 | 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Pending |
 | 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
@@ -37,8 +37,8 @@ Last activity: 2026-03-08 -- v1.3 milestone created
 ### Pending Todos (carried from v1.2 → Phase 18)
 
 - Remove debug logging from deploy.py (raw error output)
-- Verify self-deploy IAM policy also has GetFunctionConfiguration (shared/data.tf)
-- Add `name: "Ferry: deploy ${{ matrix.name }}"` to deploy job in workflow template (docs/lambdas.md)
+- ~~Verify self-deploy IAM policy also has GetFunctionConfiguration (shared/data.tf)~~ DONE (18-02, needs terraform apply)
+- ~~Add `name: "Ferry: deploy ${{ matrix.name }}"` to deploy job in workflow template (docs/lambdas.md)~~ DONE (18-02)
 - Suppress Docker credential warning in build.py (cosmetic, low priority)
 - Improve deploy.py error mapping (AccessDeniedException can mean target role lacks perms, not caller)
 
@@ -58,4 +58,4 @@ Last activity: 2026-03-08 -- v1.3 milestone created
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: v1.3 milestone planning complete. Next: /gsd:plan-phase 18
+Stopped at: Completed 18-02-PLAN.md (non-code tech debt). IAM policy needs terraform apply.

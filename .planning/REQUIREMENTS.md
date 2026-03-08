@@ -7,8 +7,8 @@
 ## Tech Debt Cleanup
 
 - [ ] **TD-01**: Remove debug logging from deploy.py (raw error output lines)
-- [ ] **TD-02**: Verify self-deploy IAM policy has `lambda:GetFunctionConfiguration` (shared/data.tf)
-- [ ] **TD-03**: Add `name:` field to deploy job in workflow template docs (docs/lambdas.md)
+- [x] **TD-02**: Verify self-deploy IAM policy has `lambda:GetFunctionConfiguration` (shared/data.tf)
+- [x] **TD-03**: Add `name:` field to deploy job in workflow template docs (docs/lambdas.md)
 - [ ] **TD-04**: Suppress Docker credential warning in build.py (cosmetic)
 - [ ] **TD-05**: Improve deploy.py error mapping — AccessDeniedException can mean target role lacks permissions, not just caller
 
@@ -48,4 +48,4 @@
 | REPO-01..REPO-05 | Phase 20 | Pending |
 | E2E-01..E2E-07 | Phase 21 | Pending |
 
-**Coverage:** 0/23 requirements complete
+**Coverage:** 2/23 requirements complete
