@@ -55,7 +55,10 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Milestone Goal:** Prove Step Functions and API Gateway deploy paths end-to-end with an integrated chain (API Gateway → Step Function → Lambda), and clean up v1.2 tech debt.
 
-- [ ] **Phase 18: Tech Debt Cleanup** -- Fix 5 pending items from v1.2 (debug logging, IAM verify, doc fix, Docker warning, error mapping)
+- [ ] **Phase 18: Tech Debt Cleanup** (2 plans) -- Fix 5 pending items from v1.2 (debug logging, IAM verify, doc fix, Docker warning, error mapping)
+  Plans:
+  - [ ] 18-01-PLAN.md -- Fix deploy.py error handling + build.py Docker warning (TD-01, TD-04, TD-05)
+  - [ ] 18-02-PLAN.md -- Add IAM permission + fix workflow docs (TD-02, TD-03)
 - [ ] **Phase 19: Test Infrastructure for SF + APGW** -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
 - [ ] **Phase 20: Test Repo Updates** -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
 - [ ] **Phase 21: Full-Chain E2E Validation** -- Push changes, verify all dispatches fire, all deploys succeed, invoke APGW → SF → Lambda chain, prove repeatability
@@ -66,6 +69,7 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Goal**: Clean up all pending tech debt items carried forward from v1.2 so the codebase is clean before extending the test environment
 **Depends on**: Nothing (standalone cleanup)
 **Requirements**: TD-01, TD-02, TD-03, TD-04, TD-05
+**Plans:** 2 plans
 **Success Criteria** (what must be TRUE):
   1. No debug logging statements remain in deploy.py
   2. Self-deploy IAM policy includes `lambda:GetFunctionConfiguration`
@@ -143,7 +147,7 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 15. Deploy Ferry Infrastructure | v1.2 | 3/3 | Complete | 2026-03-04 |
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
-| 18. Tech Debt Cleanup | v1.3 | 0/? | Pending | -- |
+| 18. Tech Debt Cleanup | v1.3 | 0/2 | Planned | -- |
 | 19. Test Infrastructure for SF + APGW | v1.3 | 0/? | Pending | -- |
 | 20. Test Repo Updates | v1.3 | 0/? | Pending | -- |
 | 21. Full-Chain E2E Validation | v1.3 | 0/? | Pending | -- |
