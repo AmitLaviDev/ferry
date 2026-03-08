@@ -10,14 +10,14 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Milestone: v1.3 Full-Chain E2E
-Status: Phase 18 in progress -- 18-02 complete
-Last activity: 2026-03-08 -- completed 18-02 (non-code tech debt)
+Status: Phase 18 complete -- all plans done
+Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 
 ## Phase Overview
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | In Progress (18-02 done) |
+| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Complete (18-01 + 18-02) |
 | 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Pending |
 | 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Pending |
 | 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
@@ -32,15 +32,19 @@ Last activity: 2026-03-08 -- completed 18-02 (non-code tech debt)
 **v1.1:** 5 phases, 8 plans (2026-02-28 → 2026-03-03)
 **v1.2:** 3 phases, 9 plans (2026-03-03 → 2026-03-08)
 
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 18-01 | Action Code Tech Debt | 219s | 2 | 4 |
+
 ## Accumulated Context
 
 ### Pending Todos (carried from v1.2 → Phase 18)
 
-- Remove debug logging from deploy.py (raw error output)
+- ~~Remove debug logging from deploy.py (raw error output)~~ DONE (18-01)
 - ~~Verify self-deploy IAM policy also has GetFunctionConfiguration (shared/data.tf)~~ DONE (18-02, needs terraform apply)
 - ~~Add `name: "Ferry: deploy ${{ matrix.name }}"` to deploy job in workflow template (docs/lambdas.md)~~ DONE (18-02)
-- Suppress Docker credential warning in build.py (cosmetic, low priority)
-- Improve deploy.py error mapping (AccessDeniedException can mean target role lacks perms, not caller)
+- ~~Suppress Docker credential warning in build.py (cosmetic, low priority)~~ DONE (18-01)
+- ~~Improve deploy.py error mapping (AccessDeniedException can mean target role lacks perms, not caller)~~ DONE (18-01)
 
 ### Key Context for v1.3
 
@@ -58,4 +62,4 @@ Last activity: 2026-03-08 -- completed 18-02 (non-code tech debt)
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 18-02-PLAN.md (non-code tech debt). IAM policy needs terraform apply.
+Stopped at: Completed 18-01-PLAN.md (action code tech debt). Phase 18 fully complete. Next: Phase 19.
