@@ -34,17 +34,18 @@ When a developer pushes code, every affected serverless resource is automaticall
 - ✓ Deploy DynamoDB table for webhook dedup — v1.1
 - ✓ Create self-deploy GHA workflow (build, push ECR, update Lambda) — v1.1
 - ✓ Register GitHub App setup runbook — v1.1
+- ✓ Apply Terraform IaC and deploy Ferry infrastructure to AWS — v1.2
+- ✓ Register GitHub App and populate Secrets Manager credentials — v1.2
+- ✓ Create test repo with ferry.yaml, hello-world Lambda, and dispatch workflow — v1.2
+- ✓ Set up test infrastructure (ECR repo + OIDC role for test repo GHA) — v1.2
+- ✓ Full push-to-deploy loop works: push → webhook → detect → dispatch → build → deploy — v1.2
+- ✓ Fix all bugs surfaced during end-to-end testing (9 bugs found and fixed) — v1.2
 
 ### Active
 
-<!-- v1.2: End-to-End Validation -->
+<!-- Next milestone requirements will be defined via /gsd:new-milestone -->
 
-- [ ] Apply Terraform IaC and deploy Ferry infrastructure to AWS
-- [ ] Register GitHub App and populate Secrets Manager credentials
-- [ ] Create test repo with ferry.yaml, hello-world Lambda, and dispatch workflow
-- [ ] Set up test infrastructure (ECR repo + OIDC role for test repo GHA)
-- [ ] Full push-to-deploy loop works: push → webhook → detect → dispatch → build → deploy
-- [ ] Fix all bugs surfaced during end-to-end testing
+(None — define next milestone to add requirements)
 
 ### Out of Scope
 
@@ -52,7 +53,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 - AI discovery — no automatic resource detection, ferry.yaml is explicit
 - SageMaker model deployment — different workflow, not serverless compute
 - Multi-account AWS — single target account per workflow run for v1
-- Environment/branch mapping — v2 feature (ENV-01, ENV-02, ENV-03 defined)
+- Environment/branch mapping — v2 feature
 - RBAC / permissions — relies on GitHub App installation permissions
 - SQS / complex event processing — keep backend thin, process synchronously
 - Rollback capability — user re-deploys previous commit; cross-resource rollback is unsolved for serverless
@@ -60,25 +61,18 @@ When a developer pushes code, every affected serverless resource is automaticall
 - Drift detection — process problem, not a tooling problem for v1
 - Local dev/testing — Ferry is a CI/CD tool, not a dev tool
 
-## Current Milestone: v1.2 End-to-End Validation
-
-**Goal:** Deploy Ferry infrastructure, prove the full push-to-deploy loop works end-to-end with a real test repo, and fix all bugs found.
-
-**Target features:**
-- Apply all IaC modules (terraform init/apply for bootstrap, ECR, shared IAM, backend)
-- Register GitHub App and populate Secrets Manager credentials
-- Create test repo with ferry.yaml + hello-world Lambda + GHA workflow
-- Set up test infrastructure (ECR repo + OIDC IAM role for test repo)
-- Execute full push-to-deploy loop and fix bugs until reliable
-
 ## Context
 
 ### Current State
 
-Shipped v1.0 with 9,092 lines of Python across 167 files.
-Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto.
-Three packages: ferry-app (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models).
-272 tests passing, 0 lint errors.
+Shipped v1.2 (End-to-End Validation). Ferry is deployed and proven working in staging.
+- 9,384 lines of Python across ~170 files + 1,290 lines of Terraform
+- Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto
+- Three packages: ferry-backend (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models)
+- 272 tests passing, 0 lint errors
+- Infrastructure live: Lambda + Function URL + DynamoDB + Secrets Manager + ECR
+- Self-deploy pipeline working (push to main → build → ECR → Lambda update)
+- Full push-to-deploy loop proven with test repo (2 successful deploys + no-op skip)
 
 ### Architecture
 
@@ -138,6 +132,10 @@ api_gateways:
 - `build.py` CalledProcessError exits via `raise` instead of `sys.exit(1)` — produces Python traceback in GHA logs (cosmetic)
 - Webhook models (WebhookHeaders, PushEvent, Pusher, Repository) defined and tested but unused in production code
 - `gha.mask_account_id()` defined but never called — `build.py` uses `gha.mask_value()` instead
+- Debug logging in deploy.py (raw error output) — should be removed
+- deploy.py error mapping assumes AccessDeniedException = caller lacks permission, but can also mean target role lacks permissions
+- Docker credential warning in build.py (cosmetic)
+- Workflow template docs missing `name:` field for cleaner GHA job names
 
 ## Constraints
 
@@ -166,6 +164,9 @@ api_gateways:
 | Config errors as PR comments (not Check Runs) | PR comments persist across pushes; Check Runs are per-commit | ✓ Good — errors visible without navigating checks tab |
 | Digest-based deploy skip | Skip Lambda/SF/APGW deploy when content unchanged | ✓ Good — saves deploy time and avoids unnecessary versions |
 | Envsubst for Step Functions | Safe regex: only ${ACCOUNT_ID} and ${AWS_REGION}, preserves JSONPath | ✓ Good — avoids corrupting state machine definitions |
+| Ferry repo public | GHA can't reference composite actions from private repos | ✓ Good — required for cross-repo action references |
+| importlib.resources for bundled files | `__file__` unreliable in installed packages | ✓ Good — correct Python pattern for package data |
+| ECR repo policy with Lambda service principal | Lambda pulls images via its own service principal, not execution role | ✓ Good — required for container image Lambdas |
 
 ---
-*Last updated: 2026-03-03 after v1.2 milestone started*
+*Last updated: 2026-03-08 after v1.2 milestone completed*

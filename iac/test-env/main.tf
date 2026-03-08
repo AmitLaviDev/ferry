@@ -29,6 +29,8 @@ module "ecr_test" {
     ]
   })
 
+  repository_lambda_read_access_arns = [module.test_lambda.lambda_function_arn]
+
   tags = {
     Name = var.ecr_repository_name
   }
