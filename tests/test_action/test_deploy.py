@@ -6,7 +6,7 @@ TDD tests using moto for AWS Lambda mocking.
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import boto3
 import pytest
@@ -399,6 +399,45 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Check ferry.yaml function_name" in captured.out
 
+    def test_resource_not_found_hint_unchanged(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        moto_aws: None,
+        tmp_path: pytest.TempPathFactory,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """ResourceNotFoundException hint still mentions ferry.yaml."""
+        from botocore.exceptions import ClientError
+
+        from ferry_action.deploy import main
+
+        output_file = tmp_path / "github_output"
+        output_file.touch()
+        summary_file = tmp_path / "github_summary"
+        summary_file.touch()
+
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
+        monkeypatch.setenv("INPUT_FUNCTION_NAME", "my-func")
+        monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
+        monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:different")
+        monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
+
+        mock_client = MagicMock()
+        mock_client.get_function.side_effect = ClientError(
+            {"Error": {"Code": "ResourceNotFoundException", "Message": "Function not found"}},
+            "GetFunction",
+        )
+
+        with patch("ferry_action.deploy.boto3") as mock_boto:
+            mock_boto.client.return_value = mock_client
+            with pytest.raises(SystemExit, match="1"):
+                main()
+
+        captured = capsys.readouterr()
+        assert "Check ferry.yaml function_name" in captured.out
+
     def test_no_unnecessary_masking(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -428,3 +467,165 @@ class TestMain:
 
         captured = capsys.readouterr()
         assert "::add-mask::" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Error mapping tests
+# ---------------------------------------------------------------------------
+
+
+class TestErrorMapping:
+    """Tests for improved error mapping in main() -- TD-01 + TD-05."""
+
+    def _setup_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: object,
+    ) -> None:
+        """Set up minimal env vars for main()."""
+        output_file = tmp_path / "github_output"  # type: ignore[operator]
+        output_file.write_text("")
+        summary_file = tmp_path / "github_summary"  # type: ignore[operator]
+        summary_file.write_text("")
+
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
+        monkeypatch.setenv("INPUT_FUNCTION_NAME", "my-func")
+        monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
+        monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:different")
+        monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
+
+    def _make_client_error(self, code: str, message: str) -> object:
+        """Create a ClientError with the given code and message."""
+        from botocore.exceptions import ClientError
+
+        return ClientError(
+            {"Error": {"Code": code, "Message": message}},
+            "UpdateFunctionCode",
+        )
+
+    def test_access_denied_caller_role(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        moto_aws: None,
+        tmp_path: pytest.TempPathFactory,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AccessDeniedException with 'not authorized to perform' hints about deploy role."""
+        from ferry_action.deploy import main
+
+        self._setup_env(monkeypatch, tmp_path)
+
+        mock_client = MagicMock()
+        # get_function succeeds (returns digest info for skip check)
+        mock_client.get_function.return_value = {
+            "Code": {"ResolvedImageUri": f"{ECR_BASE}/{REPO}@sha256:old"},
+        }
+        # update_function_code raises the error
+        mock_client.update_function_code.side_effect = self._make_client_error(
+            "AccessDeniedException",
+            "User: arn:aws:sts::123:assumed-role/deploy is "
+            "not authorized to perform: lambda:UpdateFunctionCode",
+        )
+
+        with patch("ferry_action.deploy.boto3") as mock_boto:
+            mock_boto.client.return_value = mock_client
+            with pytest.raises(SystemExit, match="1"):
+                main()
+
+        captured = capsys.readouterr()
+        output = captured.out
+        assert "deploy role" in output.lower() or "lacks permissions" in output.lower()
+        assert "(raw:" not in output
+
+    def test_access_denied_target_role(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        moto_aws: None,
+        tmp_path: pytest.TempPathFactory,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AccessDeniedException with 'cannot be assumed' hints about execution role."""
+        from ferry_action.deploy import main
+
+        self._setup_env(monkeypatch, tmp_path)
+
+        mock_client = MagicMock()
+        mock_client.get_function.return_value = {
+            "Code": {"ResolvedImageUri": f"{ECR_BASE}/{REPO}@sha256:old"},
+        }
+        mock_client.update_function_code.side_effect = self._make_client_error(
+            "AccessDeniedException",
+            "The role defined for the function cannot be assumed by Lambda",
+        )
+
+        with patch("ferry_action.deploy.boto3") as mock_boto:
+            mock_boto.client.return_value = mock_client
+            with pytest.raises(SystemExit, match="1"):
+                main()
+
+        captured = capsys.readouterr()
+        output = captured.out
+        assert "execution role" in output.lower()
+
+    def test_access_denied_generic(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        moto_aws: None,
+        tmp_path: pytest.TempPathFactory,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AccessDeniedException with generic message hints about both roles."""
+        from ferry_action.deploy import main
+
+        self._setup_env(monkeypatch, tmp_path)
+
+        mock_client = MagicMock()
+        mock_client.get_function.return_value = {
+            "Code": {"ResolvedImageUri": f"{ECR_BASE}/{REPO}@sha256:old"},
+        }
+        mock_client.update_function_code.side_effect = self._make_client_error(
+            "AccessDeniedException",
+            "",
+        )
+
+        with patch("ferry_action.deploy.boto3") as mock_boto:
+            mock_boto.client.return_value = mock_client
+            with pytest.raises(SystemExit, match="1"):
+                main()
+
+        captured = capsys.readouterr()
+        output = captured.out
+        # Should mention both deploy role and execution role
+        assert "deploy role" in output.lower() or "both roles" in output.lower()
+        assert "execution role" in output.lower() or "both roles" in output.lower()
+
+    def test_error_no_raw_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        moto_aws: None,
+        tmp_path: pytest.TempPathFactory,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """No ClientError output should contain '(raw:' pattern."""
+        from ferry_action.deploy import main
+
+        self._setup_env(monkeypatch, tmp_path)
+
+        mock_client = MagicMock()
+        mock_client.get_function.return_value = {
+            "Code": {"ResolvedImageUri": f"{ECR_BASE}/{REPO}@sha256:old"},
+        }
+        mock_client.update_function_code.side_effect = self._make_client_error(
+            "ServiceException",
+            "Internal error",
+        )
+
+        with patch("ferry_action.deploy.boto3") as mock_boto:
+            mock_boto.client.return_value = mock_client
+            with pytest.raises(SystemExit, match="1"):
+                main()
+
+        captured = capsys.readouterr()
+        assert "(raw:" not in captured.out
