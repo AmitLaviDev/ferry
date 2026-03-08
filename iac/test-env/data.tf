@@ -142,3 +142,115 @@ data "aws_iam_policy_document" "test_lambda_deploy" {
     ]
   }
 }
+
+# -----------------------------------------------------------------------------
+# Trust policies: SF and APGW
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_sf_assume_role" {
+  statement {
+    sid     = "StepFunctionsAssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["states.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "test_apgw_assume_role" {
+  statement {
+    sid     = "APIGatewayAssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Permission policies: SF execution
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_sf_invoke_lambda" {
+  statement {
+    sid     = "InvokeLambda"
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      module.test_lambda.lambda_function_arn,
+      "${module.test_lambda.lambda_function_arn}:*",
+    ]
+  }
+}
+
+data "aws_iam_policy_document" "test_sf_logs" {
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = ["*"]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Permission policies: APGW invocation
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_apgw_start_execution" {
+  statement {
+    sid       = "StartExecution"
+    effect    = "Allow"
+    actions   = ["states:StartExecution"]
+    resources = [module.step_function.state_machine_arn]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Permission policies: Deploy role SF
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_sf_deploy" {
+  statement {
+    sid    = "StepFunctionsDeploy"
+    effect = "Allow"
+    actions = [
+      "states:UpdateStateMachine",
+      "states:DescribeStateMachine",
+      "states:TagResource",
+      "states:ListTagsForResource",
+    ]
+    resources = [module.step_function.state_machine_arn]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Permission policies: Deploy role APGW
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "test_apgw_deploy" {
+  statement {
+    sid    = "APIGatewayDeploy"
+    effect = "Allow"
+    actions = [
+      "apigateway:PutRestApi",
+      "apigateway:CreateDeployment",
+      "apigateway:GetRestApi",
+      "apigateway:GetTags",
+      "apigateway:TagResource",
+    ]
+    resources = [
+      "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}",
+      "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}/*",
+    ]
+  }
+}

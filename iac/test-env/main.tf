@@ -92,6 +92,42 @@ resource "aws_iam_role_policy_attachment" "test_lambda_deploy" {
 }
 
 # -----------------------------------------------------------------------------
+# Deploy role: Step Functions deploy permissions
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "test_sf_deploy" {
+  name   = "ferry-test-sf-deploy"
+  policy = data.aws_iam_policy_document.test_sf_deploy.json
+
+  tags = {
+    Name = "ferry-test-sf-deploy"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "test_sf_deploy" {
+  role       = aws_iam_role.test_deploy.name
+  policy_arn = aws_iam_policy.test_sf_deploy.arn
+}
+
+# -----------------------------------------------------------------------------
+# Deploy role: API Gateway deploy permissions
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "test_apgw_deploy" {
+  name   = "ferry-test-apgw-deploy"
+  policy = data.aws_iam_policy_document.test_apgw_deploy.json
+
+  tags = {
+    Name = "ferry-test-apgw-deploy"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "test_apgw_deploy" {
+  role       = aws_iam_role.test_deploy.name
+  policy_arn = aws_iam_policy.test_apgw_deploy.arn
+}
+
+# -----------------------------------------------------------------------------
 # IAM Role: Test Lambda execution (minimal, just for the Lambda to run)
 # -----------------------------------------------------------------------------
 

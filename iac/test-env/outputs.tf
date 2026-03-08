@@ -17,3 +17,28 @@ output "lambda_function_arn" {
   description = "Lambda function ARN"
   value       = module.test_lambda.lambda_function_arn
 }
+
+output "state_machine_name" {
+  description = "Step Functions state machine name"
+  value       = module.step_function.state_machine_name
+}
+
+output "state_machine_arn" {
+  description = "Step Functions state machine ARN"
+  value       = module.step_function.state_machine_arn
+}
+
+output "rest_api_id" {
+  description = "API Gateway REST API ID"
+  value       = aws_api_gateway_rest_api.test.id
+}
+
+output "rest_api_stage_url" {
+  description = "API Gateway stage invoke URL"
+  value       = aws_api_gateway_stage.test.invoke_url
+}
+
+output "apgw_invoke_role_arn" {
+  description = "API Gateway invocation role ARN (for OpenAPI spec credentials)"
+  value       = aws_iam_role.test_apgw_invoke.arn
+}

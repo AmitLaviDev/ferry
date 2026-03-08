@@ -33,3 +33,15 @@ variable "lambda_placeholder_image_uri" {
   type        = string
   default     = "050068574410.dkr.ecr.us-east-1.amazonaws.com/lambda-ferry-backend:placeholder"
 }
+
+variable "sf_name" {
+  description = "Step Functions state machine name"
+  type        = string
+  default     = "ferry-test-sf"
+}
+
+variable "apigw_name" {
+  description = "API Gateway REST API name"
+  type        = string
+  default     = "ferry-test-api"
+}
