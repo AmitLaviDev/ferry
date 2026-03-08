@@ -67,6 +67,7 @@ jobs:
   # Step 2: Build and deploy each Lambda in parallel
   # The matrix fans out one job per affected Lambda resource
   deploy:
+    name: "Ferry: deploy ${{ matrix.name }}"
     needs: setup
     runs-on: ubuntu-latest
     strategy:
