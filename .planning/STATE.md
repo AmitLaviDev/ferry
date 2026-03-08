@@ -35,6 +35,7 @@ Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 18-01 | Action Code Tech Debt | 219s | 2 | 4 |
+| 18-02 | IAM + Workflow Docs | ~60s | 2 | 2 |
 
 ## Accumulated Context
 
@@ -62,4 +63,5 @@ Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 18-01-PLAN.md (action code tech debt). Phase 18 fully complete. Next: Phase 19.
+Stopped at: Phase 18 complete (both plans). Next: /gsd:plan-phase 19
+Manual follow-up: `terraform apply` in `iac/aws/staging/shared/` for IAM policy change (TD-02)
