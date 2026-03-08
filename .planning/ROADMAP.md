@@ -59,7 +59,9 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   Plans:
   - [x] 18-01-PLAN.md -- Fix deploy.py error handling + build.py Docker warning (TD-01, TD-04, TD-05)
   - [x] 18-02-PLAN.md -- Add IAM permission + fix workflow docs (TD-02, TD-03)
-- [ ] **Phase 19: Test Infrastructure for SF + APGW** -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
+- [ ] **Phase 19: Test Infrastructure for SF + APGW** (1 plan) -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
+  Plans:
+  - [ ] 19-01-PLAN.md -- SF state machine + REST API + execution roles + deploy permissions
 - [ ] **Phase 20: Test Repo Updates** -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
 - [ ] **Phase 21: Full-Chain E2E Validation** -- Push changes, verify all dispatches fire, all deploys succeed, invoke APGW → SF → Lambda chain, prove repeatability
 
@@ -82,6 +84,7 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Goal**: AWS resources exist for Step Functions and API Gateway testing -- state machine, REST API, execution roles, and deploy permissions -- all managed via Terraform in test-env
 **Depends on**: Phase 18 (clean codebase), existing test-env IaC from v1.2
 **Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05, INFRA-06
+**Plans:** 1 plan
 **Success Criteria** (what must be TRUE):
   1. Standard Step Functions state machine exists with a placeholder definition
   2. REST API exists with a `test` stage
@@ -148,6 +151,6 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
 | 18. Tech Debt Cleanup | v1.3 | 2/2 | Complete | 2026-03-08 |
-| 19. Test Infrastructure for SF + APGW | v1.3 | 0/? | Pending | -- |
+| 19. Test Infrastructure for SF + APGW | v1.3 | 0/1 | Planned | -- |
 | 20. Test Repo Updates | v1.3 | 0/? | Pending | -- |
 | 21. Full-Chain E2E Validation | v1.3 | 0/? | Pending | -- |
