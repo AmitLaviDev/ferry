@@ -175,6 +175,7 @@ data "aws_iam_policy_document" "gha_self_deploy_lambda" {
     actions = [
       "lambda:UpdateFunctionCode",
       "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
     ]
     resources = [
       "arn:aws:lambda:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:function:ferry-backend",
