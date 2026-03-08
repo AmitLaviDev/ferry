@@ -39,7 +39,28 @@ resource "aws_api_gateway_rest_api" "test" {
       title   = var.apigw_name
       version = "1.0"
     }
-    paths = {}
+    paths = {
+      "/placeholder" = {
+        get = {
+          responses = {
+            "200" = {
+              description = "Placeholder -- overwritten by Ferry deploy"
+            }
+          }
+          x-amazon-apigateway-integration = {
+            type = "MOCK"
+            requestTemplates = {
+              "application/json" = "{\"statusCode\": 200}"
+            }
+            responses = {
+              default = {
+                statusCode = "200"
+              }
+            }
+          }
+        }
+      }
+    }
   })
 
   endpoint_configuration {
