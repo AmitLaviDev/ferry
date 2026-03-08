@@ -59,9 +59,9 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   Plans:
   - [x] 18-01-PLAN.md -- Fix deploy.py error handling + build.py Docker warning (TD-01, TD-04, TD-05)
   - [x] 18-02-PLAN.md -- Add IAM permission + fix workflow docs (TD-02, TD-03)
-- [ ] **Phase 19: Test Infrastructure for SF + APGW** (1 plan) -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
+- [x] **Phase 19: Test Infrastructure for SF + APGW** (1/1 plan) -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
   Plans:
-  - [ ] 19-01-PLAN.md -- SF state machine + REST API + execution roles + deploy permissions
+  - [x] 19-01-PLAN.md -- SF state machine + REST API + execution roles + deploy permissions
 - [ ] **Phase 20: Test Repo Updates** -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
 - [ ] **Phase 21: Full-Chain E2E Validation** -- Push changes, verify all dispatches fire, all deploys succeed, invoke APGW → SF → Lambda chain, prove repeatability
 
@@ -151,6 +151,6 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
 | 18. Tech Debt Cleanup | v1.3 | 2/2 | Complete | 2026-03-08 |
-| 19. Test Infrastructure for SF + APGW | v1.3 | 0/1 | Planned | -- |
+| 19. Test Infrastructure for SF + APGW | v1.3 | 1/1 | Complete | 2026-03-08 |
 | 20. Test Repo Updates | v1.3 | 0/? | Pending | -- |
 | 21. Full-Chain E2E Validation | v1.3 | 0/? | Pending | -- |

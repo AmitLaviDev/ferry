@@ -14,12 +14,12 @@
 
 ## Test Infrastructure (Step Functions + API Gateway)
 
-- [ ] **INFRA-01**: Step Functions state machine exists in AWS (Standard type, placeholder definition) — created via Terraform in test-env
-- [ ] **INFRA-02**: API Gateway REST API exists in AWS with a `test` stage — created via Terraform in test-env
-- [ ] **INFRA-03**: IAM execution role for the Step Function with permission to invoke the test Lambda
-- [ ] **INFRA-04**: API Gateway has IAM permissions to call `states:StartExecution` on the test state machine
-- [ ] **INFRA-05**: Deploy role (`ferry-test-deploy`) has Step Functions deploy permissions (UpdateStateMachine, DescribeStateMachine, TagResource, ListTagsForResource)
-- [ ] **INFRA-06**: Deploy role has API Gateway deploy permissions (PutRestApi, CreateDeployment, GetRestApi, TagResource, GetTags)
+- [x] **INFRA-01**: Step Functions state machine exists in AWS (Standard type, placeholder definition) — created via Terraform in test-env
+- [x] **INFRA-02**: API Gateway REST API exists in AWS with a `test` stage — created via Terraform in test-env
+- [x] **INFRA-03**: IAM execution role for the Step Function with permission to invoke the test Lambda
+- [x] **INFRA-04**: API Gateway has IAM permissions to call `states:StartExecution` on the test state machine
+- [x] **INFRA-05**: Deploy role (`ferry-test-deploy`) has Step Functions deploy permissions (UpdateStateMachine, DescribeStateMachine, TagResource, ListTagsForResource)
+- [x] **INFRA-06**: Deploy role has API Gateway deploy permissions (PutRestApi, CreateDeployment, GetRestApi, TagResource, GetTags)
 
 ## Test Repo Updates
 
@@ -44,8 +44,8 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | TD-01..TD-05 | Phase 18 | Complete |
-| INFRA-01..INFRA-06 | Phase 19 | Pending |
+| INFRA-01..INFRA-06 | Phase 19 | Complete (TF written, needs apply) |
 | REPO-01..REPO-05 | Phase 20 | Pending |
 | E2E-01..E2E-07 | Phase 21 | Pending |
 
-**Coverage:** 5/23 requirements complete
+**Coverage:** 11/23 requirements complete

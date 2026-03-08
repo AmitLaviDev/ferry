@@ -10,15 +10,15 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Milestone: v1.3 Full-Chain E2E
-Status: Phase 18 complete -- all plans done
-Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
+Status: Phase 19 in progress -- 19-01 complete
+Last activity: 2026-03-08 -- completed 19-01 (SF + APGW test infrastructure Terraform)
 
 ## Phase Overview
 
 | Phase | Goal | Status |
 |-------|------|--------|
 | 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Complete (18-01 + 18-02) |
-| 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Pending |
+| 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | In Progress (19-01 done) |
 | 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Pending |
 | 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
 
@@ -36,6 +36,7 @@ Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 |-------|------|----------|-------|-------|
 | 18-01 | Action Code Tech Debt | 219s | 2 | 4 |
 | 18-02 | IAM + Workflow Docs | ~60s | 2 | 2 |
+| 19-01 | SF + APGW Test Infra TF | 195s | 4 | 7 |
 
 ## Accumulated Context
 
@@ -52,7 +53,7 @@ Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 - SF and APGW deploy code already exists and is tested (v1.0 Phase 4) -- never proven E2E
 - Test repo: AmitLaviDev/ferry-test-app (from v1.2)
 - Test Lambda: ferry-test-hello-world (already deployed and working)
-- Deploy role: ferry-test-deploy (needs SF + APGW permissions added)
+- Deploy role: ferry-test-deploy (SF + APGW permissions added in 19-01, needs terraform apply)
 - Dispatch workflow names are hardcoded: ferry-step_functions.yml, ferry-api_gateways.yml
 - Full chain: REST API → StartExecution (Standard SF) → Task state invokes Lambda
 
@@ -63,5 +64,6 @@ Last activity: 2026-03-08 -- completed 18-01 (action code tech debt)
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Phase 18 complete (both plans). Next: /gsd:plan-phase 19
+Stopped at: Completed 19-01-PLAN.md. Next: remaining Phase 19 plans (if any), then Phase 20.
+Manual follow-up: `terraform apply` in `iac/test-env/` to create SF + APGW resources (19-01)
 Manual follow-up: `terraform apply` in `iac/aws/staging/shared/` for IAM policy change (TD-02)
