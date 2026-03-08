@@ -128,6 +128,16 @@ class TestEcrLogin:
         assert "login" in second_call[0][0]
         assert "123456789012.dkr.ecr.us-east-1.amazonaws.com" in second_call[0][0]
 
+    @patch("ferry_action.build.subprocess.run")
+    def test_ecr_login_suppresses_stderr(self, mock_run: MagicMock) -> None:
+        """Docker login call uses capture_output=True to suppress credential warnings."""
+        mock_run.return_value = MagicMock(stdout="password123\n")
+        ecr_login("us-east-1", "123456789012.dkr.ecr.us-east-1.amazonaws.com/ferry/repo")
+
+        # Second call is docker login -- verify capture_output=True
+        docker_login_call = mock_run.call_args_list[1]
+        assert docker_login_call[1].get("capture_output") is True
+
 
 class TestPushImage:
     """Test image push and digest capture."""
