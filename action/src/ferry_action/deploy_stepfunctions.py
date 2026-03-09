@@ -193,6 +193,7 @@ def main() -> None:
 
     except ClientError as exc:
         error_code = exc.response["Error"]["Code"]
+        error_msg = exc.response["Error"].get("Message", "")
         hints = {
             "StateMachineDoesNotExist": (
                 f"State machine '{state_machine_name}' not found -- verify it exists in {region}"
@@ -204,9 +205,10 @@ def main() -> None:
                 f"State machine definition is invalid -- check '{definition_file}' syntax"
             ),
         }
-        hint = hints.get(error_code, str(exc))
-        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
-        report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
+        hint = hints.get(error_code, error_code)
+        detail = f"Deploy failed for {resource_name}: {hint} ({error_code}: {error_msg})"
+        gha.error(format_error_detail(exc, detail))
+        report_check_run(resource_name, "deploy", "failure", detail, trigger_sha)
         sys.exit(1)
 
     finally:

@@ -262,14 +262,16 @@ def main() -> None:
 
     except ClientError as exc:
         error_code = exc.response["Error"]["Code"]
+        error_msg = exc.response["Error"].get("Message", "")
         hints = {
-            "NotFoundException": (f"REST API '{rest_api_id}' not found"),
-            "BadRequestException": ("Invalid OpenAPI spec -- check spec syntax"),
-            "AccessDeniedException": ("IAM role lacks apigateway permissions"),
+            "NotFoundException": f"REST API '{rest_api_id}' not found",
+            "BadRequestException": "Invalid OpenAPI spec -- check spec syntax",
+            "AccessDeniedException": "IAM role lacks apigateway permissions",
         }
-        hint = hints.get(error_code, str(exc))
-        gha.error(format_error_detail(exc, f"Deploy failed for {resource_name}: {hint}"))
-        report_check_run(resource_name, "deploy", "failure", hint, trigger_sha)
+        hint = hints.get(error_code, error_code)
+        detail = f"Deploy failed for {resource_name}: {hint} ({error_code}: {error_msg})"
+        gha.error(format_error_detail(exc, detail))
+        report_check_run(resource_name, "deploy", "failure", detail, trigger_sha)
         sys.exit(1)
 
     finally:
