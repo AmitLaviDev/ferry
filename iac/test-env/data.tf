@@ -251,6 +251,7 @@ data "aws_iam_policy_document" "test_apgw_deploy" {
     resources = [
       "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}",
       "arn:aws:apigateway:${data.aws_region.current.id}::/restapis/${aws_api_gateway_rest_api.test.id}/*",
+      "arn:aws:apigateway:${data.aws_region.current.id}::/tags/arn%3Aaws%3Aapigateway%3A${data.aws_region.current.id}%3A%3A%2Frestapis%2F${aws_api_gateway_rest_api.test.id}",
     ]
   }
 
