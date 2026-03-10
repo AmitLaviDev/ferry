@@ -5,13 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.4 Unified Workflow (planned)
+**Current focus:** v1.4 Unified Workflow
 
 ## Current Position
 
-Milestone: v1.3 Full-Chain E2E -- SHIPPED 2026-03-10
-Next milestone: v1.4 Unified Workflow (not yet started)
-Last activity: 2026-03-10 -- v1.3 milestone archived
+Milestone: v1.4 Unified Workflow -- defining requirements
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-10 — Milestone v1.4 started
 
 ## Shipped Milestones
 
@@ -41,5 +43,5 @@ Last activity: 2026-03-10 -- v1.3 milestone archived
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: v1.3 milestone archived. Next step: `/gsd:new-milestone` for v1.4.
+Stopped at: Defining v1.4 requirements and roadmap.
 No pending manual follow-ups.

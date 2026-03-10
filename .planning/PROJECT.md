@@ -49,7 +49,10 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Active
 
-- v1.4: Consolidate three per-type workflow files into single `ferry.yml`
+- v1.4: Consolidate three per-type workflow files (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`) into single `ferry.yml` with conditional jobs per type
+- v1.4: Backend dispatches all types to `ferry.yml` (keep per-type dispatch model, change target filename)
+- v1.4: Setup action exposes resource_type for conditional job routing
+- v1.4: Update docs, templates, and test repo for unified workflow
 
 ### Out of Scope
 
@@ -57,7 +60,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 - AI discovery — no automatic resource detection, ferry.yaml is explicit
 - SageMaker model deployment — different workflow, not serverless compute
 - Multi-account AWS — single target account per workflow run for v1
-- Unified workflow (single `ferry.yml` instead of per-type workflow files) — v1.4
+- ~~Unified workflow (single `ferry.yml` instead of per-type workflow files) — moved to Active for v1.4~~
 - PR integration with "ferry plan" / "ferry apply" and mid-way deployments — v2.0
 - Environment/branch mapping — v2.0
 - RBAC / permissions — relies on GitHub App installation permissions
@@ -186,5 +189,16 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - **Mid-way deployments**: Deploy to staging/preview environments from PRs before merge. Requires environment mapping in ferry.yaml (e.g., `main` → prod, `develop` → staging).
 - Touches: webhook handler (new event types), dispatch model (plan vs apply mode), ferry.yaml schema (environment config), action scripts (dry-run mode), PR comment formatting.
 
+## Current Milestone: v1.4 Unified Workflow
+
+**Goal:** Consolidate three per-type workflow files into a single `ferry.yml` so users maintain one workflow file regardless of how many resource types they use.
+
+**Target features:**
+- Single `ferry.yml` replaces `ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`
+- Backend dispatches all resource types to `ferry.yml` (per-type dispatch model preserved)
+- Setup action exposes `resource_type` output for conditional job routing
+- Conditional jobs: only the job matching the dispatched type runs
+- Updated docs, templates, and test repo
+
 ---
-*Last updated: 2026-03-09 after adding v1.4 and v2.0 milestones*
+*Last updated: 2026-03-10 after starting v1.4 Unified Workflow milestone*
