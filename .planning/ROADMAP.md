@@ -5,7 +5,9 @@
 - v1.0 MVP -- Phases 1-10 (shipped 2026-02-28)
 - v1.1 Deploy to Staging -- Phases 11-14 (shipped 2026-03-03)
 - v1.2 End-to-End Validation -- Phases 15-17 (shipped 2026-03-08)
-- **v1.3 Full-Chain E2E** -- Phases 18-21 (in progress)
+- v1.3 Full-Chain E2E -- Phases 18-21 (shipped 2026-03-10)
+- v1.4 Unified Workflow -- Consolidate three per-type workflow files into one `ferry.yml` (planned)
+- v2.0 PR Integration -- Mid-workflow deployments with "ferry plan" and "ferry apply" (planned)
 
 ## Phases
 
@@ -51,84 +53,17 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 </details>
 
-### v1.3 Full-Chain E2E
+<details>
+<summary>v1.3 Full-Chain E2E (Phases 18-21) -- SHIPPED 2026-03-10</summary>
 
-**Milestone Goal:** Prove Step Functions and API Gateway deploy paths end-to-end with an integrated chain (API Gateway → Step Function → Lambda), and clean up v1.2 tech debt.
+- [x] Phase 18: Tech Debt Cleanup (2/2 plans) -- completed 2026-03-08
+- [x] Phase 19: Test Infrastructure for SF + APGW (1/1 plan) -- completed 2026-03-08
+- [x] Phase 20: Test Repo Updates (1/1 plan) -- completed 2026-03-09
+- [x] Phase 21: Full-Chain E2E Validation (3/3 plans) -- completed 2026-03-10
 
-- [x] **Phase 18: Tech Debt Cleanup** (2/2 plans) -- Fix 5 pending items from v1.2 (debug logging, IAM verify, doc fix, Docker warning, error mapping)
-  Plans:
-  - [x] 18-01-PLAN.md -- Fix deploy.py error handling + build.py Docker warning (TD-01, TD-04, TD-05)
-  - [x] 18-02-PLAN.md -- Add IAM permission + fix workflow docs (TD-02, TD-03)
-- [x] **Phase 19: Test Infrastructure for SF + APGW** (1/1 plan) -- Terraform for state machine, REST API, SF execution role, APGW-to-SF permissions, deploy role policies
-  Plans:
-  - [x] 19-01-PLAN.md -- SF state machine + REST API + execution roles + deploy permissions
-- [ ] **Phase 20: Test Repo Updates** (1/1 plan) -- ASL definition (invokes test Lambda), OpenAPI spec (triggers SF), ferry.yaml entries, GHA workflow files
-  Plans:
-  - [ ] 20-01-PLAN.md -- ASL definition, OpenAPI spec, ferry.yaml, SF + APGW workflow files
-- [ ] **Phase 21: Full-Chain E2E Validation** -- Push changes, verify all dispatches fire, all deploys succeed, invoke APGW → SF → Lambda chain, prove repeatability
+Full details: [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
 
-## Phase Details
-
-### Phase 18: Tech Debt Cleanup
-**Goal**: Clean up all pending tech debt items carried forward from v1.2 so the codebase is clean before extending the test environment
-**Depends on**: Nothing (standalone cleanup)
-**Requirements**: TD-01, TD-02, TD-03, TD-04, TD-05
-**Plans:** 2 plans
-**Success Criteria** (what must be TRUE):
-  1. No debug logging statements remain in deploy.py
-  2. Self-deploy IAM policy includes `lambda:GetFunctionConfiguration`
-  3. Workflow template docs show `name:` field on deploy jobs
-  4. Docker credential warning is suppressed in build.py
-  5. deploy.py error mapping distinguishes caller vs target role permission failures
-  6. All tests pass, no lint errors
-
-### Phase 19: Test Infrastructure for SF + APGW
-**Goal**: AWS resources exist for Step Functions and API Gateway testing -- state machine, REST API, execution roles, and deploy permissions -- all managed via Terraform in test-env
-**Depends on**: Phase 18 (clean codebase), existing test-env IaC from v1.2
-**Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05, INFRA-06
-**Plans:** 1 plan
-**Success Criteria** (what must be TRUE):
-  1. Standard Step Functions state machine exists with a placeholder definition
-  2. REST API exists with a `test` stage
-  3. SF execution role has `lambda:InvokeFunction` permission on the test Lambda
-  4. API Gateway has IAM integration permission to call `states:StartExecution` on the test state machine
-  5. `ferry-test-deploy` role has Step Functions deploy permissions (UpdateStateMachine, DescribeStateMachine, TagResource, ListTagsForResource)
-  6. `ferry-test-deploy` role has API Gateway deploy permissions (PutRestApi, CreateDeployment, GetRestApi, TagResource, GetTags)
-  7. `terraform plan` shows no pending changes after apply
-
-**Manual Steps:**
-- Run `terraform apply` in test-env after adding the new resources
-
-### Phase 20: Test Repo Updates
-**Goal**: Test repo (ferry-test-app) contains all files needed to exercise SF and APGW deploy paths -- ASL definition that invokes the test Lambda, OpenAPI spec that triggers the SF, updated ferry.yaml, and dispatch workflow files
-**Depends on**: Phase 19 (AWS resources must exist to reference their IDs/ARNs)
-**Requirements**: REPO-01, REPO-02, REPO-03, REPO-04, REPO-05
-**Success Criteria** (what must be TRUE):
-  1. `workflows/hello-chain/definition.asl.json` contains a Task state invoking the test Lambda with `${ACCOUNT_ID}` and `${AWS_REGION}` placeholders
-  2. `api/hello-chain/openapi.yaml` defines a POST endpoint with `x-amazon-apigateway-integration` calling `states:StartExecution` on the test state machine
-  3. `ferry.yaml` has `step_functions` and `api_gateways` sections pointing to the new resources
-  4. `.github/workflows/ferry-step_functions.yml` exists (matching hardcoded dispatch name)
-  5. `.github/workflows/ferry-api_gateways.yml` exists (matching hardcoded dispatch name)
-
-**Manual Steps:**
-- Push changes to test repo on GitHub
-- Install/verify Ferry GitHub App is still active on test repo
-
-### Phase 21: Full-Chain E2E Validation
-**Goal**: The full integrated chain works -- API Gateway → Step Function → Lambda -- deployed via Ferry, and all three resource types can be independently changed and deployed
-**Depends on**: Phase 20 (test repo fully configured)
-**Requirements**: E2E-01, E2E-02, E2E-03, E2E-04, E2E-05, E2E-06, E2E-07
-**Success Criteria** (what must be TRUE):
-  1. Pushing a change to the SF definition triggers Ferry → detects step_functions change → dispatches `ferry-step_functions.yml` → deploys state machine
-  2. Pushing a change to the APGW spec triggers Ferry → detects api_gateways change → dispatches `ferry-api_gateways.yml` → deploys REST API
-  3. Invoking the API Gateway POST endpoint triggers the Step Function, which invokes the Lambda, and the execution completes successfully
-  4. A no-op push (no definition/spec changes) correctly skips SF and APGW deploys via content-hash detection
-  5. A push changing files across all three resource types triggers 3 separate dispatches (lambdas, step_functions, api_gateways) and all deploy successfully
-
-**Iterative Bug Fix Cycle:**
-- Each step of the loop (webhook receipt, change detection, dispatch, build/deploy) is a potential failure point
-- When a step fails: diagnose from CloudWatch logs / GHA workflow logs, fix the bug, push the fix (self-deploys), retry
-- Similar to v1.2 Phase 17 -- expect bugs and iterate
+</details>
 
 ## Progress
 
@@ -152,7 +87,20 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 15. Deploy Ferry Infrastructure | v1.2 | 3/3 | Complete | 2026-03-04 |
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
-| 18. Tech Debt Cleanup | v1.3 | 2/2 | Complete | 2026-03-08 |
-| 19. Test Infrastructure for SF + APGW | v1.3 | 1/1 | Complete | 2026-03-08 |
-| 20. Test Repo Updates | v1.3 | 0/1 | Pending | -- |
-| 21. Full-Chain E2E Validation | v1.3 | 0/? | Pending | -- |
+| 18-21. Full-Chain E2E | v1.3 | 7/7 | Complete | 2026-03-10 |
+
+## Future Milestones
+
+### v1.4 Unified Workflow
+**Goal:** Consolidate the three per-type workflow files (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`) into a single `ferry.yml` from the customer's perspective.
+
+Users currently maintain one workflow file per resource type. v1.4 replaces this with a single `ferry.yml` that handles all types via conditional jobs. Backend still sends one dispatch per type (minimal backend change), all targeting the same `ferry.yml`. Touches: dispatch.py (workflow filename), setup action (type output), docs/templates, user workflow files.
+
+### v2.0 PR Integration
+**Goal:** Add PR-triggered deployments with a "ferry plan" / "ferry apply" model — preview what will deploy on PR open/update, deploy on merge or explicit approval.
+
+Key capabilities:
+- **ferry plan**: On `pull_request` events, show what resources would be built/deployed (diff preview in PR comment or Check Run)
+- **ferry apply**: On merge to target branch (or explicit comment trigger), execute the actual build and deploy
+- Mid-way deployments: deploy to staging/preview environments from PRs before merge
+- Environment/branch mapping (e.g., `main` → prod, `develop` → staging)

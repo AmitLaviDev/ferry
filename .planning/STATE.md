@@ -2,25 +2,25 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-08)
+See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.3 Full-Chain E2E (APGW → SF → Lambda)
+**Current focus:** v1.4 Unified Workflow (planned)
 
 ## Current Position
 
-Milestone: v1.3 Full-Chain E2E
-Status: Phase 20 complete (auto tasks done, manual commit/push pending)
-Last activity: 2026-03-08 -- completed Phase 20 (test repo updates for SF + APGW)
+Milestone: v1.3 Full-Chain E2E -- SHIPPED 2026-03-10
+Next milestone: v1.4 Unified Workflow (not yet started)
+Last activity: 2026-03-10 -- v1.3 milestone archived
 
-## Phase Overview
+## Shipped Milestones
 
-| Phase | Goal | Status |
-|-------|------|--------|
-| 18. Tech Debt Cleanup | Fix 5 pending v1.2 items | Complete (18-01 + 18-02) |
-| 19. Test Infrastructure for SF + APGW | Terraform for state machine, REST API, IAM | Complete (19-01) |
-| 20. Test Repo Updates | ASL definition, OpenAPI spec, ferry.yaml, workflows | Complete (20-01) |
-| 21. Full-Chain E2E Validation | Prove APGW → SF → Lambda chain works via Ferry | Pending |
+| Version | Name | Phases | Shipped |
+|---------|------|--------|---------|
+| v1.0 | MVP | 1-10 | 2026-02-28 |
+| v1.1 | Deploy to Staging | 11-14 | 2026-03-03 |
+| v1.2 | End-to-End Validation | 15-17 | 2026-03-08 |
+| v1.3 | Full-Chain E2E | 18-21 | 2026-03-10 |
 
 ## Performance Metrics
 
@@ -31,41 +31,15 @@ Last activity: 2026-03-08 -- completed Phase 20 (test repo updates for SF + APGW
 
 **v1.1:** 5 phases, 8 plans (2026-02-28 → 2026-03-03)
 **v1.2:** 3 phases, 9 plans (2026-03-03 → 2026-03-08)
+**v1.3:** 4 phases, 7 plans (2026-03-08 → 2026-03-10)
 
-| Phase | Plan | Duration | Tasks | Files |
-|-------|------|----------|-------|-------|
-| 18-01 | Action Code Tech Debt | 219s | 2 | 4 |
-| 18-02 | IAM + Workflow Docs | ~60s | 2 | 2 |
-| 19-01 | SF + APGW Test Infra TF | 195s | 4 | 7 |
-| 20-01 | Test Repo SF + APGW Files | ~45s | 2 | 5 |
-
-## Accumulated Context
-
-### Pending Todos (carried from v1.2 → Phase 18)
-
-- ~~Remove debug logging from deploy.py (raw error output)~~ DONE (18-01)
-- ~~Verify self-deploy IAM policy also has GetFunctionConfiguration (shared/data.tf)~~ DONE (18-02, needs terraform apply)
-- ~~Add `name: "Ferry: deploy ${{ matrix.name }}"` to deploy job in workflow template (docs/lambdas.md)~~ DONE (18-02)
-- ~~Suppress Docker credential warning in build.py (cosmetic, low priority)~~ DONE (18-01)
-- ~~Improve deploy.py error mapping (AccessDeniedException can mean target role lacks perms, not caller)~~ DONE (18-01)
-
-### Key Context for v1.3
-
-- SF and APGW deploy code already exists and is tested (v1.0 Phase 4) -- never proven E2E
-- Test repo: AmitLaviDev/ferry-test-app (from v1.2)
-- Test Lambda: ferry-test-hello-world (already deployed and working)
-- Deploy role: ferry-test-deploy (SF + APGW permissions added in 19-01, needs terraform apply)
-- Dispatch workflow names are hardcoded: ferry-step_functions.yml, ferry-api_gateways.yml
-- Full chain: REST API → StartExecution (Standard SF) → Task state invokes Lambda
-
-### Blockers/Concerns
+## Blockers/Concerns
 
 - Python 3.14 arm64 Lambda base image availability on public.ecr.aws must be verified (fallback: Python 3.13 or custom base)
+- `pr_lookup_failed` (403) on push events -- GitHub App missing `pulls:read` permission. Non-blocking for push deploys, relevant for v2.0 PR integration.
 
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Phase 20 complete. Next: commit/push ferry-test-app, then Phase 21 (full-chain E2E).
-Manual follow-up: `terraform apply` in `iac/test-env/` to create SF + APGW resources (19-01)
-Manual follow-up: `terraform apply` in `iac/aws/staging/shared/` for IAM policy change (TD-02)
-Manual follow-up: commit and push ferry-test-app changes (20-01)
+Last session: 2026-03-10
+Stopped at: v1.3 milestone archived. Next step: `/gsd:new-milestone` for v1.4.
+No pending manual follow-ups.
