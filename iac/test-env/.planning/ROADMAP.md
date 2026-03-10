@@ -39,11 +39,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `ferry.yml` template contains a shared `setup` job and three conditional deploy jobs (lambda, step-function, api-gateway) with job-level `if` guards
   2. Lambda deploy job uses matrix strategy for parallel per-resource builds
-  3. Step Functions and API Gateway deploy jobs each use a sequential loop (no matrix)
+  3. Step Functions and API Gateway deploy jobs each use matrix strategy with `fail-fast: false` (per CONTEXT.md override)
   4. Workflow uses `run-name` that displays the resource type in the GHA Actions UI
   5. No workflow-level concurrency group exists (only job-level concurrency keyed by type)
   6. Docs include the unified `ferry.yml` template and a migration guide with deploy ordering (user repo first, backend second)
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 23-01-PLAN.md -- Add unified ferry.yml template to setup.md and remove per-type workflow sections from type pages
 
 ### Phase 24: Test Repo Migration and E2E Validation
 **Goal**: The test repo runs on the unified `ferry.yml` and all three resource types deploy successfully via Ferry dispatch
@@ -82,8 +84,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 22. Backend and Action Code Changes | 0/1 | Planned | - |
-| 23. Unified Workflow Template and Docs | 0/? | Not started | - |
+| 22. Backend and Action Code Changes | 1/1 | Complete | 2026-03-10 |
+| 23. Unified Workflow Template and Docs | 0/1 | Planned | - |
 | 24. Test Repo Migration and E2E Validation | 0/? | Not started | - |
 
 ## Key Risks and Mitigations
