@@ -23,69 +23,6 @@ step_functions:
 | `state_machine_name` | Yes      | The name of the state machine in AWS. Used to look up the state machine ARN for deployment. |
 | `definition_file`    | Yes      | The ASL definition file name, relative to `source_dir`. |
 
-## Workflow File
-
-Create `.github/workflows/ferry-step_functions.yml` in your repository. The file name must be exactly `ferry-step_functions.yml` -- Ferry dispatches to this name and a mismatch causes a silent 404.
-
-```yaml
-# .github/workflows/ferry-step_functions.yml
-# Ferry Step Functions deployment workflow
-# Triggered by Ferry App via workflow_dispatch when definition files change
-
-name: Ferry Step Functions
-
-on:
-  workflow_dispatch:
-    inputs:
-      payload:
-        description: "Ferry dispatch payload (JSON)"  # Sent by Ferry App
-        required: true
-
-permissions:
-  id-token: write    # OIDC JWT for AWS authentication
-  contents: read     # Repository checkout
-  checks: write      # Check Run status reporting
-
-jobs:
-  # Step 1: Parse the dispatch payload into a matrix
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.parse.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Parse Ferry payload
-        id: parse
-        uses: ./action/setup                          # Ferry setup composite action
-        with:
-          payload: ${{ inputs.payload }}               # Raw JSON from workflow_dispatch
-
-  # Step 2: Deploy each state machine in parallel
-  deploy:
-    needs: setup
-    runs-on: ubuntu-latest
-    strategy:
-      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
-      fail-fast: false                                # Deploy all resources even if one fails
-    steps:
-      - uses: actions/checkout@v4
-
-      # Deploy: update state machine definition
-      - name: Deploy Step Functions
-        uses: ./action/deploy-stepfunctions           # Ferry SF deploy composite action
-        with:
-          resource-name: ${{ matrix.name }}            # Logical resource name
-          state-machine-name: ${{ matrix.state_machine_name }}  # AWS state machine name
-          definition-file: ${{ matrix.definition_file }}        # ASL definition file name
-          source-dir: ${{ matrix.source }}             # Directory containing the definition
-          trigger-sha: ${{ matrix.trigger_sha }}       # Git SHA that triggered the deploy
-          deployment-tag: ${{ matrix.deployment_tag }} # Deployment tag (e.g., pr-42)
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}    # IAM role for OIDC auth
-          aws-region: us-east-1                        # AWS region (adjust as needed)
-          github-token: ${{ github.token }}            # Check Run reporting (auto-granted, not a PAT)
-```
-
 ## Variable Substitution
 
 Ferry performs variable substitution on your ASL definition file before deploying. The following variables are replaced at deployment time:

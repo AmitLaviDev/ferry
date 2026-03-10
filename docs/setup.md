@@ -9,7 +9,7 @@ Ferry has two components: the **Ferry App** (a hosted backend that receives GitH
 ## Installation
 
 1. **Install the Ferry GitHub App** on your repository from the GitHub Marketplace.
-2. **Create workflow files** in `.github/workflows/` for each resource type you use (see [Workflow File Naming](#workflow-file-naming-convention) below).
+2. **Create the workflow file** `.github/workflows/ferry.yml` in your repository (see [Workflow File](#workflow-file) below).
 3. **Add a `ferry.yaml`** to your repository root describing your serverless resources.
 4. **Configure AWS OIDC** so the Ferry Action can authenticate to your AWS account (see [OIDC Authentication](#oidc-authentication) below).
 
@@ -51,21 +51,149 @@ api_gateways:
     spec_file: openapi.yaml           # OpenAPI spec file, relative to source_dir
 ```
 
-## Workflow File Naming Convention
+## Workflow File
 
-Ferry triggers GitHub Actions workflows by dispatching to specific workflow file names. These names are **not configurable** -- they are derived from the resource type and must match exactly, or dispatches will fail silently with a 404.
+Ferry uses a single workflow file named `ferry.yml`. When Ferry detects changes, it groups affected resources by type and fires one `workflow_dispatch` event per type -- all targeting this same file. Each dispatch includes a `resource_type` field, and the workflow routes to the correct deploy job using `if` guards.
 
-The naming convention follows the pattern `ferry-{type}.yml`:
+Create `.github/workflows/ferry.yml` in your repository with the following template:
 
-| Resource Type   | Workflow File Name           |
-|-----------------|------------------------------|
-| Lambda          | `ferry-lambdas.yml`          |
-| Step Function   | `ferry-step_functions.yml`   |
-| API Gateway     | `ferry-api_gateways.yml`     |
+```yaml
+# .github/workflows/ferry.yml
+name: Ferry Deploy
 
-Place these files in `.github/workflows/` in your repository. You only need workflow files for the resource types you use. For example, if your `ferry.yaml` only defines `lambdas`, you only need `ferry-lambdas.yml`.
+run-name: "Ferry Deploy: ${{ github.event.inputs.payload && fromJson(github.event.inputs.payload).resource_type || 'manual' }}"
 
-**Why does naming matter?** When Ferry detects changes, it groups affected resources by type and fires one `workflow_dispatch` event per type. The dispatch targets the workflow file by name. If the file name does not match, GitHub returns a 404 and the deployment is silently skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: "Ferry dispatch payload (JSON) -- sent by Ferry App, not for manual use"
+        required: true
+
+env:
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  AWS_REGION: us-east-1                    # Adjust to your AWS region
+
+permissions:
+  id-token: write
+  contents: read
+  checks: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      resource_type: ${{ steps.parse.outputs.resource_type }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Ferry payload
+        id: parse
+        uses: AmitLaviDev/ferry/action/setup@main
+        with:
+          payload: ${{ inputs.payload }}
+
+  deploy-lambda:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'lambda'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ferry-deploy-lambda
+      cancel-in-progress: false
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container
+        id: build
+        uses: AmitLaviDev/ferry/action/build@main
+        with:
+          resource-name: ${{ matrix.name }}
+          source-dir: ${{ matrix.source }}
+          ecr-repo: ${{ matrix.ecr }}
+          aws-role-arn: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          trigger-sha: ${{ matrix.trigger_sha }}
+          deployment-tag: ${{ matrix.deployment_tag }}
+          runtime: ${{ matrix.runtime }}
+      - name: Deploy Lambda
+        uses: AmitLaviDev/ferry/action/deploy@main
+        with:
+          resource-name: ${{ matrix.name }}
+          function-name: ${{ matrix.function_name }}
+          image-uri: ${{ steps.build.outputs.image-uri }}
+          image-digest: ${{ steps.build.outputs.image-digest }}
+          deployment-tag: ${{ matrix.deployment_tag }}
+          trigger-sha: ${{ matrix.trigger_sha }}
+          aws-role-arn: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          github-token: ${{ github.token }}
+
+  deploy-step-function:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'step_function'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ferry-deploy-step-function
+      cancel-in-progress: false
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Step Functions
+        uses: AmitLaviDev/ferry/action/deploy-stepfunctions@main
+        with:
+          resource-name: ${{ matrix.name }}
+          state-machine-name: ${{ matrix.state_machine_name }}
+          definition-file: ${{ matrix.definition_file }}
+          source-dir: ${{ matrix.source }}
+          trigger-sha: ${{ matrix.trigger_sha }}
+          deployment-tag: ${{ matrix.deployment_tag }}
+          aws-role-arn: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          github-token: ${{ github.token }}
+
+  deploy-api-gateway:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'api_gateway'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ferry-deploy-api-gateway
+      cancel-in-progress: false
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy API Gateway
+        uses: AmitLaviDev/ferry/action/deploy-apigw@main
+        with:
+          resource-name: ${{ matrix.name }}
+          rest-api-id: ${{ matrix.rest_api_id }}
+          stage-name: ${{ matrix.stage_name }}
+          spec-file: ${{ matrix.spec_file }}
+          source-dir: ${{ matrix.source }}
+          trigger-sha: ${{ matrix.trigger_sha }}
+          deployment-tag: ${{ matrix.deployment_tag }}
+          aws-role-arn: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          github-token: ${{ github.token }}
+```
+
+### Migration from Per-Type Workflows
+
+If you have the previous three-file setup (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`), follow this deploy order to avoid a gap in deployments:
+
+1. Add `.github/workflows/ferry.yml` to your repository and merge it to your default branch.
+2. Deploy the updated Ferry backend (if self-hosting) or confirm the hosted Ferry App has been updated.
+3. Delete the old per-type workflow files from your repository.
+
+Deploy in this order because the Ferry App dispatches to `ferry.yml` by name. If you deploy the backend before `ferry.yml` exists on the default branch, all dispatches return 404 and no deployments run.
 
 ## OIDC Authentication
 
@@ -104,7 +232,7 @@ Ferry uses the GitHub OIDC provider to authenticate with AWS -- no long-lived cr
    - **Step Functions**: `states:UpdateStateMachine`, `states:DescribeStateMachine`, `states:ListTagsForResource`, `states:TagResource`, `sts:GetCallerIdentity`
    - **API Gateways**: `apigateway:PutRestApi`, `apigateway:CreateDeployment`, `apigateway:GetTags`, `apigateway:TagResource`
 
-4. **Pass the role ARN** as the `aws-role-arn` input in your workflow files (see the per-resource-type guides).
+4. **Pass the role ARN** as the `AWS_ROLE_ARN` secret referenced in the `ferry.yml` workflow template (see [Workflow File](#workflow-file) above).
 
 The Ferry Action handles the `AssumeRoleWithWebIdentity` exchange automatically using the `aws-actions/configure-aws-credentials` action.
 
@@ -114,7 +242,7 @@ When you push code to a branch with an open PR (or to the default branch), Ferry
 
 1. **Webhook received** -- The Ferry App receives a `push` webhook from GitHub.
 2. **Change detection** -- Ferry reads your `ferry.yaml`, compares the changed files against each resource's `source_dir`, and groups affected resources by type.
-3. **Dispatch** -- For each resource type with changes, Ferry fires one `workflow_dispatch` event to the corresponding workflow file (e.g., `ferry-lambdas.yml`). The dispatch payload is a JSON string containing all affected resources of that type.
+3. **Dispatch** -- For each resource type with changes, Ferry fires one `workflow_dispatch` event to `ferry.yml`. The dispatch payload is a JSON string containing the resource type and all affected resources of that type.
 4. **Matrix fan-out** -- Your workflow uses the Ferry Setup action (`./action/setup`) to parse the payload into a GHA matrix. Each matrix job handles one resource.
 5. **Build and deploy** -- Each matrix job uses the Ferry Build and/or Deploy actions to build container images, push to ECR, and update the AWS resource.
 
@@ -122,8 +250,8 @@ Ferry posts status updates to the PR throughout this process, so you can see dep
 
 ## Per-Resource-Type Guides
 
-For detailed workflow setup instructions and annotated example workflow files, see:
+For resource-specific configuration details, see:
 
-- [Lambda Workflows](lambdas.md) -- Build container images and deploy Lambda functions
-- [Step Functions Workflows](step-functions.md) -- Deploy state machine definitions with variable substitution
-- [API Gateway Workflows](api-gateways.md) -- Deploy REST APIs from OpenAPI specs
+- [Lambda Workflows](lambdas.md) -- ferry.yaml configuration, runtime override, and Magic Dockerfile
+- [Step Functions Workflows](step-functions.md) -- ferry.yaml configuration, variable substitution, and content-hash skip detection
+- [API Gateway Workflows](api-gateways.md) -- ferry.yaml configuration, spec format, and content-hash skip detection
