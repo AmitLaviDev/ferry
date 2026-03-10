@@ -53,7 +53,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Active
 
-- v1.5: Batched dispatch — single workflow run per push deploys all affected resource types (instead of one dispatch per type with skipped jobs)
+- v1.5 Batched Dispatch: Single dispatch per push deploys all affected resource types in one workflow run (eliminates per-type dispatch with skipped-job clutter in GHA UI)
 
 ### Out of Scope
 
@@ -193,9 +193,15 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - **Mid-way deployments**: Deploy to staging/preview environments from PRs before merge. Requires environment mapping in ferry.yaml (e.g., `main` → prod, `develop` → staging).
 - Touches: webhook handler (new event types), dispatch model (plan vs apply mode), ferry.yaml schema (environment config), action scripts (dry-run mode), PR comment formatting.
 
-## Next Milestone: v1.5 Batched Dispatch
+## Current Milestone: v1.5 Batched Dispatch
 
 **Goal:** Single dispatch per push deploys all affected resource types in one workflow run (instead of one dispatch per type with 2 skipped jobs visible in GHA UI).
 
+**Target features:**
+- Batch all affected resource types into a single workflow_dispatch payload
+- Setup action outputs multiple matrices (one per affected type)
+- Workflow template handles multi-type payloads with only relevant jobs active
+- Clean GHA UI: 1 workflow run per push, no skipped-job noise
+
 ---
-*Last updated: 2026-03-10 after shipping v1.4 Unified Workflow*
+*Last updated: 2026-03-10 after starting v1.5 Batched Dispatch milestone*
