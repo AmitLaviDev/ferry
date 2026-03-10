@@ -3,38 +3,33 @@
 **Defined:** 2026-03-10
 **Core Value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
 
-## v1.4 Requirements
+## v1.5 Requirements
 
-Requirements for Unified Workflow milestone. Each maps to roadmap phases.
+Requirements for Batched Dispatch milestone. Each maps to roadmap phases.
 
-### Workflow Template
+### Dispatch
 
-- [ ] **WF-01**: Single `ferry.yml` file handles all resource types (replaces `ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`)
-- [ ] **WF-02**: Each dispatch triggers only the matching type's job via conditional routing (`if: needs.setup.outputs.resource_type == '<type>'`)
-- [ ] **WF-03**: Lambda deploy job uses matrix strategy for parallel per-resource builds
-- [ ] **WF-04**: Step Functions deploy job uses sequential loop (no matrix overhead)
-- [ ] **WF-05**: API Gateway deploy job uses sequential loop (no matrix overhead)
-- [ ] **WF-06**: Workflow runs display resource type in GHA UI via `run-name`
-
-### Backend
-
-- [ ] **BE-01**: All dispatches target `ferry.yml` regardless of resource type
-- [ ] **BE-02**: Remove/replace `RESOURCE_TYPE_WORKFLOW_MAP` with single workflow filename constant
+- [ ] **DISP-01**: Backend sends a single workflow_dispatch per push containing all affected resource types in one payload
+- [ ] **DISP-02**: Batched payload uses schema version field (v=2) to distinguish from v1 per-type payloads
+- [ ] **DISP-03**: Backend falls back to per-type dispatch if combined payload exceeds 65,535 character limit
 
 ### Action
 
-- [ ] **ACT-01**: Setup action exposes `resource_type` as a workflow output
-- [ ] **ACT-02**: Setup action outputs matrix JSON (existing behavior preserved)
+- [ ] **ACT-01**: Setup action outputs per-type boolean flags (has_lambdas, has_step_functions, has_api_gateways)
+- [ ] **ACT-02**: Setup action outputs per-type matrix JSON (lambda_matrix, sf_matrix, ag_matrix)
+- [ ] **ACT-03**: Setup action outputs resource_types string (comma-separated list of affected types) for run-name
+- [ ] **ACT-04**: Setup action parses both v1 (per-type) and v2 (batched) payloads for backward compatibility during rollout
 
-### Documentation
+### Template
 
-- [ ] **DOC-01**: Docs updated with unified `ferry.yml` template and setup instructions
-- [ ] **DOC-02**: Migration guide documents deploy order (user repo first, backend second)
+- [ ] **TMPL-01**: Deploy jobs gate on boolean flags (if: has_lambdas == 'true') instead of resource_type string comparison
+- [ ] **TMPL-02**: Each deploy job references its own per-type matrix output (fromJson(needs.setup.outputs.lambda_matrix))
+- [ ] **TMPL-03**: Workflow run-name dynamically displays all affected resource types
 
 ### Validation
 
-- [ ] **VAL-01**: Test repo migrated from 3 workflow files to single `ferry.yml`
-- [ ] **VAL-02**: E2E push-to-deploy works for all 3 resource types via unified workflow
+- [ ] **VAL-01**: Multi-type push (touching all 3 types) produces 1 workflow run with all 3 deploy jobs active
+- [ ] **VAL-02**: Single-type push produces 1 workflow run with 1 active deploy job and 2 skipped
 
 ## Future Requirements
 
@@ -45,14 +40,19 @@ Requirements for Unified Workflow milestone. Each maps to roadmap phases.
 - **PR-03**: Mid-way deployments to staging/preview environments from PRs
 - **PR-04**: Environment/branch mapping (e.g., main -> prod, develop -> staging)
 
+### Deferred from v1.5
+
+- **DEF-01**: Ordered cross-type deploys (Lambda before SF before APGW) -- add in v2.0
+- **DEF-02**: Aggregated status reporting (one Check Run summary for all types) -- add in v2.0
+
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Single dispatch with all types | Overcomplicates payload structure; per-type dispatch model works well |
-| Workflow-level concurrency groups | Known GHA bug with `inputs` context; not needed for v1.4 |
-| Hiding skipped jobs in GHA UI | GHA limitation, no workaround available |
-| Backward compatibility (old + new filenames) | Only one test repo; clean cut is sufficient |
+| Eliminating skipped-job UI noise entirely | GHA limitation -- static job model cannot hide skipped jobs |
+| Ordered cross-type deploys | Types deploy independently in parallel; dependency chain is v2.0 |
+| Aggregated status reporting | Each deploy job posts its own Check Run; summary job is v2.0 polish |
+| Workflow-level concurrency groups | Known GHA bug with `inputs` context; job-level groups sufficient |
 | Multi-tenant migration tooling | v2+ concern when other orgs use Ferry |
 
 ## Traceability
@@ -61,26 +61,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WF-01 | Phase 23 | Pending |
-| WF-02 | Phase 23 | Pending |
-| WF-03 | Phase 23 | Pending |
-| WF-04 | Phase 23 | Pending |
-| WF-05 | Phase 23 | Pending |
-| WF-06 | Phase 23 | Pending |
-| BE-01 | Phase 22 | Pending |
-| BE-02 | Phase 22 | Pending |
-| ACT-01 | Phase 22 | Pending |
-| ACT-02 | Phase 22 | Pending |
-| DOC-01 | Phase 23 | Pending |
-| DOC-02 | Phase 23 | Pending |
-| VAL-01 | Phase 24 | Pending |
-| VAL-02 | Phase 24 | Pending |
+| DISP-01 | TBD | Pending |
+| DISP-02 | TBD | Pending |
+| DISP-03 | TBD | Pending |
+| ACT-01 | TBD | Pending |
+| ACT-02 | TBD | Pending |
+| ACT-03 | TBD | Pending |
+| ACT-04 | TBD | Pending |
+| TMPL-01 | TBD | Pending |
+| TMPL-02 | TBD | Pending |
+| TMPL-03 | TBD | Pending |
+| VAL-01 | TBD | Pending |
+| VAL-02 | TBD | Pending |
 
 **Coverage:**
-- v1.4 requirements: 14 total
-- Mapped to phases: 14
-- Unmapped: 0
+- v1.5 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after roadmap creation (phases 22-24 mapped)*
+*Last updated: 2026-03-10 after initial definition*
