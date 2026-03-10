@@ -6,7 +6,8 @@
 - v1.1 Deploy to Staging -- Phases 11-14 (shipped 2026-03-03)
 - v1.2 End-to-End Validation -- Phases 15-17 (shipped 2026-03-08)
 - v1.3 Full-Chain E2E -- Phases 18-21 (shipped 2026-03-10)
-- v1.4 Unified Workflow -- Phases 22-24 (active)
+- v1.4 Unified Workflow -- Phases 22-24 (shipped 2026-03-10)
+- v1.5 Batched Dispatch -- Phases 25-28 (active)
 - v2.0 PR Integration -- Mid-workflow deployments with "ferry plan" and "ferry apply" (planned)
 
 ## Phases
@@ -65,13 +66,25 @@ Full details: [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
 
 </details>
 
-### v1.4 Unified Workflow (Phases 22-24) -- ACTIVE
+<details>
+<summary>v1.4 Unified Workflow (Phases 22-24) -- SHIPPED 2026-03-10</summary>
 
-- [ ] **Phase 22: Backend and Action Code Changes** - Backend dispatches to `ferry.yml`; setup action exposes `resource_type` output
-- [ ] **Phase 23: Unified Workflow Template and Docs** - Create `ferry.yml` template with conditional jobs per type; update documentation
-- [ ] **Phase 24: Test Repo Migration and E2E Validation** - Migrate test repo to unified workflow; prove all 3 resource types deploy via single file
+- [x] Phase 22: Backend and Action Code Changes (1/1 plan) -- completed 2026-03-10
+- [x] Phase 23: Unified Workflow Template and Docs (1/1 plan) -- completed 2026-03-10
+- [x] Phase 24: Test Repo Migration and E2E Validation (1/1 plan) -- completed 2026-03-10
 
-Full details: [iac/test-env/.planning/ROADMAP.md](../iac/test-env/.planning/ROADMAP.md)
+Full details: [iac/test-env/.planning/milestones/v1.4-ROADMAP.md](../iac/test-env/.planning/milestones/v1.4-ROADMAP.md)
+
+</details>
+
+### v1.5 Batched Dispatch (Phases 25-28) -- ACTIVE
+
+- [ ] **Phase 25: Shared Models and Schema** - Add BatchedDispatchPayload model and bump schema version to 2
+- [ ] **Phase 26: Backend Batched Dispatch** - Replace per-type dispatch loop with single batched dispatch, add payload-size fallback
+- [ ] **Phase 27: Action Parsing and Workflow Template** - Parse batched payloads into per-type outputs; update ferry.yml template with boolean gates and per-type matrices
+- [ ] **Phase 28: E2E Validation** - Prove batched dispatch works end-to-end with test repo
+
+Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 
 ## Progress
 
@@ -96,9 +109,11 @@ Full details: [iac/test-env/.planning/ROADMAP.md](../iac/test-env/.planning/ROAD
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
 | 18-21. Full-Chain E2E | v1.3 | 7/7 | Complete | 2026-03-10 |
-| 22. Backend and Action Code Changes | v1.4 | 0/? | Not started | - |
-| 23. Unified Workflow Template and Docs | v1.4 | 0/? | Not started | - |
-| 24. Test Repo Migration and E2E Validation | v1.4 | 0/? | Not started | - |
+| 22-24. Unified Workflow | v1.4 | 3/3 | Complete | 2026-03-10 |
+| 25. Shared Models and Schema | v1.5 | 0/? | Not started | - |
+| 26. Backend Batched Dispatch | v1.5 | 0/? | Not started | - |
+| 27. Action Parsing and Workflow Template | v1.5 | 0/? | Not started | - |
+| 28. E2E Validation | v1.5 | 0/? | Not started | - |
 
 ## Future Milestones
 

@@ -5,18 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.5 Batched Dispatch
+**Current focus:** v1.5 Batched Dispatch -- Phase 25
 
 ## Current Position
 
 Milestone: v1.5 Batched Dispatch
-Phase: Not started (defining requirements)
+Phase: 25 of 28 (Shared Models and Schema)
 Plan: --
-Status: Defining requirements
-Last activity: 2026-03-10 -- Milestone v1.5 started
+Status: Ready to plan
+Last activity: 2026-03-10 -- Roadmap created for v1.5
 
 ```
-v1.5 Progress: [..........] 0/? phases
+v1.5 Progress: [..........] 0/4 phases
 ```
 
 ## Shipped Milestones
@@ -43,19 +43,20 @@ v1.5 Progress: [..........] 0/? phases
 
 ## Accumulated Context
 
-### Key Decisions (v1.4)
-- Lambdas use matrix strategy (parallel), SF and APGW use sequential loop (no matrix)
-- Backend keeps per-type dispatch model, just changes target filename to ferry.yml
-- Deploy order: user repo gets ferry.yml first, then backend switches dispatch target
-- No backward compatibility period needed (single test repo)
-- `resource_type` string comparison for routing (not boolean outputs) -- simpler, sufficient for v1.4
+### Key Decisions (v1.5)
+
+- Batched payload uses named per-type lists (lambdas, step_functions, api_gateways) not a flat discriminated union
+- Boolean flags gate deploy jobs (prevents empty-matrix fromJson crash)
+- Schema version v=2 distinguishes batched from legacy payloads
+- Retain v1 DispatchPayload for backward compat during rollout
 
 ### Carry-forward Concerns
+
 - Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
 - `pr_lookup_failed` (403) on push events -- relevant for v2.0, not v1.5
 
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Starting v1.5 Batched Dispatch milestone.
-Next step: Define requirements and create roadmap.
+Stopped at: Created v1.5 roadmap (4 phases, 12 requirements mapped).
+Next step: `/gsd:plan-phase 25` to plan Shared Models and Schema phase.

@@ -57,28 +57,26 @@ Requirements for Batched Dispatch milestone. Each maps to roadmap phases.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISP-01 | TBD | Pending |
-| DISP-02 | TBD | Pending |
-| DISP-03 | TBD | Pending |
-| ACT-01 | TBD | Pending |
-| ACT-02 | TBD | Pending |
-| ACT-03 | TBD | Pending |
-| ACT-04 | TBD | Pending |
-| TMPL-01 | TBD | Pending |
-| TMPL-02 | TBD | Pending |
-| TMPL-03 | TBD | Pending |
-| VAL-01 | TBD | Pending |
-| VAL-02 | TBD | Pending |
+| DISP-01 | Phase 26 | Pending |
+| DISP-02 | Phase 25 | Pending |
+| DISP-03 | Phase 26 | Pending |
+| ACT-01 | Phase 27 | Pending |
+| ACT-02 | Phase 27 | Pending |
+| ACT-03 | Phase 27 | Pending |
+| ACT-04 | Phase 27 | Pending |
+| TMPL-01 | Phase 27 | Pending |
+| TMPL-02 | Phase 27 | Pending |
+| TMPL-03 | Phase 27 | Pending |
+| VAL-01 | Phase 28 | Pending |
+| VAL-02 | Phase 28 | Pending |
 
 **Coverage:**
 - v1.5 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12
+- Mapped to phases: 12
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after initial definition*
+*Last updated: 2026-03-10 after roadmap creation*

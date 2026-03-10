@@ -23,8 +23,6 @@
 
 **Git range:** `feat(01-01)` → `feat(10-01)`
 
-**What's next:** v1.1 — environment management, multi-account support, or reliability features
-
 ---
 
 ## v1.1 Deploy to Staging (Shipped: 2026-03-03)
@@ -67,6 +65,55 @@
 - 5 days (2026-03-03 → 2026-03-08)
 - Codebase: 9,384 LOC Python + 1,290 LOC Terraform
 
-**What's next:** v1.3 — pending todos cleanup + next feature milestone
+---
+
+## v1.3 Full-Chain E2E (Shipped: 2026-03-10)
+
+**Delivered:** Full three-type deployment chain (APGW -> SF -> Lambda) proven end-to-end via Ferry dispatch, plus tech debt cleanup from v1.2.
+
+**Phases completed:** 18-21 (7 plans total)
+
+**Key accomplishments:**
+- Cleaned up 5 tech debt items from v1.2
+- Deployed Step Functions and API Gateway infrastructure for test environment
+- Updated test repo with SF and APGW resources in ferry.yaml
+- Proved full chain: push triggers dispatch for all 3 resource types, each deploys successfully
+- Fixed 5 bugs discovered during chain validation
+
+**Stats:**
+- 4 phases, 7 plans
+- 2 days (2026-03-08 → 2026-03-10)
 
 ---
+
+## v1.4 Unified Workflow (Shipped: 2026-03-10)
+
+**Delivered:** Single `ferry.yml` replaces three per-type workflow files. Backend dispatches all types to `ferry.yml`, setup action exposes `resource_type` for conditional job routing.
+
+**Phases completed:** 22-24 (3 plans total)
+
+**Key accomplishments:**
+- Backend dispatch changed to target `ferry.yml` for all resource types
+- Setup action exposes `resource_type` output for conditional job routing
+- Unified `ferry.yml` template with conditional deploy jobs per type
+- Test repo migrated from 3 workflow files to single `ferry.yml`
+- All 3 resource types validated E2E through unified dispatch
+
+**Stats:**
+- 3 phases, 3 plans
+- 1 day (2026-03-10)
+
+---
+
+## v1.5 Batched Dispatch (Active)
+
+**Goal:** Single dispatch per push deploys all affected resource types in one workflow run (instead of one dispatch per type with skipped-job clutter in GHA UI).
+
+**Phases:** 25-28 (4 phases)
+
+**Target features:**
+- Batch all affected resource types into a single workflow_dispatch payload (schema v2)
+- Setup action outputs per-type boolean flags and matrices
+- Workflow template gates deploy jobs on boolean flags with per-type matrix references
+- Backward-compatible payload parsing (v1 and v2)
+- Clean GHA UI: 1 workflow run per push, no skipped-job noise for multi-type pushes
