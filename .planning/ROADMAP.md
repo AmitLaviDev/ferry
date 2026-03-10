@@ -6,7 +6,7 @@
 - v1.1 Deploy to Staging -- Phases 11-14 (shipped 2026-03-03)
 - v1.2 End-to-End Validation -- Phases 15-17 (shipped 2026-03-08)
 - v1.3 Full-Chain E2E -- Phases 18-21 (shipped 2026-03-10)
-- v1.4 Unified Workflow -- Consolidate three per-type workflow files into one `ferry.yml` (planned)
+- v1.4 Unified Workflow -- Phases 22-24 (active)
 - v2.0 PR Integration -- Mid-workflow deployments with "ferry plan" and "ferry apply" (planned)
 
 ## Phases
@@ -65,6 +65,14 @@ Full details: [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
 
 </details>
 
+### v1.4 Unified Workflow (Phases 22-24) -- ACTIVE
+
+- [ ] **Phase 22: Backend and Action Code Changes** - Backend dispatches to `ferry.yml`; setup action exposes `resource_type` output
+- [ ] **Phase 23: Unified Workflow Template and Docs** - Create `ferry.yml` template with conditional jobs per type; update documentation
+- [ ] **Phase 24: Test Repo Migration and E2E Validation** - Migrate test repo to unified workflow; prove all 3 resource types deploy via single file
+
+Full details: [iac/test-env/.planning/ROADMAP.md](../iac/test-env/.planning/ROADMAP.md)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -88,19 +96,17 @@ Full details: [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
 | 16. Provision Test Environment | v1.2 | 3/3 | Complete | 2026-03-07 |
 | 17. End-to-End Loop Validation | v1.2 | 3/3 | Complete | 2026-03-08 |
 | 18-21. Full-Chain E2E | v1.3 | 7/7 | Complete | 2026-03-10 |
+| 22. Backend and Action Code Changes | v1.4 | 0/? | Not started | - |
+| 23. Unified Workflow Template and Docs | v1.4 | 0/? | Not started | - |
+| 24. Test Repo Migration and E2E Validation | v1.4 | 0/? | Not started | - |
 
 ## Future Milestones
 
-### v1.4 Unified Workflow
-**Goal:** Consolidate the three per-type workflow files (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`) into a single `ferry.yml` from the customer's perspective.
-
-Users currently maintain one workflow file per resource type. v1.4 replaces this with a single `ferry.yml` that handles all types via conditional jobs. Backend still sends one dispatch per type (minimal backend change), all targeting the same `ferry.yml`. Touches: dispatch.py (workflow filename), setup action (type output), docs/templates, user workflow files.
-
 ### v2.0 PR Integration
-**Goal:** Add PR-triggered deployments with a "ferry plan" / "ferry apply" model — preview what will deploy on PR open/update, deploy on merge or explicit approval.
+**Goal:** Add PR-triggered deployments with a "ferry plan" / "ferry apply" model -- preview what will deploy on PR open/update, deploy on merge or explicit approval.
 
 Key capabilities:
 - **ferry plan**: On `pull_request` events, show what resources would be built/deployed (diff preview in PR comment or Check Run)
 - **ferry apply**: On merge to target branch (or explicit comment trigger), execute the actual build and deploy
 - Mid-way deployments: deploy to staging/preview environments from PRs before merge
-- Environment/branch mapping (e.g., `main` → prod, `develop` → staging)
+- Environment/branch mapping (e.g., `main` -> prod, `develop` -> staging)

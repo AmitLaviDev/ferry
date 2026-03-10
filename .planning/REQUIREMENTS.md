@@ -61,26 +61,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WF-01 | — | Pending |
-| WF-02 | — | Pending |
-| WF-03 | — | Pending |
-| WF-04 | — | Pending |
-| WF-05 | — | Pending |
-| WF-06 | — | Pending |
-| BE-01 | — | Pending |
-| BE-02 | — | Pending |
-| ACT-01 | — | Pending |
-| ACT-02 | — | Pending |
-| DOC-01 | — | Pending |
-| DOC-02 | — | Pending |
-| VAL-01 | — | Pending |
-| VAL-02 | — | Pending |
+| WF-01 | Phase 23 | Pending |
+| WF-02 | Phase 23 | Pending |
+| WF-03 | Phase 23 | Pending |
+| WF-04 | Phase 23 | Pending |
+| WF-05 | Phase 23 | Pending |
+| WF-06 | Phase 23 | Pending |
+| BE-01 | Phase 22 | Pending |
+| BE-02 | Phase 22 | Pending |
+| ACT-01 | Phase 22 | Pending |
+| ACT-02 | Phase 22 | Pending |
+| DOC-01 | Phase 23 | Pending |
+| DOC-02 | Phase 23 | Pending |
+| VAL-01 | Phase 24 | Pending |
+| VAL-02 | Phase 24 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14
+- Mapped to phases: 14
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after initial definition*
+*Last updated: 2026-03-10 after roadmap creation (phases 22-24 mapped)*
