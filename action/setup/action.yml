@@ -10,6 +10,9 @@ outputs:
   matrix:
     description: "JSON string for fromJson() in GHA strategy matrix"
     value: ${{ steps.parse.outputs.matrix }}
+  resource_type:
+    description: "Resource type string for conditional job routing"
+    value: ${{ steps.parse.outputs.resource_type }}
 
 runs:
   using: composite

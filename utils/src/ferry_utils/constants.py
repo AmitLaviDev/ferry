@@ -14,9 +14,5 @@ class ResourceType(StrEnum):
     API_GATEWAY = "api_gateway"
 
 
-# Maps ResourceType to workflow dispatch type names
-RESOURCE_TYPE_WORKFLOW_MAP: dict[ResourceType, str] = {
-    ResourceType.LAMBDA: "lambdas",
-    ResourceType.STEP_FUNCTION: "step_functions",
-    ResourceType.API_GATEWAY: "api_gateways",
-}
+# Unified workflow filename for all dispatch types
+WORKFLOW_FILENAME = "ferry.yml"

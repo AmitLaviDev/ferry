@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from ferry_utils.constants import RESOURCE_TYPE_WORKFLOW_MAP, ResourceType
+from ferry_utils.constants import WORKFLOW_FILENAME
 from ferry_utils.models.dispatch import (
     ApiGatewayResource,
     DispatchPayload,
@@ -151,8 +151,7 @@ def trigger_dispatches(
         )
 
         # Determine workflow file
-        workflow_name = RESOURCE_TYPE_WORKFLOW_MAP[ResourceType(rtype)]
-        workflow_file = f"ferry-{workflow_name}.yml"
+        workflow_file = WORKFLOW_FILENAME
 
         # Check payload size
         payload_json = payload.model_dump_json()

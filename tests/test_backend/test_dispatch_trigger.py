@@ -71,10 +71,7 @@ class TestTriggerDispatches:
     def test_trigger_dispatches_single_type(self, httpx_mock):
         """Two lambdas -> one dispatch with both in resources list."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 
@@ -116,7 +113,7 @@ class TestTriggerDispatches:
         assert len(results) == 1
         assert results[0]["type"] == "lambda"
         assert results[0]["status"] == 204
-        assert results[0]["workflow"] == "ferry-lambdas.yml"
+        assert results[0]["workflow"] == "ferry.yml"
 
         # Verify payload contains both resources
         request = httpx_mock.get_requests()[0]
@@ -129,17 +126,11 @@ class TestTriggerDispatches:
     def test_trigger_dispatches_multiple_types(self, httpx_mock):
         """Lambda + step_function -> 2 dispatches."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-step_functions.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 
@@ -205,10 +196,7 @@ class TestTriggerDispatches:
     def test_trigger_dispatches_payload_format(self, httpx_mock):
         """Verify JSON payload structure matches DispatchPayload schema."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 
@@ -260,10 +248,7 @@ class TestTriggerDispatches:
     def test_trigger_dispatches_includes_explicit_function_name(self, httpx_mock):
         """function_name that differs from name flows through dispatch payload."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 
@@ -303,19 +288,13 @@ class TestTriggerDispatches:
         assert resource["function_name"] == "order-processor-prod"
 
     def test_trigger_dispatches_uses_correct_workflow_file(self, httpx_mock):
-        """lambda -> ferry-lambdas.yml, step_function -> ferry-step_functions.yml."""
+        """All resource types dispatch to ferry.yml."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-step_functions.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 
@@ -360,16 +339,12 @@ class TestTriggerDispatches:
         )
 
         workflows = {r["workflow"] for r in results}
-        assert "ferry-lambdas.yml" in workflows
-        assert "ferry-step_functions.yml" in workflows
+        assert workflows == {"ferry.yml"}  # All types use unified workflow
 
     def test_trigger_dispatches_resource_field_mapping(self, httpx_mock):
         """Verify source_dir -> 'source' and ecr_repo -> 'ecr' in payload."""
         httpx_mock.add_response(
-            url=(
-                "https://api.github.com/repos/owner/repo"
-                "/actions/workflows/ferry-lambdas.yml/dispatches"
-            ),
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
         )
 

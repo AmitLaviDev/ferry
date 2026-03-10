@@ -131,6 +131,10 @@ def main() -> None:
     matrix_json = json.dumps(matrix, separators=(",", ":"))
     set_output("matrix", matrix_json)
 
+    # Extract resource_type for conditional job routing
+    payload = DispatchPayload.model_validate_json(payload_str)
+    set_output("resource_type", payload.resource_type)
+
 
 if __name__ == "__main__":
     main()

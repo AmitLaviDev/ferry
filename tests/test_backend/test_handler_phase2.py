@@ -190,7 +190,7 @@ def _mock_check_run(httpx_mock):
     )
 
 
-def _mock_dispatch(httpx_mock, workflow_file="ferry-lambdas.yml"):
+def _mock_dispatch(httpx_mock, workflow_file="ferry.yml"):
     """Mock the workflow dispatch API endpoint."""
     httpx_mock.add_response(
         url=(

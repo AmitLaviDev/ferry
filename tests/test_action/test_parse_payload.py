@@ -328,10 +328,15 @@ class TestMain:
         main()
 
         content = output_file.read_text()
-        assert content.startswith("matrix=")
+        lines = content.strip().split("\n")
+        assert len(lines) == 2
 
-        # Parse the matrix JSON from the output
-        matrix_json = content.split("=", 1)[1].strip()
+        # First line: matrix output
+        assert lines[0].startswith("matrix=")
+        matrix_json = lines[0].split("=", 1)[1]
         matrix = json.loads(matrix_json)
         assert "include" in matrix
         assert len(matrix["include"]) == 2
+
+        # Second line: resource_type output
+        assert lines[1] == "resource_type=lambda"
