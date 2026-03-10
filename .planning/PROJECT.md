@@ -46,13 +46,14 @@ When a developer pushes code, every affected serverless resource is automaticall
 - ✓ Full chain works: APGW → SF → Lambda, all deployed via Ferry dispatch — v1.3
 - ✓ Two-level skip detection: dispatch-level (no affected resources) and deploy-level (content-hash unchanged) — v1.3
 - ✓ Multi-type dispatch: single push triggers parallel deploys for all affected resource types — v1.3
+- ✓ Unified workflow: single `ferry.yml` with conditional jobs per resource type — v1.4
+- ✓ Backend dispatches all types to `ferry.yml` (single target filename) — v1.4
+- ✓ Setup action exposes `resource_type` output for conditional job routing — v1.4
+- ✓ Docs updated with unified template and migration guide — v1.4
 
 ### Active
 
-- v1.4: Consolidate three per-type workflow files (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`) into single `ferry.yml` with conditional jobs per type
-- v1.4: Backend dispatches all types to `ferry.yml` (keep per-type dispatch model, change target filename)
-- v1.4: Setup action exposes resource_type for conditional job routing
-- v1.4: Update docs, templates, and test repo for unified workflow
+- v1.5: Batched dispatch — single workflow run per push deploys all affected resource types (instead of one dispatch per type with skipped jobs)
 
 ### Out of Scope
 
@@ -60,7 +61,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 - AI discovery — no automatic resource detection, ferry.yaml is explicit
 - SageMaker model deployment — different workflow, not serverless compute
 - Multi-account AWS — single target account per workflow run for v1
-- ~~Unified workflow (single `ferry.yml` instead of per-type workflow files) — moved to Active for v1.4~~
+- ~~Unified workflow (single `ferry.yml` instead of per-type workflow files) — shipped in v1.4~~
 - PR integration with "ferry plan" / "ferry apply" and mid-way deployments — v2.0
 - Environment/branch mapping — v2.0
 - RBAC / permissions — relies on GitHub App installation permissions
@@ -74,7 +75,7 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Current State
 
-v1.3 shipped. All three resource types (Lambda, Step Functions, API Gateway) proven working end-to-end via Ferry dispatch, including full chain invocation (APGW → SF → Lambda), two-level skip detection, and multi-type dispatch.
+v1.4 shipped. Unified workflow: single `ferry.yml` replaces three per-type workflow files. All resource types validated E2E through unified dispatch.
 - 9,384 lines of Python across ~170 files + 1,290 lines of Terraform
 - Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto
 - Three packages: ferry-backend (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models)
@@ -179,8 +180,11 @@ api_gateways:
 
 ## Future Design Notes
 
-### v1.4: Unified workflow file
-Currently users create one workflow file per resource type (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`). For v1.4, consolidate into a single `ferry.yml` with one job per type. The backend dispatches to `ferry.yml` with the resource type in the payload, and conditional jobs (`if: needs.setup.outputs.has_lambdas == 'true'`) skip unaffected types. Simplest approach: backend still sends one dispatch per type (Option B — minimal backend change), all targeting the same `ferry.yml`. Touches: dispatch.py (workflow filename), setup action (type output), docs/templates, user workflow files.
+### v1.4: Unified workflow file (SHIPPED)
+Consolidated three per-type workflow files into single `ferry.yml`. Backend dispatches all types to `ferry.yml`, setup action exposes `resource_type`, conditional jobs route by type. Used Option B (minimal backend change — one dispatch per type, same filename).
+
+### v1.5: Batched dispatch
+Currently each resource type triggers a separate `workflow_dispatch` to `ferry.yml`, resulting in 3 workflow runs (with 2 skipped jobs each) when a push touches all 3 types. Batch all affected types into a single dispatch so the user sees 1 clean workflow run with only the relevant deploy jobs active. Touches: backend dispatch logic (batch types into single payload), setup action (output multiple matrices), workflow template (remove `if` guards or make multi-type aware), payload schema.
 
 ### v2.0: PR integration — "ferry plan" / "ferry apply"
 Currently Ferry only handles `push` events on the default branch. v2.0 adds `pull_request` event handling with a plan/apply model:
@@ -189,16 +193,9 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - **Mid-way deployments**: Deploy to staging/preview environments from PRs before merge. Requires environment mapping in ferry.yaml (e.g., `main` → prod, `develop` → staging).
 - Touches: webhook handler (new event types), dispatch model (plan vs apply mode), ferry.yaml schema (environment config), action scripts (dry-run mode), PR comment formatting.
 
-## Current Milestone: v1.4 Unified Workflow
+## Next Milestone: v1.5 Batched Dispatch
 
-**Goal:** Consolidate three per-type workflow files into a single `ferry.yml` so users maintain one workflow file regardless of how many resource types they use.
-
-**Target features:**
-- Single `ferry.yml` replaces `ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`
-- Backend dispatches all resource types to `ferry.yml` (per-type dispatch model preserved)
-- Setup action exposes `resource_type` output for conditional job routing
-- Conditional jobs: only the job matching the dispatched type runs
-- Updated docs, templates, and test repo
+**Goal:** Single dispatch per push deploys all affected resource types in one workflow run (instead of one dispatch per type with 2 skipped jobs visible in GHA UI).
 
 ---
-*Last updated: 2026-03-10 after starting v1.4 Unified Workflow milestone*
+*Last updated: 2026-03-10 after shipping v1.4 Unified Workflow*

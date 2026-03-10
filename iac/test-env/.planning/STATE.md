@@ -6,18 +6,17 @@ See: .planning/PROJECT.md (in main ferry repo)
 See: .planning/ROADMAP.md (this directory)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.4 Unified Workflow
+**Current focus:** Next milestone planning
 
 ## Current Position
 
-Milestone: v1.4 Unified Workflow
-Phase: 22 - Backend and Action Code Changes (not started)
-Plan: --
-Status: Roadmap created, ready for phase planning
-Last activity: 2026-03-10 -- Roadmap created
+Milestone: v1.4 Unified Workflow -- COMPLETE
+Phase: All phases complete (22, 23, 24)
+Status: Milestone shipped
+Last activity: 2026-03-10 -- Phase 24 executed, all 3 resource types validated E2E
 
 ```
-v1.4 Progress: [..........] 0/3 phases
+v1.4 Progress: [##########] 3/3 phases (22 done, 23 done, 24 done)
 ```
 
 ## Shipped Milestones
@@ -28,6 +27,7 @@ v1.4 Progress: [..........] 0/3 phases
 | v1.1 | Deploy to Staging | 11-14 | 2026-03-03 |
 | v1.2 | End-to-End Validation | 15-17 | 2026-03-08 |
 | v1.3 | Full-Chain E2E | 18-21 | 2026-03-10 |
+| v1.4 | Unified Workflow | 22-24 | 2026-03-10 |
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ v1.4 Progress: [..........] 0/3 phases
 **v1.1:** 5 phases, 8 plans (2026-02-28 to 2026-03-03)
 **v1.2:** 3 phases, 9 plans (2026-03-03 to 2026-03-08)
 **v1.3:** 4 phases, 7 plans (2026-03-08 to 2026-03-10)
+**v1.4:** 3 phases, 3 plans (2026-03-10)
 
 ## Accumulated Context
 
@@ -62,6 +63,5 @@ v1.4 Progress: [..........] 0/3 phases
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Roadmap created for v1.4. Ready for `/gsd:plan-phase 22`.
-Next step: Plan Phase 22 (Backend and Action Code Changes).
-No pending manual follow-ups.
+Stopped at: v1.4 milestone complete. All phases shipped.
+Next step: Plan next milestone (v2.0 PR Integration or other priority).
