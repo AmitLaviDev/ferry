@@ -1,156 +1,176 @@
 # Project Research Summary
 
-**Project:** Ferry v1.4 Unified Workflow Consolidation
-**Domain:** GitHub Actions YAML architecture / serverless deploy tooling
+**Project:** Ferry v1.5 Batched Dispatch
+**Domain:** GitHub Actions dispatch consolidation for serverless deploy tool
 **Researched:** 2026-03-10
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Ferry v1.4 is a targeted refactor: three per-type workflow files (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`) are replaced by a single `ferry.yml`. The change is deliberately minimal. The backend still sends one `workflow_dispatch` per resource type — only the target filename changes from a type-derived string to the hardcoded constant `"ferry.yml"`. Inside the unified workflow, a shared `setup` job exposes `resource_type` as a GHA output, and three conditional deploy jobs use `if: needs.setup.outputs.resource_type == '<type>'` to route execution. No new libraries or dependencies are required.
+Ferry v1.5 replaces per-type `workflow_dispatch` (up to 3 dispatches per push) with a single batched dispatch carrying all affected resource types in one payload. This is a targeted, surgical change across 4 layers: the Pydantic dispatch model (`BatchedDispatchPayload` v2), the backend dispatch loop in `trigger.py` (N POSTs become 1), the setup action's `parse_payload.py` (single-type matrix becomes per-type matrix outputs + boolean flags), and the user's `ferry.yml` template (string equality checks become boolean checks). No new libraries or dependencies are introduced. Every piece of this change touches existing code that is already well-understood and tested.
 
-The recommended approach is Option B (backend dispatches to a single file, routing done in YAML via job-level `if` conditions). This is the correct architecture because it preserves the proven per-type dispatch model, keeps GHA logs clean and focused on one type per run, and requires only four small code edits plus the new workflow template. The alternative approaches — reusable workflows, matrix-based routing, or a monolithic dispatch — all add abstraction, indirection, or complexity that this straightforward refactor does not need.
+The recommended approach is a strict 4-phase build order driven by dependency flow: shared models first (both backend and action import from them), backend and action changes in parallel second (they are independent of each other), updated workflow template and docs third (depends on knowing the output names from phase 2), and E2E validation fourth. The key GHA behavioral constraints are all HIGH-confidence verified: `if:` conditions prevent `fromJson` evaluation on empty matrices, boolean string comparison (`== 'true'`) is the correct pattern for job gating, multiple deploy jobs with `needs: setup` and no cross-dependency run in parallel, and job-level concurrency groups with `cancel-in-progress: false` correctly serialize same-type deploys across rapid pushes.
 
-The main risks are operational, not technical. Concurrency misconfiguration (a workflow-level concurrency group would silently cancel parallel type dispatches) and migration ordering (the backend must not be deployed before `ferry.yml` lands in the user's default branch) are the two traps that require deliberate attention. Both have well-documented prevention strategies. All GHA behavioral dependencies (parallel workflow runs, skipped-job semantics, empty-matrix guard) are verified against official GitHub documentation with HIGH confidence.
+The primary risk is not technical — it is the migration cutover order. The user's `ferry.yml` workflow file must be merged to the default branch before the backend is deployed with batched dispatch. Reversed order results in 404 dispatches with no visible error to the user. Secondary risks are the empty-matrix crash (addressed by boolean flags) and the skipped-job cascade problem for any future downstream reporting jobs (addressed by using `!failure() && !cancelled()` instead of implicit `success()`). The skipped-job visual noise for single-type pushes is irreducible with GHA's static job model — 0-2 skipped jobs will remain visible, but the primary UX win (3 runs to 1 run for multi-type pushes) is fully achievable.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new stack elements are introduced in v1.4. The project continues to use Python 3.14, Pydantic v2 (the `DispatchPayload` model already carries `resource_type`), and the existing composite action infrastructure. The only stack change is in `constants.py`: `RESOURCE_TYPE_WORKFLOW_MAP` (a dict mapping resource type to workflow suffix) is removed and replaced with a single string constant `WORKFLOW_FILENAME = "ferry.yml"`.
+No new dependencies. This is purely a restructuring of existing code. The current stack — Python 3.14, Pydantic v2, boto3, httpx, GHA composite actions — handles everything v1.5 requires. The key change is the schema version bump (`SCHEMA_VERSION = 2` in `constants.py`) and the addition of `BatchedDispatchPayload` to the existing `dispatch.py` models file.
 
-**Core technologies:**
-- Python 3.14: Backend + action logic — already in use, no change
-- Pydantic v2: `DispatchPayload` model — `resource_type` field already present, no schema change
-- GitHub Actions: Target execution platform — conditional job routing via `if:` is core GHA functionality
+**Core technologies (unchanged):**
+- Python 3.14: All backend and action logic — already in use
+- Pydantic v2: Dispatch payload models — `resource_type: str` replaced by named type lists (`lambdas`, `step_functions`, `api_gateways`) in new `BatchedDispatchPayload`; old `DispatchPayload` retained for v1 backward compat
+- GitHub Actions composite actions: Setup action emits 9 outputs (3 booleans + 3 matrix JSONs + resource_types + 2 legacy); no structural change to how composite actions work
+- Ferry codebase (`trigger.py`, `parse_payload.py`, `action.yml`): Direct modification only, no architectural change
 
 **Full detail:** `.planning/research/STACK.md`
 
 ### Expected Features
 
-FEATURES.md was not produced because v1.4 introduces no new user-facing features. This is a pure infrastructure refactor that reduces the number of workflow files users must create from 3 to 1. The feature set delivered is:
+**Must have (table stakes):**
+- Single dispatch per push — one `workflow_dispatch` regardless of how many types changed
+- All affected types deploy in one workflow run — lambdas, SFs, and APGW all active in the same run when all change
+- Only relevant deploy jobs activate — boolean flags (`has_lambdas`, `has_step_functions`, `has_api_gateways`) gate each job with no empty-matrix crash risk
+- Per-type matrix fan-out preserved — each deploy job still gets its own typed matrix; parallel resource deployment within each type unchanged
+- Content-hash skip detection unchanged — no change needed inside deploy actions
+- Payload schema versioned — `v=2` field, backward compatibility for v1 payloads during rollout
+- Dynamic `run-name` shows all affected types — "Ferry: lambda, step_function" for multi-type pushes
 
-**Must have (table stakes for this release):**
-- Single `ferry.yml` that replaces all three per-type workflow files — direct ask from v1.4 scope
-- Parallel dispatch behavior preserved — lambdas and step functions still deploy simultaneously, not serialized
-- Clean GHA UI with distinguishable run names per resource type — `run-name` using `fromJson(inputs.payload).resource_type`
+**Should have (differentiators — polish items):**
+- Ordered cross-type deploys — deploy Lambda before SF before APGW when all three change; respects dependency chain
+- Aggregated status reporting — one Check Run summary covering all types in the push
+- Graceful degradation for oversized payloads — fall back to per-type dispatch if combined payload exceeds 65,535 chars (extreme edge case)
 
-**Deferred (v2+):**
-- Deploy locking at the resource level (not workflow level) — relevant for v2 PR integration
-- Feature flag in `ferry.yaml` to support gradual per-repo migration — needed when multi-tenant
+**Defer (v2+):**
+- Ordered cross-type deploys — not needed for v1.5; types deploy independently in parallel; add in v2.0
+- Aggregated status reporting — each deploy job posts its own Check Run; a summary job is a polish item for v2.0
+- Eliminating skipped-job UI noise entirely — not possible with GHA's static job model; accepted limitation; 0-2 skipped jobs remain for single-type pushes
+
+**Full detail:** `.planning/research/FEATURES.md`
 
 ### Architecture Approach
 
-The unified workflow uses a 4-job structure: one shared `setup` job followed by three independent conditional deploy jobs. The `setup` job parses the dispatch payload and outputs both `matrix` (unchanged from v1.3) and `resource_type` (new). Each deploy job declares `if: needs.setup.outputs.resource_type == '<type>'` and its own job-level concurrency group (`ferry-deploy-<type>`, `cancel-in-progress: false`). When a job's `if` is false, GHA skips the entire job including matrix evaluation — this is the critical guard against the `fromJson` empty-matrix crash.
+The architecture is a clean replacement of the N-dispatch fan-out in `trigger.py` with a single batched payload construction, paired with a mirrored expansion in `parse_payload.py` that fans back out to per-type matrices for the workflow. The payload model uses named type lists (`lambdas: list[LambdaResource]`, etc.) instead of a flat discriminated union, making both serialization and the parse-side matrix building simpler. The `v` field enables version-aware parsing for zero-downtime upgrades. The workflow template structure is nearly identical to v1.4 — only the `if:` conditions and matrix output references change.
 
-**Major components and changes:**
-
-| Component | Action | What changes |
-|-----------|--------|-------------|
-| `constants.py` (ferry-utils) | Modify | Remove `RESOURCE_TYPE_WORKFLOW_MAP`, add `WORKFLOW_FILENAME = "ferry.yml"` |
-| `trigger.py` (ferry-backend) | Modify | Use `WORKFLOW_FILENAME` instead of per-type filename derivation (2 lines) |
-| `parse_payload.py` (ferry-action) | Modify | Add `set_output("resource_type", payload.resource_type)` (1 line) |
-| `setup/action.yml` (ferry-action) | Modify | Expose `resource_type` output (3 lines) |
-| `ferry.yml` (user workflow) | New | Single file: setup job + 3 conditional deploy jobs |
-| `ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml` | Delete | Replaced by `ferry.yml` |
+**Major components:**
+1. `BatchedDispatchPayload` (dispatch.py) — new Pydantic model with named type lists; `DispatchPayload` retained for backward compat; schema v=2
+2. `trigger.py: trigger_dispatch()` — replaces `trigger_dispatches()` loop; one payload constructed for all types, one HTTP POST to `ferry.yml`
+3. `parse_payload.py: build_batched_outputs()` — replaces `build_matrix()`; outputs 9 GITHUB_OUTPUT values: `has_lambdas`, `has_step_functions`, `has_api_gateways`, `lambda_matrix`, `sf_matrix`, `ag_matrix`, `resource_types`; version-aware `main()` routes v1 vs v2 payloads
+4. `setup/action.yml` — declares all 9 new outputs plus 2 legacy outputs (`matrix`, `resource_type`)
+5. `ferry.yml` template — boolean-gated jobs (`if: needs.setup.outputs.has_lambdas == 'true'`) with per-type matrix references (`fromJson(needs.setup.outputs.lambda_matrix)`)
 
 **Full detail:** `.planning/research/ARCHITECTURE.md`
 
 ### Critical Pitfalls
 
-1. **Workflow-level concurrency group cancels parallel dispatches** — When a push touches multiple resource types, the backend fires N dispatches to `ferry.yml`. A shared concurrency group (e.g., `concurrency: group: ${{ github.workflow }}`) causes each new dispatch to cancel the previous one. Prevention: do NOT add workflow-level concurrency. Use job-level concurrency groups keyed by hardcoded type name (`ferry-deploy-lambda`, `ferry-deploy-step-function`, `ferry-deploy-api-gateway`).
+1. **Migration cutover order** — User must merge `ferry.yml` to default branch BEFORE deploying the backend with batched dispatch. Reversed order = 404 dispatches with no user-visible error. Mitigation: document explicit order; for v1.5 (single test repo) coordinate manually.
 
-2. **Migration order: user repo first, then backend** — If the backend is deployed before `ferry.yml` exists on the user's default branch, all dispatches return 404 silently. The GHA UI shows nothing. Prevention: (1) merge `ferry.yml` to user repo default branch, (2) deploy backend, (3) delete old workflow files.
+2. **Empty matrix crash from `fromJson`** — GHA crashes when `strategy.matrix` receives `{"include":[]}`. Mitigation: boolean flag outputs (`has_lambdas == 'true'`) gate each job; GHA evaluates `if:` before `strategy.matrix` so a false guard prevents matrix evaluation entirely. Do NOT rely on string comparison like `lambda_matrix != '{"include":[]}'` — use the dedicated boolean.
 
-3. **Empty matrix crash if `if` guard is missing** — `fromJson` on an empty or mismatched matrix produces a GHA runner error. Prevention: the `if` condition on the job must be the gate, not step-level conditions. When `if` is false, GHA never evaluates `strategy.matrix`. Do not put the `if` on steps while leaving the job-level `if` absent.
+3. **Workflow-level concurrency groups cancel parallel dispatches** — With batched dispatch, each push produces only one dispatch so this risk is eliminated. But per-type job-level concurrency groups must still be used (not workflow-level) to correctly serialize rapid consecutive pushes of the same type.
 
-4. **Indistinguishable run names** — Three simultaneous dispatches to `ferry.yml` all show "Ferry Deploy" in the Actions tab. Prevention: add `run-name: "Ferry Deploy: ${{ github.event.inputs.payload && fromJson(github.event.inputs.payload).resource_type || 'manual' }}"` at the workflow level.
+4. **Skipped job cascade kills downstream dependencies** — Any future summary/gate job that `needs:` all three type jobs will skip when any type job skips (GHA's implicit `success()` returns false for skipped). Mitigation: use `if: ${{ !failure() && !cancelled() }}` on downstream jobs; or keep type jobs as terminal with no downstream dependents (current design).
 
-5. **Test suite must be updated atomically** — Existing dispatch tests assert workflow filenames like `ferry-lambdas.yml`. After the backend change, all such assertions must be updated in the same commit. Prevention: search for the old filenames before landing the PR.
+5. **Test assertions break when dispatch signature changes** — All tests asserting `trigger_dispatches()` (plural, returns list) must be updated to `trigger_dispatch()` (singular, returns dict), and all assertions on workflow filenames updated atomically. Mitigation: update `constants.py`, `trigger.py`, and all test files in the same commit.
 
 **Full detail:** `.planning/research/PITFALLS.md`
 
 ## Implications for Roadmap
 
-Based on combined research, the implementation has a natural 3-phase dependency chain. Phases 1a and 1b are independent of each other (can be parallelized), Phase 2 depends on both completing, and Phase 3 is E2E validation.
+The dependency graph dictates a clear 4-phase structure. The shared model is the foundation everything else imports; backend and action changes are independent of each other; the workflow template cannot be finalized until output names are known from the action changes; E2E validation must come last.
 
-### Phase 1a: Backend Constant Change
+### Phase 1: Shared Models + Constants
 
-**Rationale:** Self-contained, lowest risk change. Establishes the new dispatch target. Must land with test updates in the same commit to keep CI green.
-**Delivers:** Backend now dispatches all resource types to `ferry.yml` (not yet deployed — in progress)
-**Implements:** `constants.py` rename + `trigger.py` simplification
-**Avoids:** Pitfall 13 (broken tests) by updating test assertions atomically
+**Rationale:** `BatchedDispatchPayload` and `SCHEMA_VERSION = 2` are imported by both the backend and the action. Neither can be written until this model exists. This is the foundation that unblocks all other phases.
+**Delivers:** `BatchedDispatchPayload` Pydantic model with named type lists, schema version 2, updated `__init__.py` re-exports, model unit tests (`test_dispatch_models.py`)
+**Addresses:** Payload schema versioning (table stakes), backward compatibility requirement
+**Avoids:** Import errors in phase 2 work; forces clean model design before implementation details
 
-### Phase 1b: Setup Action Output
+### Phase 2a: Backend Dispatch (parallel with 2b)
 
-**Rationale:** Independent of Phase 1a, can be developed and tested in parallel. Purely additive (one new `set_output` call). Zero risk to the existing `build_matrix()` logic.
-**Delivers:** `action/setup` now exposes `resource_type` output alongside `matrix`
-**Implements:** `parse_payload.py` + `setup/action.yml` changes
-**Avoids:** Pitfall 3 (empty matrix) because `if` on the job gates matrix evaluation
+**Rationale:** Independent of the action changes. `trigger.py` imports the model from phase 1 and calls the GitHub API — no dependency on `parse_payload.py`.
+**Delivers:** `trigger_dispatch()` (singular) replacing `trigger_dispatches()` loop; `handler.py` call site update; all dispatch tests rewritten for single-dispatch model; return type simplified from `list[dict]` to `dict`
+**Addresses:** Single dispatch per push (primary table stakes), reduces dispatches from N to 1
+**Avoids:** Pitfall 5 (test assertions break) — test files updated atomically with the code change
 
-### Phase 2: Unified Workflow Template + Docs
+### Phase 2b: Action Parse (parallel with 2a)
 
-**Rationale:** Depends on Phase 1b completing (the template references `resource_type` output). Create the canonical `ferry.yml` template and update all three docs pages.
-**Delivers:** `ferry.yml` workflow file ready for test repo; docs updated
-**Uses:** All patterns from STACK.md (no new dependencies)
-**Avoids:** Pitfall 1 (no workflow-level concurrency group), Pitfall 4 (using job-level `if` guard), Pitfall 5 (add `run-name` with `fromJson` fallback)
+**Rationale:** Independent of the backend changes. `parse_payload.py` imports the model from phase 1 and writes to `GITHUB_OUTPUT` — no dependency on `trigger.py`.
+**Delivers:** `build_batched_outputs()` function, version-aware `main()` routing (v1 legacy path preserved), all 9 new `action.yml` output declarations, `test_parse_payload.py` tests for batched output generation and v1 compat
+**Addresses:** Per-type matrix outputs, boolean flags, `resource_types` string for run-name
+**Avoids:** Pitfall 2 (empty matrix crash) — boolean flags are the guard; Pitfall 1 migration order — v1 backward compat means action can deploy before backend without breaking existing v1 payloads
 
-### Phase 3: Test Repo Migration + E2E Validation
+### Phase 3: Workflow Template + Docs
 
-**Rationale:** Must happen after both Phase 1 branches and Phase 2 are deployed. Migration order is critical (see Pitfall 4 and 9).
-**Delivers:** Test repo (`AmitLaviDev/ferry-test-app`) running on unified `ferry.yml`; old 3 files deleted; E2E confirmed for all three resource types
-**Avoids:** Pitfall 9 (deploy user repo before backend) by following documented cutover order
+**Rationale:** The `ferry.yml` template references specific output names (`has_lambdas`, `lambda_matrix`, `resource_types`) that are finalized in phase 2b. The docs update mirrors the template change. Both are low-risk, no-test changes.
+**Delivers:** Updated `ferry.yml` template with boolean gates and per-type matrix references; updated `docs/setup.md` with new template and dispatch description; `run-name` showing all affected types
+**Addresses:** Dynamic run-name (table stakes), job gating correctness, documentation accuracy
+**Avoids:** Pitfall 3 (workflow-level concurrency cancels dispatches) — job-level groups with hardcoded type names; Pitfall 4 (indistinguishable run names) — run-name shows all affected types; malformed payload in run-name — defensive `fromJson` with fallback `|| 'manual'`
+
+### Phase 4: Test Repo + E2E Validation
+
+**Rationale:** Must be last. Requires backend with batched dispatch deployed AND test repo with new `ferry.yml` on default branch. Migration cutover order must be followed: test repo update first, then backend deploy.
+**Delivers:** Test repo `ferry.yml` updated to v1.5 template; backend deployed; push multi-type change and verify single workflow run with all 3 deploy jobs active; push single-type change and verify 1 active + 2 skipped
+**Addresses:** Full-chain validation of the 3-runs-to-1-run UX improvement
+**Avoids:** Pitfall 1 migration order — test repo `ferry.yml` merged to main before backend deploys with batched dispatch target
 
 ### Phase Ordering Rationale
 
-- Phases 1a/1b are independent because the backend constant change has no dependency on the action output change and vice versa
-- Phase 2 is blocked on 1b because `ferry.yml` references `resource_type` output that must exist before it can be written with correct action references
-- Phase 3 is the integration gate — both backend (1a) and action (1b) changes must be deployed, and the template (2) finalized, before the test repo is touched
-- This order avoids the most dangerous pitfall (Pitfall 4): `ferry.yml` is in the test repo before the backend switches its dispatch target
+- Phases 2a and 2b can be built in parallel since they share no imports with each other — only both depend on phase 1 models. In a single-developer context they are sequential but are logically independent PRs.
+- Phase 3 is intentionally last among code changes because the exact output key names (`has_lambdas`, `lambda_matrix` etc.) are implementation details of phase 2b — finalizing template after implementation avoids churn.
+- Phase 4 validates the full chain. Attempting E2E before all code changes are deployed risks diagnosing phantom bugs from version mismatches.
 
 ### Research Flags
 
-Phases with well-documented patterns (no additional research needed):
-- **Phase 1a:** Standard Python constant refactor + test update — no ambiguity
-- **Phase 1b:** Additive GHA output — `set_output` pattern is identical to existing `matrix` output
-- **Phase 2:** Complete `ferry.yml` template is already written in STACK.md (see "Unified ferry.yml Template (Complete)" section)
-- **Phase 3:** Migration order is fully specified in Pitfall 4 and 9 prevention strategies
+No phases require `gsd:research-phase`. All patterns are verified at HIGH confidence.
 
-No phases require deeper research before planning. All GHA behavioral questions (parallel dispatches, skipped jobs, concurrency groups, `run-name`) are resolved with HIGH confidence against official documentation.
+Phases with well-documented patterns (no additional research needed):
+- **Phase 1:** Pydantic v2 model addition — standard pattern, no research needed
+- **Phase 2a:** `trigger.py` refactor — direct code change, no new external APIs
+- **Phase 2b:** `parse_payload.py` expansion — direct code change; `GITHUB_OUTPUT` format and composite action output pattern are identical to existing code
+- **Phase 3:** YAML template update — all GHA patterns (boolean `if:`, per-type matrices, run-name expressions) fully researched and HIGH confidence verified
+- **Phase 4:** E2E validation — follow the cutover order documented in Pitfall 1 prevention; no research needed, repeat v1.4 E2E pattern
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | No new technologies; changes are removals and simplifications to an already-working system |
-| Features | HIGH | Scope is fully specified; FEATURES.md not needed for a no-new-features refactor |
-| Architecture | HIGH | All GHA behaviors verified against official docs; code changes are minimal and additive |
-| Pitfalls | HIGH | Primary pitfalls (concurrency, migration order, empty matrix) confirmed via official docs + community consensus |
+| Stack | HIGH | No new dependencies; all changes are to existing, understood code; model design has explicit code samples |
+| Features | HIGH | Table stakes are clear and complete; differentiators explicitly deferred with rationale; comparison against Digger/Atlantis confirms novel approach |
+| Architecture | HIGH | `BatchedDispatchPayload` design is explicit with code samples; full data flow (backend to GHA to deploy) is mapped end-to-end; all GHA behaviors verified from official docs |
+| Pitfalls | HIGH | All critical pitfalls sourced from GitHub official docs or HIGH-confidence community discussions with multiple confirmations |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Multi-tenant migration path:** The current design assumes a single test repo with coordinated cutover. If v2 brings multiple repos, a per-repo `workflow_version` field in `ferry.yaml` (or a feature flag) will be needed to support gradual migration. Not a gap for v1.4 execution, but document the design decision.
-- **`has_lambdas` / `has_step_functions` / `has_api_gateways` boolean outputs:** PITFALLS.md (Pitfall 3) recommends dedicated boolean outputs from the setup action in addition to `resource_type`. The ARCHITECTURE.md design uses only `resource_type` for routing. Since the `if` guard at the job level prevents the matrix from being evaluated when `resource_type` doesn't match, the boolean outputs are redundant for v1.4. Resolve explicitly during Phase 1b implementation: use `resource_type` string comparison only (simpler) unless a race condition or edge case surfaces in testing.
+- **Job-level concurrency groups using `needs` outputs** — FEATURES.md flags this as unverified (LOW confidence). Currently concurrency groups use hardcoded type names (`ferry-deploy-lambda`) not dynamic values, so this gap does not affect the v1.5 design. No action needed unless dynamic group names are required in the future.
+- **Ordered cross-type deploys** — Deferred to v2.0. The dependency graph (lambda → SF → APGW) is intuitive but not validated against real multi-type deploy scenarios. When implementing in v2.0, verify that downstream `needs:` on conditional jobs requires the `!failure() && !cancelled()` pattern (Pitfall 4 in this research).
+- **Aggregated status reporting** — Deferred. The `if: always()` vs `if: ${{ !failure() && !cancelled() }}` choice for a final summary job needs careful testing since it involves skipped-job dependency behavior (well-documented but requires explicit validation in the target repo).
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [GitHub Docs: Control concurrency](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs) — concurrency group semantics, cancel-in-progress behavior
-- [GitHub Docs: Using conditions for job execution](https://docs.github.com/en/actions/using-jobs/using-conditions-to-control-job-execution) — job-level `if`, skipped job behavior
-- [GitHub Docs: Workflow syntax](https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions) — `run-name`, `workflow_dispatch` inputs, permissions
-- [GitHub Docs: Actions limits](https://docs.github.com/en/actions/reference/limits) — concurrent job limits, input size limits
-- [GitHub Changelog: Dynamic run names](https://github.blog/changelog/2022-09-26-github-actions-dynamic-names-for-workflow-runs/) — `run-name` feature
-- Ferry codebase: `trigger.py`, `constants.py`, `parse_payload.py`, `action/setup/action.yml`, `dispatch.py` — direct code analysis
+- Ferry codebase: `trigger.py`, `parse_payload.py`, `dispatch.py`, `constants.py`, `handler.py`, `setup/action.yml`, `ferry.yml` template — all directly read and analyzed
+- [GitHub Docs: Workflow syntax](https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions) — run-name, concurrency, workflow_dispatch input limits (65,535 chars, 25 inputs), `if:` conditional syntax
+- [GitHub Docs: Control concurrency](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs) — job-level vs workflow-level groups, cancel-in-progress behavior
+- [GitHub Docs: Using conditions for job execution](https://docs.github.com/en/actions/using-jobs/using-conditions-to-control-job-execution) — `if:` evaluated before matrix; skipped job behavior
+- [GitHub Docs: Running variations of jobs](https://docs.github.com/actions/using-jobs/using-a-matrix-for-your-jobs) — fromJson matrix pattern, dynamic matrices
 
 ### Secondary (MEDIUM confidence)
-- [Community Discussion #27096: Empty matrix crashes](https://github.com/orgs/community/discussions/27096) — `fromJson` on empty array behavior
-- [Community Discussion #45734: inputs context bug in workflow-level concurrency](https://github.com/orgs/community/discussions/45734) — `${{ inputs.X }}` silently ignored at workflow-level concurrency
-- [Community Discussion #9252 / #53506: Concurrency cancels parallel dispatches](https://github.com/orgs/community/discussions/9252) — confirmed scenario
-- [Community Discussion #45058: success() false when needed job skipped](https://github.com/orgs/community/discussions/45058) — skipped job cascade behavior
-- [Community Discussion #60792: Skipped jobs report Success for status checks](https://github.com/orgs/community/discussions/60792) — branch protection compatibility
-- Ferry test repo: `AmitLaviDev/ferry-test-app/.github/workflows/ferry-*.yml` — current per-type workflow structure
+- [GitHub Community #27096](https://github.com/orgs/community/discussions/27096) — empty matrix fromJson crash; boolean guard workaround
+- [GitHub Community #45058](https://github.com/orgs/community/discussions/45058) — success() returns false when needed job skipped
+- [GitHub Community #45734](https://github.com/orgs/community/discussions/45734) — inputs context unreliable at workflow-level concurrency
+- [GitHub Community #152605](https://github.com/orgs/community/discussions/152605) + [#18001](https://github.com/orgs/community/discussions/18001) — skipped jobs cannot be hidden from GHA UI; no planned fix
+- [GitHub Community #120093](https://github.com/orgs/community/discussions/120093) — 65,535 char limit confirmed across all workflow_dispatch inputs
+- [Digger CE source: github_actions.go](https://github.com/diggerhq/digger/blob/develop/backend/ci_backends/github_actions.go) — per-project dispatch model; no batching (confirms Ferry v1.5 is novel)
+- [Atlantis parallel plan/apply #260](https://github.com/runatlantis/atlantis/issues/260) — closest prior art to batched multi-resource dispatch
+
+### Tertiary (LOW confidence)
+- [GitHub Community #35341](https://github.com/orgs/community/discussions/35341) — job-level concurrency with `needs` outputs (unverified; not needed for v1.5 which uses hardcoded group names)
+- v1.4 research files (ARCHITECTURE.md, PITFALLS.md, FEATURES.md) — patterns and anti-patterns that explicitly informed v1.5 design decisions
 
 ---
 *Research completed: 2026-03-10*
