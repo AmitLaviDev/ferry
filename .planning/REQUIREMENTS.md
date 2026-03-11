@@ -10,7 +10,7 @@ Requirements for Batched Dispatch milestone. Each maps to roadmap phases.
 ### Dispatch
 
 - [ ] **DISP-01**: Backend sends a single workflow_dispatch per push containing all affected resource types in one payload
-- [ ] **DISP-02**: Batched payload uses schema version field (v=2) to distinguish from v1 per-type payloads
+- [x] **DISP-02**: Batched payload uses schema version field (v=2) to distinguish from v1 per-type payloads
 - [ ] **DISP-03**: Backend falls back to per-type dispatch if combined payload exceeds 65,535 character limit
 
 ### Action
@@ -60,7 +60,7 @@ Requirements for Batched Dispatch milestone. Each maps to roadmap phases.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DISP-01 | Phase 26 | Pending |
-| DISP-02 | Phase 25 | Pending |
+| DISP-02 | Phase 25 | Complete |
 | DISP-03 | Phase 26 | Pending |
 | ACT-01 | Phase 27 | Pending |
 | ACT-02 | Phase 27 | Pending |
@@ -79,4 +79,4 @@ Requirements for Batched Dispatch milestone. Each maps to roadmap phases.
 
 ---
 *Requirements defined: 2026-03-10*
-*Last updated: 2026-03-10 after roadmap creation*
+*Last updated: 2026-03-11 after Phase 25 plan 01 completion*
