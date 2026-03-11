@@ -2,6 +2,7 @@
 
 from ferry_utils.models.dispatch import (
     ApiGatewayResource,
+    BatchedDispatchPayload,
     DispatchPayload,
     LambdaResource,
     Resource,
@@ -10,6 +11,7 @@ from ferry_utils.models.dispatch import (
 
 __all__ = [
     "ApiGatewayResource",
+    "BatchedDispatchPayload",
     "DispatchPayload",
     "LambdaResource",
     "Resource",
