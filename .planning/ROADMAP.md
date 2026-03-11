@@ -81,7 +81,7 @@ Full details: [iac/test-env/.planning/milestones/v1.4-ROADMAP.md](../iac/test-en
 
 - [x] **Phase 25: Shared Models and Schema** - Add BatchedDispatchPayload model and bump schema version to 2 (1/1 plan) -- completed 2026-03-11
 - [x] **Phase 26: Backend Batched Dispatch** - Replace per-type dispatch loop with single batched dispatch, add payload-size fallback (1/1 plan) -- completed 2026-03-11
-- [ ] **Phase 27: Action Parsing and Workflow Template** - Parse batched payloads into per-type outputs; update ferry.yml template with boolean gates and per-type matrices
+- [ ] **Phase 27: Action Parsing and Workflow Template** - Parse batched payloads into per-type outputs; update ferry.yml template with boolean gates and per-type matrices (1/1 plan)
 - [ ] **Phase 28: E2E Validation** - Prove batched dispatch works end-to-end with test repo
 
 Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
@@ -112,8 +112,8 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 | 22-24. Unified Workflow | v1.4 | 3/3 | Complete | 2026-03-10 |
 | 25. Shared Models and Schema | v1.5 | 1/1 | Complete | 2026-03-11 |
 | 26. Backend Batched Dispatch | v1.5 | Complete    | 2026-03-11 | 2026-03-11 |
-| 27. Action Parsing and Workflow Template | v1.5 | 0/? | Not started | - |
-| 28. E2E Validation | v1.5 | 0/? | Not started | - |
+| 27. Action Parsing and Workflow Template | v1.5 | 0/1 | Planned | - |
+| 28. E2E Validation | v1.5 | 0/1 | Planned | - |
 
 ## Future Milestones
 

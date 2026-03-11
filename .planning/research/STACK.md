@@ -1,461 +1,282 @@
-# Technology Stack: Ferry v1.1 Deploy to Staging
+# Technology Stack: Ferry v1.5 Batched Dispatch
 
-**Project:** Ferry - Deploy to AWS via Terraform
-**Researched:** 2026-02-28
-**Overall confidence:** MEDIUM (training data covers Terraform AWS provider through ~5.x, terraform-aws-modules through mid-2024; exact latest version numbers need verification at implementation time)
+**Project:** Ferry - Batch all affected resource types into a single workflow_dispatch
+**Researched:** 2026-03-10
+**Overall confidence:** HIGH (constraints verified against official GitHub docs, existing codebase analyzed directly, Pydantic v2 behavior verified)
 
 ## Scope
 
-This STACK.md covers ONLY the Terraform IaC needed to deploy Ferry's existing backend to AWS staging. The application code (Python 3.14, httpx, Pydantic, etc.) is shipped and validated -- not re-researched here.
+This STACK.md covers ONLY what changes or gets added for batched dispatch. The existing stack (Python 3.14, httpx, PyJWT+cryptography, boto3, Pydantic v2, structlog, uv workspace) is shipped and validated -- not re-researched here.
 
-## Terraform Core
+## Key Finding: No New Libraries Required
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Terraform | >= 1.9.0 | IaC engine | Current stable branch. 1.9 added input variable validation improvements and moved-block enhancements. Pin minimum, not exact. | MEDIUM |
-| hashicorp/aws provider | ~> 5.80 | AWS resource management | The 5.x line has been stable since late 2024. Lambda Function URL support (aws_lambda_function_url) was added in 4.x and is mature. Use pessimistic constraint (~>) to allow patch updates but not major. | MEDIUM |
+Batched dispatch is a payload schema change + workflow template change + setup action logic change. Every tool needed already exists in the codebase. No new pip dependencies. No new GitHub Actions. No new infrastructure.
 
-**Version verification needed:** Check `registry.terraform.io/providers/hashicorp/aws/latest` at implementation time. The 5.x line may be at 5.80+ or 5.90+ by now.
+---
 
-## Decision: Raw Resources vs terraform-aws-modules
+## GitHub Actions Constraints (Verified)
 
-**Use raw AWS resources (no terraform-aws-modules).** Here is why:
+These constraints govern the entire design. All verified against official GitHub documentation.
 
-1. **Ferry's infra is small.** One Lambda, one DynamoDB table, one ECR repo, a few IAM roles, one Secrets Manager secret. The terraform-aws-modules abstractions (lambda, dynamodb-table) are designed for teams managing dozens of resources with consistent patterns. For 5-6 resources, raw `aws_*` resources are simpler, more transparent, and easier to debug.
+| Constraint | Value | Source | Confidence |
+|------------|-------|--------|------------|
+| Max `inputs` payload size | 65,535 characters | [GitHub Docs: Events that trigger workflows](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows) | HIGH |
+| Max number of inputs | 25 | Same source | HIGH |
+| Per-input value limit (UI) | 1,024 characters | [Community Discussion #120093](https://github.com/orgs/community/discussions/120093) | MEDIUM |
+| Per-input value limit (API) | Not documented separately; 65,535 total applies | Official docs only specify total payload limit | HIGH |
+| Empty matrix behavior | Job fails with "does not contain any values" | [Community Discussion #27096](https://github.com/orgs/community/discussions/27096) | HIGH |
 
-2. **Lambda module complexity mismatch.** The `terraform-aws-modules/lambda/aws` module (~v7.x) handles package building, layer management, container image builds, provisioned concurrency, VPC configs, and more. Ferry needs exactly: create a Lambda from an ECR image, attach a Function URL, set environment variables, assign an IAM role. The module's 40+ variables add cognitive overhead for a 6-variable use case.
+### Payload Size Analysis
 
-3. **Function URL is a single resource.** `aws_lambda_function_url` is one resource with 4 fields. No module needed.
+The 65,535 character total payload limit is the binding constraint. Ferry sends dispatch via the REST API (not UI), so the 1,024 per-input UI limit does not apply. The existing code already enforces a 65,535 max (`_MAX_PAYLOAD_SIZE` in `trigger.py`).
 
-4. **ConvergeBio/iac-tf uses custom modules** -- their Lambda module in `modules/lambda/` is hand-built, not terraform-aws-modules. Ferry should follow the same pattern of explicit resource definitions.
+Realistic payload sizes for batched dispatch (measured from simulated payloads):
 
-5. **Debugging.** When something breaks in production at 2 AM, you want to read `aws_lambda_function` directly, not trace through a module's `main.tf` -> `locals.tf` -> conditional resource creation.
+| Scenario | Current (per-type) | Batched (all types) | % of Limit |
+|----------|-------------------|---------------------|------------|
+| Typical (2 lambdas + 1 SF + 1 APGW) | ~500 chars x 3 dispatches | ~724 chars x 1 dispatch | 1.1% |
+| Large (20 lambdas + 10 SFs + 5 APGWs) | N/A (split by type) | ~5,319 chars | 8.1% |
+| Extreme (100 lambdas, long names) | N/A | ~23,683 chars | 36.1% |
+| Pathological (200 lambdas, long names) | N/A | ~47,683 chars | 72.8% |
 
-**Exception: S3 backend bucket.** Use raw resources here too -- it is literally one `aws_s3_bucket` + versioning + encryption.
+**Conclusion:** The 65,535 limit is not a practical concern. Even pathological cases with 200 resources fit comfortably. No chunking, compression, or multi-input strategies needed. Keep the single `payload` input approach.
 
-## AWS Resources Required
+### Empty Matrix Handling
 
-### TF State Backend (`iac/global/cloud/aws/backend/`)
+GitHub Actions crashes (not skips) when `fromJson` produces a matrix with zero elements. The current workflow already handles this via `if: needs.setup.outputs.resource_type == 'lambda'` guards on each deploy job. The batched approach must replace these guards.
 
-| Resource | Terraform Type | Purpose | Notes |
-|----------|---------------|---------|-------|
-| S3 bucket | `aws_s3_bucket` | TF state storage | Name: `ferry-terraform-state-{account_id}` |
-| Bucket versioning | `aws_s3_bucket_versioning` | State file history | Required for state recovery |
-| Bucket encryption | `aws_s3_bucket_server_side_encryption_configuration` | Encrypt state at rest | AES256 (S3-managed keys sufficient for staging) |
-| Public access block | `aws_s3_bucket_public_access_block` | Prevent accidental exposure | Block all public access |
-| DynamoDB table | `aws_dynamodb_table` | State locking | Name: `ferry-terraform-locks`, PAY_PER_REQUEST |
+**Required pattern for batched dispatch:**
 
-**Bootstrap note:** This project must be applied first with local state (`terraform init` with no backend), then migrated to itself (`terraform init -migrate-state` after the bucket exists). This is a one-time manual step.
-
-### ECR Repository (`iac/global/cloud/aws/ecr/`)
-
-| Resource | Terraform Type | Purpose | Notes |
-|----------|---------------|---------|-------|
-| ECR repository | `aws_ecr_repository` | Ferry Lambda container images | Name: `ferry/backend` |
-| Lifecycle policy | `aws_ecr_lifecycle_policy` | Limit stored images | Keep last 10 tagged images, expire untagged after 1 day |
-| Repository policy | `aws_ecr_repository_policy` | Access control | Allow Lambda service to pull (optional -- Lambda role suffices) |
-
-**Lifecycle policy rationale:** ECR charges $0.10/GB/month. Lambda container images are ~100-200MB. Without cleanup, 100 deploys = 10-20GB = $1-2/month. Low cost, but good hygiene.
-
-### Shared Resources (`iac/teams/platform/aws/staging/shared/`)
-
-| Resource | Terraform Type | Purpose | Notes |
-|----------|---------------|---------|-------|
-| Lambda execution role | `aws_iam_role` | Lambda assume role | Trust policy: `lambda.amazonaws.com` |
-| DynamoDB policy | `aws_iam_role_policy` | Allow dedup table access | `dynamodb:PutItem`, `dynamodb:GetItem` on ferry-dedup table |
-| Secrets Manager read policy | `aws_iam_role_policy` | Allow reading GitHub App secrets | `secretsmanager:GetSecretValue` on ferry secrets |
-| CloudWatch Logs policy | `aws_iam_role_policy_attachment` | Allow Lambda logging | Attach `AWSLambdaBasicExecutionRole` managed policy |
-| GitHub App secret | `aws_secretsmanager_secret` | Store GitHub App credentials | Name: `ferry/github-app` |
-| GitHub App secret version | `aws_secretsmanager_secret_version` | Actual secret values | JSON: `{app_id, private_key, webhook_secret, installation_id}` |
-| GHA OIDC provider | `aws_iam_openid_connect_provider` | GitHub Actions OIDC federation | Thumbprint for `token.actions.githubusercontent.com` |
-| GHA deploy role | `aws_iam_role` | Self-deploy from GHA | Trust: OIDC provider, condition on repo + branch |
-| GHA deploy policy | `aws_iam_role_policy` | Deploy permissions | ECR push, Lambda update, minimal scope |
-
-**Secret structure (JSON in Secrets Manager):**
-```json
-{
-  "app_id": "12345",
-  "private_key": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
-  "webhook_secret": "whsec_...",
-  "installation_id": "67890"
-}
+```yaml
+deploy-lambda:
+  needs: setup
+  if: needs.setup.outputs.has_lambdas == 'true'
+  strategy:
+    matrix: ${{ fromJson(needs.setup.outputs.lambda_matrix) }}
 ```
 
-**Note:** The secret VERSION will be created with placeholder values in Terraform. Real values are populated manually after GitHub App registration (manual step in milestone). Use `lifecycle { ignore_changes = [secret_string] }` so Terraform does not overwrite manual updates.
+The `if` guard prevents the job from evaluating the matrix expression at all. Comparing a string output to `'true'` (not comparing a matrix to `'[]'`) is the most reliable pattern per GitHub community guidance. Alternative: `needs.setup.outputs.lambda_matrix != '{"include":[]}'` -- works but is more fragile.
 
-### Ferry Backend (`iac/teams/platform/aws/staging/us_east_1/ferry_backend/`)
+---
 
-| Resource | Terraform Type | Purpose | Notes |
-|----------|---------------|---------|-------|
-| Lambda function | `aws_lambda_function` | Ferry webhook handler | Package type: Image, image_uri from ECR, 256MB memory, 30s timeout |
-| Function URL | `aws_lambda_function_url` | HTTPS endpoint for GitHub webhooks | Auth type: NONE (Ferry validates HMAC itself) |
-| DynamoDB table | `aws_dynamodb_table` | Webhook deduplication | PK: `pk` (S), SK: `sk` (S), TTL on `expires_at`, PAY_PER_REQUEST |
-| CloudWatch log group | `aws_cloudwatch_log_group` | Lambda logs | Retention: 14 days (staging), name: `/aws/lambda/ferry-backend-staging` |
+## Pydantic v2 Model Changes (No New Dependencies)
 
-## Resource Configuration Details
+### Current Model: `DispatchPayload` (v1)
 
-### Lambda Function
-
-```hcl
-resource "aws_lambda_function" "ferry_backend" {
-  function_name = "ferry-backend-staging"
-  role          = data.terraform_remote_state.shared.outputs.lambda_execution_role_arn
-  package_type  = "Image"
-  image_uri     = "${data.terraform_remote_state.ecr.outputs.repository_url}:latest"
-  memory_size   = 256
-  timeout       = 30
-  architectures = ["arm64"]  # Graviton: 20% cheaper, 15-20% faster for Python
-
-  environment {
-    variables = {
-      FERRY_APP_ID          = data.aws_secretsmanager_secret_version.github_app.secret_string_map["app_id"]
-      FERRY_PRIVATE_KEY     = data.aws_secretsmanager_secret_version.github_app.secret_string_map["private_key"]
-      FERRY_WEBHOOK_SECRET  = data.aws_secretsmanager_secret_version.github_app.secret_string_map["webhook_secret"]
-      FERRY_INSTALLATION_ID = data.aws_secretsmanager_secret_version.github_app.secret_string_map["installation_id"]
-      FERRY_TABLE_NAME      = aws_dynamodb_table.dedup.name
-      FERRY_LOG_LEVEL       = "DEBUG"  # Staging verbosity
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [image_uri]  # Updated by CI/CD, not Terraform
-  }
-}
+```python
+class DispatchPayload(BaseModel):
+    v: int = 1
+    resource_type: str              # "lambda" | "step_function" | "api_gateway"
+    resources: list[Resource]       # All same type (discriminated union)
+    trigger_sha: str
+    deployment_tag: str
+    pr_number: str = ""
 ```
 
-**Key decisions:**
-- **arm64 (Graviton):** 20% cheaper per ms, measurably faster for Python workloads. The ECR image must be built for `linux/arm64`. Use `--platform linux/arm64` in `docker build`.
-- **256MB memory:** Ferry backend does HTTP calls (GitHub API) and DynamoDB writes. No heavy computation. 256MB is generous. Can tune down to 128MB if cold starts are acceptable.
-- **30s timeout:** GitHub expects webhook response within 10 seconds. 30s gives headroom for retries/slow GitHub API responses. Lambda Function URL has no separate timeout.
-- **`ignore_changes = [image_uri]`:** Critical. Terraform manages infra configuration; CI/CD manages deployed code. Without this, every `terraform apply` would revert the Lambda to whatever image_uri is in state.
+One dispatch per type. The `resource_type` field tells the action which matrix builder to use. The `resources` list uses a discriminated union but only ever contains one type per payload.
 
-### Lambda Function URL
+### New Model: `BatchedDispatchPayload` (v2)
 
-```hcl
-resource "aws_lambda_function_url" "ferry_webhook" {
-  function_name      = aws_lambda_function.ferry_backend.function_name
-  authorization_type = "NONE"
-
-  cors {
-    allow_origins = ["*"]
-    allow_methods = ["POST"]
-    allow_headers = ["content-type", "x-hub-signature-256", "x-github-delivery", "x-github-event"]
-    max_age       = 86400
-  }
-}
+```python
+class BatchedDispatchPayload(BaseModel):
+    v: int = 2
+    trigger_sha: str
+    deployment_tag: str
+    pr_number: str = ""
+    lambdas: list[LambdaResource] = []
+    step_functions: list[StepFunctionResource] = []
+    api_gateways: list[ApiGatewayResource] = []
 ```
 
-**Auth type NONE:** GitHub sends webhooks as unauthenticated POST requests. Ferry validates authenticity via HMAC-SHA256 signature (the `x-hub-signature-256` header). IAM auth would prevent GitHub from reaching the endpoint.
+**Why this structure over alternatives:**
 
-**CORS:** Not strictly required for server-to-server webhook delivery. Included for potential browser-based health check or debugging tools. Costs nothing.
+| Approach | Pros | Cons | Verdict |
+|----------|------|------|---------|
+| Keep `resources: list[Resource]` with mixed types | Minimal model change | Action must re-sort by type; discriminated union in list has known Pydantic JSON schema issues ([#6884](https://github.com/pydantic/pydantic/issues/6884)) | NO |
+| Separate typed lists (`lambdas`, `step_functions`, `api_gateways`) | Type-safe, no sorting needed, no discriminator issues, each list maps directly to one matrix output | Three fields instead of one | YES |
+| Nested dict `{"lambda": [...], "step_function": [...]}` | Flexible | Loses Pydantic type safety, harder to validate | NO |
 
-### DynamoDB Table
+**Key Pydantic v2 behaviors leveraged:**
 
-```hcl
-resource "aws_dynamodb_table" "dedup" {
-  name         = "ferry-dedup-staging"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "pk"
-  range_key    = "sk"
+- `list[LambdaResource] = []` -- empty list default means absent types produce `[]` not `null` in JSON. Already validated pattern in `FerryConfig`.
+- `model_dump_json()` with `exclude_defaults=False` (the default) serializes empty lists as `[]`, ensuring the action always sees the field.
+- Frozen models (`ConfigDict(frozen=True)`) already on all resource models -- no change needed.
+- The `resource_type` discriminator field on individual resources (`Literal["lambda"]`, etc.) is no longer needed for routing but is harmless to keep for debugging/logging.
 
-  attribute {
-    name = "pk"
-    type = "S"
-  }
+### Schema Version Bump
 
-  attribute {
-    name = "sk"
-    type = "S"
-  }
+Bump `SCHEMA_VERSION` from `1` to `2` in `ferry_utils/constants.py`. The `v` field in the payload allows the action to detect payload version and handle both formats during migration if needed. In practice, the backend and action deploy together, so dual-version support is optional.
 
-  ttl {
-    attribute_name = "expires_at"
-    enabled        = true
-  }
+### No Need for `resource_type` at Payload Level
 
-  point_in_time_recovery {
-    enabled = false  # Staging: dedup is ephemeral, no backup needed
-  }
+The v1 payload has `resource_type: str` at the top level because there is one dispatch per type. The v2 payload does not need this -- the setup action inspects which lists are non-empty. Removing `resource_type` from the payload simplifies the model. The setup action outputs per-type boolean flags (`has_lambdas`, `has_step_functions`, `has_api_gateways`) for workflow job routing.
 
-  tags = {
-    Environment = "staging"
-    Service     = "ferry"
-  }
-}
+---
+
+## Setup Action Changes (No New Dependencies)
+
+### Current: Single Matrix Output
+
+The setup action (`parse_payload.py`) currently:
+1. Reads `INPUT_PAYLOAD` env var
+2. Validates against `DispatchPayload`
+3. Calls the type-specific matrix builder based on `resource_type`
+4. Outputs `matrix` (one JSON string) and `resource_type` (one string)
+
+### New: Multiple Matrix Outputs
+
+The setup action will:
+1. Read `INPUT_PAYLOAD` env var
+2. Validate against `BatchedDispatchPayload`
+3. Build a matrix for each non-empty resource type list
+4. Output per-type matrices and boolean flags:
+   - `lambda_matrix` -- JSON string for Lambda `fromJson()`
+   - `step_function_matrix` -- JSON string for SF `fromJson()`
+   - `api_gateway_matrix` -- JSON string for APGW `fromJson()`
+   - `has_lambdas` -- `"true"` or `"false"`
+   - `has_step_functions` -- `"true"` or `"false"`
+   - `has_api_gateways` -- `"true"` or `"false"`
+
+**Why boolean flags instead of checking matrix emptiness:**
+- GHA expression `needs.setup.outputs.has_lambdas == 'true'` is cleaner than `needs.setup.outputs.lambda_matrix != '{"include":[]}'`
+- String comparison is well-tested in GHA; JSON comparison is brittle
+- Boolean flags are a common pattern in the GHA ecosystem
+
+**Implementation in `gha.py`:** Already has `set_output(name, value)` which writes to `$GITHUB_OUTPUT`. No changes needed to the helper -- just call it more times.
+
+### action.yml Changes
+
+The `action/setup/action.yml` currently outputs `matrix` and `resource_type`. It will change to output `lambda_matrix`, `step_function_matrix`, `api_gateway_matrix`, `has_lambdas`, `has_step_functions`, `has_api_gateways`. This is a breaking change to the action interface, but the workflow template is also changing, so they deploy together.
+
+---
+
+## Workflow Template Changes (No New Actions)
+
+### Current: One Matrix, Three Conditional Jobs
+
+```yaml
+jobs:
+  setup: ...
+  deploy-lambda:
+    if: needs.setup.outputs.resource_type == 'lambda'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+  deploy-step-function:
+    if: needs.setup.outputs.resource_type == 'step_function'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+  deploy-api-gateway:
+    if: needs.setup.outputs.resource_type == 'api_gateway'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 ```
 
-**PAY_PER_REQUEST:** Ferry processes webhooks on-demand. Traffic is bursty (pushes happen in clusters). Provisioned capacity would be wasteful or require auto-scaling. Pay-per-request costs $1.25/million writes, $0.25/million reads. At staging volume (hundreds of writes/day), cost rounds to $0.00.
+Problem: Only one job runs per dispatch. If all 3 types change, 3 separate workflow runs are triggered, each with 2 skipped jobs visible in GHA UI.
 
-### ECR Repository
+### New: Per-Type Matrices, All Jobs Conditional
 
-```hcl
-resource "aws_ecr_repository" "ferry_backend" {
-  name                 = "ferry/backend"
-  image_tag_mutability = "MUTABLE"  # Allow :latest tag for simple deploys
-
-  image_scanning_configuration {
-    scan_on_push = true  # Free basic vulnerability scanning
-  }
-
-  encryption_configuration {
-    encryption_type = "AES256"  # S3-managed encryption (free)
-  }
-}
-
-resource "aws_ecr_lifecycle_policy" "ferry_backend" {
-  repository = aws_ecr_repository.ferry_backend.name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 tagged images"
-        selection = {
-          tagStatus   = "tagged"
-          tagPrefixList = ["pr-", "main-"]
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-}
+```yaml
+jobs:
+  setup:
+    outputs:
+      lambda_matrix: ${{ steps.parse.outputs.lambda_matrix }}
+      step_function_matrix: ${{ steps.parse.outputs.step_function_matrix }}
+      api_gateway_matrix: ${{ steps.parse.outputs.api_gateway_matrix }}
+      has_lambdas: ${{ steps.parse.outputs.has_lambdas }}
+      has_step_functions: ${{ steps.parse.outputs.has_step_functions }}
+      has_api_gateways: ${{ steps.parse.outputs.has_api_gateways }}
+  deploy-lambda:
+    if: needs.setup.outputs.has_lambdas == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.lambda_matrix) }}
+  deploy-step-function:
+    if: needs.setup.outputs.has_step_functions == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.step_function_matrix) }}
+  deploy-api-gateway:
+    if: needs.setup.outputs.has_api_gateways == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.api_gateway_matrix) }}
 ```
 
-### OIDC Provider for GitHub Actions
+Result: One workflow run per push. Only affected type jobs run. Skipped jobs show as "skipped" (grey) which is cleaner than separate workflow runs with skipped jobs. The `run-name` changes from showing `resource_type` to showing the deployment tag or commit info.
 
-```hcl
-resource "aws_iam_openid_connect_provider" "github_actions" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["ffffffffffffffffffffffffffffffffffffffff"]  # AWS validates directly, thumbprint is legacy
-}
-```
+---
 
-**Thumbprint note:** AWS added native validation for the GitHub OIDC provider in 2023. The thumbprint is effectively ignored for github.com, but Terraform still requires the field. Use the placeholder value.
+## Backend Dispatch Changes (No New Dependencies)
 
-### GHA Deploy Role
+### Current: `trigger_dispatches()` -- One Dispatch Per Type
 
-```hcl
-resource "aws_iam_role" "gha_deploy" {
-  name = "ferry-gha-deploy-staging"
+The function in `backend/src/ferry_backend/dispatch/trigger.py`:
+1. Groups affected resources by type
+2. Iterates over each type group
+3. Builds a `DispatchPayload` per type
+4. POSTs one `workflow_dispatch` per type
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.github_actions.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:OWNER/ferry:ref:refs/heads/main"
-          }
-        }
-      }
-    ]
-  })
-}
+### New: `trigger_dispatch()` -- Single Batched Dispatch
 
-resource "aws_iam_role_policy" "gha_deploy" {
-  name = "ferry-deploy-permissions"
-  role = aws_iam_role.gha_deploy.id
+The function will:
+1. Build a `BatchedDispatchPayload` with all affected resources sorted into typed lists
+2. POST one `workflow_dispatch` with the batched payload
+3. No grouping loop needed -- just populate the three lists from the affected resources
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ECRPush"
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:PutImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload"
-        ]
-        Resource = "*"  # GetAuthorizationToken requires *
-      },
-      {
-        Sid    = "LambdaUpdate"
-        Effect = "Allow"
-        Action = [
-          "lambda:UpdateFunctionCode",
-          "lambda:GetFunction"
-        ]
-        Resource = "arn:aws:lambda:us-east-1:*:function:ferry-backend-staging"
-      }
-    ]
-  })
-}
-```
+This simplifies the dispatch logic. The `_build_resource()` helper and its per-type routing remain useful for populating the typed lists.
 
-**OIDC condition:** Restricts to `repo:OWNER/ferry:ref:refs/heads/main` so only pushes to main on the ferry repo can assume this role. Replace `OWNER` with the actual GitHub org/user at implementation time.
+### Payload Size Check
 
-## Remote State References
+Keep the existing `_MAX_PAYLOAD_SIZE = 65535` check. Apply it once to the single batched payload instead of per-type. If exceeded (astronomically unlikely), log an error and fall back to... nothing. There is no reasonable scenario where a ferry.yaml has enough resources to exceed this limit. The check is defensive only.
 
-The 4 TF projects reference each other via `terraform_remote_state`:
+---
 
-```
-backend/ --> (no dependencies, bootstrapped first)
-ecr/     --> (no dependencies)
-shared/  --> references ecr/ (for repository ARN in IAM policies)
-ferry_backend/ --> references shared/ (IAM role ARN) + ecr/ (repository URL)
-```
+## What NOT to Add
 
-```hcl
-# In ferry_backend/data.tf
-data "terraform_remote_state" "shared" {
-  backend = "s3"
-  config = {
-    bucket = "ferry-terraform-state-ACCOUNT_ID"
-    key    = "teams/platform/aws/staging/shared/terraform.tfstate"
-    region = "us-east-1"
-  }
-}
+| Temptation | Why Not |
+|------------|---------|
+| JSON compression (zlib/gzip + base64) | Payload fits easily within limits. Compression adds complexity for no benefit. |
+| Multi-input splitting (spread payload across multiple `inputs` keys) | Single input works fine. Multiple inputs would require reassembly logic. |
+| Artifact-based payload passing | Overkill. The payload is a few hundred to a few thousand characters. |
+| `repository_dispatch` instead of `workflow_dispatch` | `workflow_dispatch` has explicit input schema and shows in GHA UI. `repository_dispatch` is less visible and has stricter payload limits (10 keys in `client_payload`). |
+| New Python dependencies | Everything needed (Pydantic v2, structlog, json) already in the workspace. |
+| Backward-compatible dual-version parsing | Backend and action deploy together from the same repo. No need to support v1 and v2 payloads simultaneously unless explicitly desired for rollback safety. |
+| Dynamic job generation (reusable workflows, composite matrix) | GHA does not support dynamically generating jobs at runtime. The three deploy jobs must be statically defined in the workflow YAML. |
 
-data "terraform_remote_state" "ecr" {
-  backend = "s3"
-  config = {
-    bucket = "ferry-terraform-state-ACCOUNT_ID"
-    key    = "global/cloud/aws/ecr/terraform.tfstate"
-    region = "us-east-1"
-  }
-}
-```
+---
 
-**State key convention:** Match directory path to state key path. Each TF project directory maps to a unique state key.
+## Migration Strategy
 
-## Provider Configuration Pattern
+Since Ferry deploys its own backend (push to main triggers ECR build + Lambda update) and the test repo's `ferry.yml` is a file the user controls:
 
-Each TF project directory gets a `providers.tf`:
+1. **Backend + action changes land in one PR** (they are in the same monorepo)
+2. **Test repo's `ferry.yml` must be updated** to reference new setup action outputs BEFORE the backend starts sending v2 payloads
+3. **Deployment order:**
+   a. Update test repo's `ferry.yml` with new template (references new outputs)
+   b. Merge + deploy Ferry backend with batched dispatch
+   c. Next push to test repo triggers batched dispatch through new workflow
 
-```hcl
-terraform {
-  required_version = ">= 1.9.0"
+This is the same deployment order used for v1.4 (unified workflow). No dual-version support needed if deployed in order.
 
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.80"
-    }
-  }
+---
 
-  backend "s3" {
-    bucket         = "ferry-terraform-state-ACCOUNT_ID"
-    key            = "PATH/terraform.tfstate"  # Unique per project
-    region         = "us-east-1"
-    dynamodb_table = "ferry-terraform-locks"
-    encrypt        = true
-  }
-}
+## Summary: Changes by Package
 
-provider "aws" {
-  region = "us-east-1"
+| Package | What Changes | New Dependencies |
+|---------|-------------|-----------------|
+| `ferry-utils` (shared) | New `BatchedDispatchPayload` model, bump `SCHEMA_VERSION` to 2 | None |
+| `ferry-backend` | `trigger.py`: replace per-type dispatch loop with single batched dispatch | None |
+| `ferry-action` | `parse_payload.py`: output per-type matrices + boolean flags; `action/setup/action.yml`: new outputs | None |
+| Workflow template (docs) | New `ferry.yml` template with per-type matrix references and boolean `if` guards | None |
+| Test repo | Update `ferry.yml` to new template | None |
 
-  default_tags {
-    tags = {
-      Project     = "ferry"
-      Environment = "staging"
-      ManagedBy   = "terraform"
-    }
-  }
-}
-```
-
-**Exception:** The backend/ project itself uses local state initially (no `backend "s3"` block) until the bucket exists, then migrates.
-
-## Apply Order
-
-TF projects must be applied in dependency order:
-
-1. **`global/cloud/aws/backend/`** -- S3 bucket + DynamoDB lock table (bootstrap, local state then migrate)
-2. **`global/cloud/aws/ecr/`** -- ECR repository (depends on S3 backend existing)
-3. **`teams/platform/aws/staging/shared/`** -- IAM roles, Secrets Manager, OIDC provider
-4. **`teams/platform/aws/staging/us_east_1/ferry_backend/`** -- Lambda + Function URL + DynamoDB dedup table
-
-Steps 2 and 3 can run in parallel (no dependency between them), but both must complete before step 4.
-
-## Self-Deploy GHA Workflow Dependencies
-
-The workflow needs these Terraform outputs:
-
-| Output | From Project | Used For |
-|--------|-------------|----------|
-| `repository_url` | ecr/ | `docker tag` + `docker push` target |
-| `lambda_function_name` | ferry_backend/ | `aws lambda update-function-code` |
-| `gha_deploy_role_arn` | shared/ | `aws-actions/configure-aws-credentials` |
-| `function_url` | ferry_backend/ | GitHub App webhook URL configuration |
-
-## Alternatives Considered
-
-| Category | Chosen | Alternative | Why Not |
-|----------|--------|-------------|---------|
-| IaC tool | Terraform | SAM (original v1 research) | Project switched to Terraform to match ConvergeBio/iac-tf patterns. SAM is simpler for pure Lambda but does not match the team's existing workflow (Digger for TF plan/apply). |
-| IaC tool | Terraform | CDK | Heavy for 5-6 resources. Requires Node.js runtime. Does not match team conventions. |
-| IaC tool | Terraform | Pulumi | Team uses Terraform. No reason to introduce another tool. |
-| Module approach | Raw resources | terraform-aws-modules | Ferry has 5-6 AWS resources total. Modules add abstraction overhead with no payoff at this scale. See "Decision" section above. |
-| Lambda architecture | arm64 (Graviton) | x86_64 | 20% cheaper, measurably faster for Python. Requires arm64-compatible container image (easy: `--platform linux/arm64`). |
-| State backend | S3 + DynamoDB | Terraform Cloud | Self-hosted is simpler for a single-team project. No external service dependency. Free. |
-| State backend | S3 + DynamoDB | HCP Terraform | Same reasoning. S3 backend is proven, well-documented, zero cost. |
-| Secrets | Secrets Manager | SSM Parameter Store | Secrets Manager supports automatic rotation, JSON structured secrets, and cross-account access. SSM SecureString would work but SM is the standard for credentials. Costs $0.40/secret/month -- negligible. |
-| Secrets | Secrets Manager | Environment variables only | Private key in Lambda env vars works but is less secure (visible in console, in TF state). SM allows rotation without redeploy. |
-
-## File Layout Per TF Project
-
-Following ConvergeBio/iac-tf conventions:
-
-```
-any-tf-project/
-  providers.tf    # Backend config + provider block + default tags
-  main.tf         # Primary resource definitions (or split into resource-specific files)
-  variables.tf    # Input variables
-  outputs.tf      # Output values (consumed by remote_state or GHA)
-  data.tf         # Data sources + remote state references
-  locals.tf       # Computed values (if needed)
-```
-
-For `ferry_backend/`, the small resource count means `main.tf` holds everything. No need for `lambda.tf`, `dynamodb.tf` splits when there is one of each.
-
-## Version Verification Checklist
-
-These versions are from training data and MUST be verified at implementation time:
-
-| Item | Stated Version | How to Verify |
-|------|---------------|---------------|
-| AWS provider | ~> 5.80 | `registry.terraform.io/providers/hashicorp/aws/latest` |
-| Terraform | >= 1.9.0 | `releases.hashicorp.com/terraform/` |
-| Lambda arm64 + Python 3.14 | Assumed available | Check `public.ecr.aws/lambda/python` tags for `3.14` arm64 |
-| OIDC thumbprint behavior | Placeholder works | AWS docs on GitHub OIDC provider setup |
-| Function URL CORS config | Schema assumed | `registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function_url` |
-
-**Highest risk:** Python 3.14 Lambda base image availability. If `public.ecr.aws/lambda/python:3.14` does not exist for arm64, fall back to a custom image based on `public.ecr.aws/lambda/provided:al2023` with Python 3.14 installed, or use Python 3.13 (the latest GA version likely available).
+**Total new Python dependencies: 0**
+**Total new GitHub Actions: 0**
+**Total new infrastructure: 0**
 
 ## Sources
 
-- Terraform AWS provider documentation (registry.terraform.io) -- HIGH confidence on resource schemas, MEDIUM on exact version numbers
-- ConvergeBio/iac-tf conventions (project memory) -- HIGH confidence
-- Ferry backend source code (settings.py, handler.py, dedup.py) -- HIGH confidence on env vars and resource requirements
-- AWS Lambda Function URL documentation -- HIGH confidence on auth model and CORS
-- AWS OIDC provider documentation -- HIGH confidence on GitHub Actions federation
-- Training data (through early 2025) -- MEDIUM confidence on version numbers
+- [GitHub Docs: Events that trigger workflows - workflow_dispatch](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows) -- payload limit (65,535 chars), input count limit (25)
+- [GitHub Community Discussion #27096](https://github.com/orgs/community/discussions/27096) -- empty matrix crash behavior and `if` guard workaround
+- [GitHub Community Discussion #120093](https://github.com/orgs/community/discussions/120093) -- per-input value limits (1,024 for UI)
+- [GitHub Blog Changelog 2025-12-04](https://github.blog/changelog/2025-12-04-actions-workflow-dispatch-workflows-now-support-25-inputs/) -- 25 input limit (up from 10)
+- [Pydantic Issue #6884](https://github.com/pydantic/pydantic/issues/6884) -- discriminated union in list JSON schema issue (motivates separate typed lists)
+- [GitHub Docs: Running variations of jobs in a workflow](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/running-variations-of-jobs-in-a-workflow) -- dynamic matrix with fromJson
+- Existing codebase: `ferry_utils/models/dispatch.py`, `ferry_backend/dispatch/trigger.py`, `ferry_action/parse_payload.py`, `action/setup/action.yml` -- analyzed directly

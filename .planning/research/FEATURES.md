@@ -1,174 +1,221 @@
-# Feature Landscape
+# Feature Landscape: Unified Workflow Consolidation (v1.4)
 
-**Domain:** AWS IaC deployment for a GitHub App Lambda backend (staging environment)
-**Researched:** 2026-02-28
-**Milestone:** v1.1 Deploy to Staging
+**Domain:** GitHub Actions workflow consolidation for serverless deploy tool
+**Researched:** 2026-03-10
+**Scope:** Consolidating three per-type workflow files into a single `ferry.yml`
 
 ## Table Stakes
 
-Features the infrastructure MUST have for the app to function and be operationally viable. Missing any of these means the Lambda cannot serve webhook traffic.
+Features users expect. Missing = the consolidation feels broken or incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| S3 State Backend + DynamoDB Lock | Terraform state must be stored remotely with locking for CI/CD; local state breaks team workflows and GHA self-deploy | Low | Bootstrap project -- must be created first, before all other TF projects. Single S3 bucket + DynamoDB lock table. |
-| ECR Repository for Ferry Lambda | Container image registry for the backend Lambda; must exist before first push | Low | Single repo (`ferry/backend` or similar). Lifecycle policy to limit stored images (keep last 10-20). |
-| Lambda Function (Container Image) | The actual compute resource running the webhook handler | Med | Container image deployment (not zip). 256-512MB memory. 30s timeout sufficient for webhook processing. ARM64 (Graviton) for cost savings. |
-| Lambda Function URL (auth_type=NONE) | Webhook endpoint -- GitHub sends POST requests here; GitHub cannot sign AWS IAM requests so NONE auth is mandatory | Low | Auth type MUST be NONE because GitHub webhook delivery has no AWS IAM capability. The app validates via HMAC-SHA256 signature in the handler code itself. CORS not needed (server-to-server). |
-| DynamoDB Table for Dedup | Webhook deduplication requires conditional writes; the app code already expects this table | Low | Partition key `pk` (String), sort key `sk` (String). TTL attribute `expires_at`. PAY_PER_REQUEST billing (low, bursty traffic). |
-| DynamoDB TTL Enabled | Automatic cleanup of expired dedup records (24h TTL set in app code) | Low | TTL attribute name: `expires_at`. Without this, the table grows forever. DynamoDB TTL deletes are free (no WCU consumed). |
-| Secrets Manager Secret(s) | GitHub App credentials (private key, webhook secret, app ID, installation ID) must not be in env vars or code | Med | App reads FERRY_PRIVATE_KEY, FERRY_WEBHOOK_SECRET, FERRY_APP_ID, FERRY_INSTALLATION_ID from env vars (pydantic-settings). Two options: (A) Lambda env vars referencing Secrets Manager via extension, or (B) env vars populated from TF `data.aws_secretsmanager_secret_version`. Option B is simpler for staging. |
-| IAM Execution Role | Lambda needs permissions for DynamoDB writes, Secrets Manager reads, CloudWatch Logs, and X-Ray | Med | Least-privilege: dynamodb:PutItem on dedup table, secretsmanager:GetSecretValue on Ferry secret, logs:CreateLogGroup/CreateLogStream/PutLogEvents, xray:PutTraceSegments/PutTelemetryRecords. |
-| CloudWatch Log Group | Lambda logs go here; must configure retention to avoid unbounded cost | Low | `/aws/lambda/ferry-backend`. Set retention to 30 days for staging (not indefinite). The app already uses structlog JSON output compatible with CloudWatch Logs Insights. |
-| OIDC Identity Provider + GHA Deploy Role | GitHub Actions needs AWS access to push ECR images and update Lambda; OIDC avoids stored credentials | Med | `aws_iam_openid_connect_provider` for `token.actions.githubusercontent.com`. Trust policy scoped to the specific repo and branch. Role needs ecr:GetAuthorizationToken, ecr:BatchCheckLayerAvailability, ecr:PutImage, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload, lambda:UpdateFunctionCode. |
-| Self-Deploy GHA Workflow | Automated pipeline: on push to main, build container, push to ECR, update Lambda | Med | workflow_dispatch + push trigger. Steps: checkout, configure AWS creds (OIDC), ECR login, docker build+push, aws lambda update-function-code. This is Ferry deploying itself. |
-| Backend Dockerfile | Container image for the ferry-backend Lambda package | Low | Based on `public.ecr.aws/lambda/python:3.14`. COPY backend + utils packages, pip install, set CMD to handler. Simpler than the Magic Dockerfile (no build secrets, no system packages needed). |
+| Single `ferry.yml` replaces all three files | The entire point of this milestone; users maintain one file | Low | Rename target in dispatch, update docs |
+| Conditional job routing by resource type | Only the matching type's job runs per dispatch | Low | `if: needs.setup.outputs.resource_type == 'lambda'` pattern |
+| Parallel dispatch still works (multi-type push) | A push affecting lambdas + SFs must still trigger both; each runs independently | Medium | Two separate dispatches to same `ferry.yml`, must not cancel each other |
+| Setup action exposes `resource_type` output | Downstream jobs need to know which type was dispatched to conditionally run | Low | Add output to setup action from `DispatchPayload.resource_type` |
+| Existing matrix fan-out preserved per type | Each type still fans out across its affected resources via `strategy.matrix` | Low | No change to matrix logic, just wrapped in conditional jobs |
+| Content-hash skip detection still works | Deploy-level skip must still function within the unified workflow | None | No change needed -- happens inside deploy actions |
+| Dispatch-level skip still works | Backend still skips dispatch when no resources affected | None | No change needed -- happens in backend before dispatch |
+| Updated workflow template in docs | Users need a copy-paste template for the new `ferry.yml` | Low | Replace three doc sections with one unified template |
+| Clear job names in GHA UI | Each job must be identifiable: "Ferry: setup", "Ferry: deploy order-processor (lambda)" | Low | Use `name:` field on jobs |
+| Old workflow files no longer needed | Docs must explicitly say to delete old files; warn about 404 if old files remain | Low | Migration note in docs |
 
 ## Differentiators
 
-Features that improve operational quality but are not strictly required for the app to run. Include these for a production-ready staging environment.
+Features that make the consolidation feel well-crafted vs. a mechanical merge.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| CloudWatch Alarms (5xx + Latency) | Proactive notification when webhooks fail or slow down; catch issues before users notice | Low | Alarm on Url5xxCount > 0 over 5min, UrlRequestLatency p99 > 5s. SNS topic for email notification. Lambda Function URL exposes these metrics natively per AWS docs. |
-| X-Ray Active Tracing | Trace webhook processing end-to-end; identify slow GitHub API calls or DynamoDB latency | Low | `tracing_config { mode = "Active" }` on Lambda + AWSXRayDaemonWriteAccess policy. Adds two trace segments per invocation: service-level and function-level. Sampling: 1 req/sec + 5% additional. |
-| Lambda Reserved Concurrency | Rate-limit the Lambda to prevent runaway costs or accidental DynamoDB throttling | Low | Set to 10-25 for staging. RPS limit = 10x reserved concurrency. Returns HTTP 429 when exceeded (GitHub retries webhooks). Can set to 0 for emergency deactivation. |
-| Lambda Alias (live) | Decouple the "current version" from $LATEST; enables future blue/green or canary deploys | Low | Create a `live` alias pointing to $LATEST. Function URL attached to alias, not to $LATEST directly. Self-deploy workflow publishes new version + updates alias. |
-| CloudWatch Dashboard | Single-pane view of Lambda metrics, DynamoDB metrics, error rates | Low | Widgets: invocation count, error count, duration p50/p99, DynamoDB consumed capacity, throttle count. Quick operational visibility without digging through metrics. |
-| Terraform Variable Separation (tfvars) | Environment-specific values in `.tfvars` files; same TF code for staging and prod | Low | `staging.tfvars` and future `prod.tfvars`. Variables: environment, lambda_memory, log_retention_days, reserved_concurrency. Enables prod environment later without duplicating TF code. |
-| DynamoDB Point-in-Time Recovery | Protects dedup table against accidental deletes; AWS best practice for any production table | Low | `point_in_time_recovery { enabled = true }`. Negligible cost. Not critical for a dedup table (data is ephemeral) but good hygiene. |
-| Resource Tagging Strategy | Consistent tags across all resources for cost tracking and organization | Low | Tags: Project=ferry, Environment=staging, ManagedBy=terraform. Applied via `default_tags` in provider block. |
+| Concurrency groups per resource type | Two dispatches (lambda + SF) run in parallel, but two lambda dispatches from rapid pushes queue properly | Medium | Use job-level concurrency with `ferry-lambdas-${{ github.repository }}` group; see Concurrency Model section |
+| Setup outputs `has_lambdas`, `has_step_functions`, `has_api_gateways` booleans | More readable `if:` conditions than string comparison; forward-compatible with future "all-in-one dispatch" | Low | Parse type from payload, set boolean outputs |
+| Empty matrix guard | If somehow a type job runs with no resources of that type, prevent crash from empty `fromJson` | Low | `if: needs.setup.outputs.matrix != '[]'` on deploy jobs. GHA crashes on empty matrix vector -- this is a known footgun. |
+| Shared setup job (single parse, multiple consumers) | One `setup` job, three conditional deploy jobs that read its outputs -- avoids re-parsing payload per type | Low | Already the pattern in per-type files; extend with type-conditional outputs |
+| Workflow-level `name:` with dynamic type | Workflow run shows "Ferry Deploy (lambda)" not just "Ferry Deploy" in GHA UI | Low-Med | `run-name: "Ferry: ${{ github.event.inputs.payload }}"` -- but payload is JSON, need to extract type; may require setup step |
+| Explicit `fail-fast: false` on each matrix job | One failing resource doesn't cancel others of same type | None | Already in current templates; preserve it |
 
 ## Anti-Features
 
-Features to explicitly NOT build for v1.1 staging deployment.
+Features to explicitly NOT build as part of v1.4.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| API Gateway in front of Function URL | Adds complexity, cost, and another failure point. Function URL already provides HTTPS endpoint. GitHub webhooks do not need API keys, rate limiting, or request transformation. | Use Lambda Function URL directly with auth_type=NONE. The app handles HMAC validation internally. |
-| WAF / CloudFront in front of Lambda | Overkill for a webhook endpoint that validates signatures itself. Adds latency and cost. GitHub IPs change frequently -- IP allowlisting is fragile. | HMAC-SHA256 signature validation in the handler is the security boundary. Invalid signatures get 401 before any processing. |
-| VPC Configuration for Lambda | Lambda does not need VPC access. It talks to DynamoDB (public endpoint), GitHub API (public), and Secrets Manager (public). VPC adds cold start latency (1-2s) and requires NAT Gateway ($32+/month). | Keep Lambda in default (no VPC) configuration. All services accessed via public endpoints. |
-| Custom Domain for Function URL | Unnecessary for staging. GitHub App webhook URL is configured once and does not need to be pretty. Adds ACM certificate and Route53 complexity. | Use the auto-generated Function URL (`*.lambda-url.*.on.aws`). Add custom domain for prod only if needed. |
-| Multi-environment Terraform Workspaces | Terraform workspaces add state management complexity. The ConvergeBio/iac-tf pattern uses directory-based environment separation, not workspaces. | Use directory structure: `teams/platform/aws/staging/` vs future `teams/platform/aws/prod/`. One state file per directory. |
-| Secrets Manager Rotation | Rotation adds Lambda + rotation schedule complexity. GitHub App credentials do not expire on their own -- only rotated manually when compromised. | Store secrets statically in Secrets Manager. Rotate manually if needed. |
-| Lambda Provisioned Concurrency | Eliminates cold starts but costs money 24/7. Webhook latency tolerance is high (GitHub allows 10s timeout). Cold starts on container Lambdas are 1-3s -- acceptable for staging. | Accept cold starts. GitHub retries on timeout. Revisit for prod if needed. |
-| Terraform Modules (reusable) | Premature abstraction. Ferry has exactly one Lambda, one DynamoDB table, one Function URL. Writing a module for a single use adds indirection without reuse. | Inline resource definitions in the TF project files. Extract modules only when a second environment reveals genuine duplication. |
-| KMS Customer Managed Key | Default AWS-managed encryption is sufficient for staging. CMK adds key management overhead and $1/month per key. | Use default encryption for DynamoDB, CloudWatch Logs, Secrets Manager. Revisit for prod if compliance requires it. |
-| Lambda Layers | The backend has modest dependencies (httpx, pydantic, boto3, structlog, PyJWT). Container image deployment bundles everything. Layers add deployment complexity for no benefit with container images. | Ship everything in the container image. Layers are for zip-based deployments, not container Lambdas. |
-| Lambda Dead Letter Queue (DLQ) | Function URL invocations are synchronous -- errors return directly to GitHub as HTTP responses. DLQ only applies to async invocations, which Ferry does not use. | Not applicable. If async invocations are added later, revisit then. |
+| Merging all types into a single dispatch | Would require backend rework (Option A from PROJECT.md), increases payload size, breaks per-type concurrency | Keep per-type dispatch (Option B). Backend sends N dispatches, all target `ferry.yml` |
+| Dynamic job generation (generate jobs from payload) | GHA does not support dynamic job creation at runtime; jobs must be statically defined in YAML | Define three static deploy jobs (lambdas, step_functions, api_gateways), skip via `if:` |
+| Reusable workflow (`workflow_call`) wrapper | Adds indirection, still need the dispatch file, and reusable workflows have context limitations | Keep everything in a single composite workflow file |
+| `run-name` parsing payload JSON | Extracting `resource_type` from JSON in run-name expression is fragile (no `fromJson` in run-name context) | Use static workflow name; type is visible in job names |
+| Hiding skipped jobs in GHA UI | GHA has no built-in way to hide skipped jobs (long-standing community request, no fix planned) | Accept skipped jobs appear grayed out; ensure job names make it clear what ran |
+| Workflow-level concurrency | `inputs` context does not reliably work at workflow-level concurrency (confirmed GHA bug); would block parallel multi-type dispatches | Use job-level concurrency groups instead, or omit entirely for v1.4 |
+| Backward-compatible dual-mode (support both old and new files) | Increases maintenance surface for zero benefit; clean cut is better | Migration guide: delete old files, add new one |
+| Adding new resource types in this milestone | v1.4 is about consolidation, not feature expansion | New types (if any) are separate milestones |
 
 ## Feature Dependencies
 
 ```
-S3 State Backend (bootstrap)
-  --> ALL other Terraform projects depend on this
-
-ECR Repository
-  --> Backend Dockerfile (needs repo to push to)
-    --> Self-Deploy GHA Workflow (builds and pushes image)
-      --> Lambda Function (needs image in ECR)
-
-OIDC Provider + GHA Role
-  --> Self-Deploy GHA Workflow (needs AWS credentials)
-
-Secrets Manager Secret
-  --> Lambda Function (env vars reference secret values)
-    --> Lambda Function URL (endpoint for webhooks)
-
-DynamoDB Table
-  --> Lambda Function (dedup writes)
-
-IAM Execution Role
-  --> Lambda Function (assumes this role)
-
-CloudWatch Log Group
-  --> Lambda Function (writes logs here)
-
-CloudWatch Alarms --> CloudWatch Log Group + Lambda Function URL (needs metrics)
-X-Ray Tracing --> IAM Execution Role (needs xray permissions)
-CloudWatch Dashboard --> Lambda Function + DynamoDB Table (aggregates their metrics)
+Backend: dispatch.py workflow filename change
+    |
+    v
+Setup Action: expose resource_type output
+    |
+    +---> Unified ferry.yml template (static YAML)
+    |         |
+    |         +---> Conditional lambda deploy job
+    |         +---> Conditional step_functions deploy job
+    |         +---> Conditional api_gateways deploy job
+    |
+    +---> Updated docs (lambdas.md, step-functions.md, api-gateways.md -> unified)
+    |
+    +---> Test repo: replace 3 files with 1 ferry.yml
+    |
+    v
+Constants: RESOURCE_TYPE_WORKFLOW_MAP update (all types -> "ferry" or remove map)
 ```
 
-**Critical path:** S3 Backend --> ECR Repo --> Dockerfile --> OIDC + GHA Role --> Self-Deploy Workflow --> Lambda + DynamoDB + Secrets + IAM + Function URL
+### Dependency Detail
+
+1. **`dispatch.py` (backend)** depends on `constants.py` (`RESOURCE_TYPE_WORKFLOW_MAP`). Currently builds `ferry-{workflow_name}.yml` from the map. Must change to emit `ferry.yml` for all types. Two approaches:
+   - Change the map values to all return same string (breaking separation of concerns)
+   - Hardcode `workflow_file = "ferry.yml"` and remove/simplify the map
+
+2. **Setup action (`parse_payload.py`)** currently outputs only `matrix`. Must additionally output `resource_type` (string) so the unified workflow's conditional jobs can route. The `DispatchPayload` model already contains `resource_type` -- just needs to be surfaced as a GHA output.
+
+3. **Unified `ferry.yml`** depends on both the above. It is a static YAML file with three conditional deploy job blocks, each gated on the setup output.
+
+4. **Docs** depend on the final `ferry.yml` template shape. Should be updated after template is finalized.
+
+5. **Test repo** depends on the final `ferry.yml` template and backend deploy (to emit `ferry.yml` dispatches).
+
+## Concurrency Model (Critical Design Decision)
+
+### The Problem
+
+Currently, three separate workflow files means three separate workflow runs that cannot interfere with each other. With a single `ferry.yml`, two concurrent dispatches (e.g., lambda + step_function from the same push) target the SAME workflow file.
+
+### GHA Default Behavior
+
+By default, multiple `workflow_dispatch` triggers to the same workflow run concurrently. This is the desired behavior -- both dispatches run in parallel, each with different payloads.
+
+### When Concurrency Matters
+
+If a user pushes twice in quick succession, both pushes may trigger lambda dispatches. Without concurrency control, both run simultaneously, potentially deploying overlapping resources.
+
+### Recommended Approach for v1.4
+
+**Do NOT add workflow-level concurrency.** Reasons:
+1. `inputs` context is unreliable at workflow-level concurrency (confirmed GHA bug)
+2. A static concurrency group would serialize ALL dispatches, blocking multi-type parallelism
+3. The current per-type files have no concurrency control, so this is not a regression
+
+**If concurrency is added later (v2.0)**, use job-level concurrency with resource_type in the group name:
+```yaml
+jobs:
+  deploy-lambdas:
+    concurrency:
+      group: ferry-lambdas-${{ github.repository }}
+      cancel-in-progress: false
+```
+
+This is a **differentiator** (nice-to-have), not table stakes for v1.4.
+
+## GHA Conditional Job Patterns (Implementation Guide)
+
+### Pattern: Setup -> Conditional Deploy Jobs
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      resource_type: ${{ steps.parse.outputs.resource_type }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: parse
+        uses: ./action/setup
+        with:
+          payload: ${{ inputs.payload }}
+
+  deploy-lambdas:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'lambda'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./action/build
+        # ...
+      - uses: ./action/deploy
+        # ...
+
+  deploy-step-functions:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'step_function'
+    # ...
+
+  deploy-api-gateways:
+    name: "Ferry: deploy ${{ matrix.name }}"
+    needs: setup
+    if: needs.setup.outputs.resource_type == 'api_gateway'
+    # ...
+```
+
+### Known GHA Gotchas for This Pattern
+
+1. **Skipped jobs show in UI:** All three deploy jobs appear in the GHA run, two will show "skipped". No way to hide them (confirmed: no GHA feature for this). Mitigation: clear `name:` fields make it obvious which one ran.
+
+2. **Empty matrix crash:** If a job's `if:` condition passes but the matrix is empty, GHA crashes with "Matrix vector does not contain any values". Mitigation: the `if: resource_type == 'X'` guard prevents this because the matrix always has entries when the type matches (setup action only builds matrix for the dispatched type).
+
+3. **Downstream jobs after skipped `needs`:** If a job depends on a skipped job, it is also skipped by default. This does NOT affect v1.4 because there are no downstream jobs after the deploy jobs. But if v2.0 adds a "report" job that `needs: [deploy-lambdas, deploy-step-functions, deploy-api-gateways]`, it would need `if: always() && !failure() && !cancelled()` to avoid being skipped. Flag for v2.0 planning.
+
+4. **`success()` returns false if deps skipped:** Related to above. The implicit `success()` check in `if:` considers skipped deps as not-success. Workaround: `if: always() && !failure() && !cancelled()`.
+
+## Existing Codebase Touchpoints
+
+Files that need modification for v1.4:
+
+| File | Current State | Change Needed |
+|------|--------------|---------------|
+| `utils/src/ferry_utils/constants.py` | `RESOURCE_TYPE_WORKFLOW_MAP` maps types to `lambdas`, `step_functions`, `api_gateways` | Either remove map usage or update; dispatch.py builds `ferry-{name}.yml` from it |
+| `backend/src/ferry_backend/dispatch/trigger.py` | Line 154-155: `workflow_file = f"ferry-{workflow_name}.yml"` | Change to `workflow_file = "ferry.yml"` |
+| `action/src/ferry_action/parse_payload.py` | Outputs only `matrix` | Add `set_output("resource_type", payload.resource_type)` |
+| `action/setup/action.yml` | Declares only `matrix` output | Add `resource_type` output declaration |
+| `docs/lambdas.md` | Documents `ferry-lambdas.yml` | Update to reference unified `ferry.yml` |
+| `docs/step-functions.md` | Documents `ferry-step_functions.yml` | Update to reference unified `ferry.yml` |
+| `docs/api-gateways.md` | Documents `ferry-api_gateways.yml` | Update to reference unified `ferry.yml` |
+| Test repo workflow files | 3 separate files | Replace with single `ferry.yml` |
 
 ## MVP Recommendation
 
-### Phase 1: Bootstrap (must be first, manual `terraform apply` from local machine)
-1. S3 state backend + DynamoDB lock table
-2. ECR repository for ferry-backend
+Prioritize (in order of implementation):
 
-### Phase 2: Shared Resources (can also be local apply)
-3. OIDC identity provider for GitHub Actions
-4. GHA deploy role (ECR push + Lambda update permissions)
-5. Secrets Manager secret (placeholder -- values filled manually after GitHub App registration)
+1. **Setup action: add `resource_type` output** -- Lowest risk, enables everything else. One line in `parse_payload.py`: `set_output("resource_type", payload.resource_type)`. One line in `action.yml` outputs declaration. Add tests.
 
-### Phase 3: Core Infrastructure (target for self-deploy)
-6. IAM execution role for Lambda
-7. DynamoDB dedup table (with TTL enabled)
-8. CloudWatch log group (with 30-day retention)
-9. Lambda function (container image, referencing ECR + secrets + DynamoDB)
-10. Lambda Function URL (auth_type=NONE)
-11. Backend Dockerfile
-12. Self-deploy GHA workflow
+2. **Constants/dispatch: change workflow filename** -- Change `trigger.py` line 155 to hardcode `ferry.yml` (or simplify `RESOURCE_TYPE_WORKFLOW_MAP`). Small backend change, high impact. Add/update tests.
 
-### Phase 4: Operational Readiness (after app is running)
-13. Resource tagging strategy (add to all resources via default_tags)
-14. CloudWatch alarms (5xx, latency)
-15. X-Ray active tracing
-16. Reserved concurrency
-17. CloudWatch dashboard
+3. **Unified `ferry.yml` template** -- Static YAML with setup + 3 conditional deploy jobs. This is the artifact users copy into their repo.
 
-**Defer:**
-- Lambda alias (`live`): Add when preparing for prod to enable blue/green. Not needed for initial staging.
-- DynamoDB PITR: Nice-to-have, add in Phase 4 if time permits.
-- tfvars separation: Include from the start if low effort, otherwise add when prod environment is created.
+4. **Docs update** -- Replace per-type workflow sections in `lambdas.md`, `step-functions.md`, `api-gateways.md` with unified template reference.
 
-## App Code Dependencies
+5. **Test repo update** -- Delete 3 old workflow files, add `ferry.yml`, push to verify E2E.
 
-The Terraform must satisfy these contracts established by the existing Python code.
-
-| App Code Reference | TF Resource Needed | Details |
-|-------------------|--------------------|---------|
-| `Settings.app_id` (FERRY_APP_ID env var) | Secrets Manager or Lambda env var | GitHub App ID string |
-| `Settings.private_key` (FERRY_PRIVATE_KEY env var) | Secrets Manager secret | PEM private key content, stripped whitespace |
-| `Settings.webhook_secret` (FERRY_WEBHOOK_SECRET env var) | Secrets Manager secret | HMAC-SHA256 webhook validation secret |
-| `Settings.table_name` (FERRY_TABLE_NAME env var) | Lambda env var pointing to DynamoDB table name | Must match the actual DynamoDB table name |
-| `Settings.installation_id` (FERRY_INSTALLATION_ID env var) | Secrets Manager or Lambda env var | Integer, GitHub App installation ID |
-| `Settings.log_level` (FERRY_LOG_LEVEL env var) | Lambda env var | Default "INFO", set to "DEBUG" for staging |
-| `boto3.client("dynamodb", region_name="us-east-1")` | DynamoDB table in us-east-1 | Region is hardcoded in handler.py |
-| `structlog.PrintLoggerFactory()` | CloudWatch Logs | JSON lines to stdout, picked up by CloudWatch automatically |
-| DynamoDB schema: pk (S), sk (S), expires_at (N) | DynamoDB table with TTL on `expires_at` | Conditional writes using `attribute_not_exists(pk)` |
-| Lambda Function URL payload format v2 | Function URL on the Lambda | Handler expects `event.headers`, `event.body`, `event.isBase64Encoded` |
-| `handler` function in `ferry_backend.webhook.handler` | Lambda CMD / handler config | Entry point: `ferry_backend.webhook.handler.handler` |
-
-## Secrets Strategy Detail
-
-The app uses `pydantic-settings` with `env_prefix="FERRY_"`, loading all config from environment variables at cold start. Two viable approaches:
-
-**Option A: Direct env vars from Terraform (recommended for staging)**
-- Terraform reads secret values via `data.aws_secretsmanager_secret_version`
-- Passes values as Lambda environment variables in the `aws_lambda_function` resource
-- Pros: Simple, no Lambda extension needed, no code changes
-- Cons: Secret values visible in TF state and Lambda console
-- Mitigation: TF state is encrypted at rest in S3; Lambda console access restricted by IAM
-
-**Option B: Secrets Manager Lambda Extension**
-- Lambda extension layer fetches secrets at cold start
-- Requires code changes to read from extension HTTP endpoint instead of env vars
-- Pros: Secrets never in env vars or TF state
-- Cons: Adds Lambda layer dependency, requires code changes, adds cold start latency
-- Verdict: Overkill for staging. Consider for prod if security posture requires it.
-
-**Recommendation: Option A.** Populate FERRY_APP_ID, FERRY_PRIVATE_KEY, FERRY_WEBHOOK_SECRET, FERRY_INSTALLATION_ID as Lambda env vars sourced from Secrets Manager via Terraform data source. Set FERRY_TABLE_NAME and FERRY_LOG_LEVEL as plain env vars (not secrets).
+Defer:
+- **Concurrency groups:** Not needed for v1.4. Current behavior (parallel runs, no concurrency control) is preserved from v1.3. Add in v2.0 if rapid-push race conditions become a problem.
+- **`run-name` dynamic naming:** Fragile in GHA, low value. Static "Ferry Deploy" is fine; job names provide the detail.
+- **Boolean convenience outputs (`has_lambdas` etc.):** Nice-to-have but `resource_type == 'lambda'` is clear enough. Could add later if moving to single-dispatch model in v2.0.
 
 ## Sources
 
-- AWS Lambda Function URL configuration: https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html (HIGH confidence)
-- AWS Lambda Function URL monitoring/metrics: https://docs.aws.amazon.com/lambda/latest/dg/urls-monitoring.html (HIGH confidence)
-- AWS Lambda Function URL invocation format: https://docs.aws.amazon.com/lambda/latest/dg/urls-invocation.html (HIGH confidence)
-- AWS Lambda limits: https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html (HIGH confidence)
-- AWS Lambda X-Ray tracing: https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html (HIGH confidence)
-- AWS Lambda environment variables best practices: https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html (HIGH confidence)
-- AWS Secrets Manager Lambda integration: https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html (HIGH confidence)
-- DynamoDB TTL: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html (HIGH confidence)
-- Ferry backend handler.py, settings.py, dedup.py: direct code analysis (PRIMARY source)
-- ConvergeBio/iac-tf conventions: project memory (MEDIUM confidence)
+- [GitHub Docs: Using conditions to control job execution](https://docs.github.com/en/actions/using-jobs/using-conditions-to-control-job-execution) -- Skipped job reports "Success" status, `if:` syntax (HIGH confidence)
+- [GitHub Docs: Control the concurrency of workflows and jobs](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs) -- Concurrency group syntax, `cancel-in-progress` (HIGH confidence)
+- [GitHub Community: Job with dynamic matrix crashes if matrix contains zero elements](https://github.com/orgs/community/discussions/27096) -- Empty `fromJson` matrix crash, `if:` guard workaround (MEDIUM confidence)
+- [GitHub Community: Hide Skipped jobs from Action UI](https://github.com/orgs/community/discussions/152605) -- No GHA feature to hide skipped jobs (MEDIUM confidence)
+- [GitHub Community: Hide Jobs in Actions UI when If is false](https://github.com/orgs/community/discussions/18001) -- Confirmed: skipped jobs always visible (MEDIUM confidence)
+- [GitHub Community: inputs context not working for concurrency group](https://github.com/orgs/community/discussions/35341) -- `inputs` unreliable at workflow-level concurrency; use job-level or `github.event.inputs` (MEDIUM confidence)
+- [GitHub Community: Jobs being skipped while using both needs and if](https://github.com/orgs/community/discussions/26945) -- `always()` workaround for skipped dependency chains (MEDIUM confidence)
+- [GitHub Community: success() returns false if dependent jobs are skipped](https://github.com/orgs/community/discussions/45058) -- Implicit `success()` treats skipped as not-success (MEDIUM confidence)
+- [Digger CE Getting Started](https://docs.opentaco.dev/ce/getting-started/with-terraform) -- Reference: single `workflow_dispatch` file for multiple project types (MEDIUM confidence)
+- Existing Ferry codebase: `dispatch/trigger.py`, `parse_payload.py`, `constants.py`, dispatch models, per-type workflow docs (PRIMARY source)
