@@ -1,5 +1,7 @@
 """Tests for dispatch payload Pydantic models."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -471,6 +473,106 @@ class TestBatchedDispatchPayload:
             deployment_tag="v2.0.0",
         )
         assert payload.pr_number == ""
+
+    def test_batched_payload_resource_types_all_three(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            step_functions=[
+                StepFunctionResource(
+                    name="wf-a",
+                    source="workflows/wf-a",
+                    state_machine_name="sm-a",
+                    definition_file="def.json",
+                ),
+            ],
+            api_gateways=[
+                ApiGatewayResource(
+                    name="api-a",
+                    source="apis/api-a",
+                    rest_api_id="id123",
+                    stage_name="prod",
+                    spec_file="spec.yaml",
+                ),
+            ],
+            trigger_sha="abc123def456",
+            deployment_tag="v2.0.0-abc123d",
+        )
+        assert payload.resource_types == "lambda,step_function,api_gateway"
+
+    def test_batched_payload_resource_types_single(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.resource_types == "lambda"
+
+    def test_batched_payload_resource_types_empty(self):
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.resource_types == ""
+
+    def test_batched_payload_resource_types_in_json(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            step_functions=[
+                StepFunctionResource(
+                    name="wf-a",
+                    source="workflows/wf-a",
+                    state_machine_name="sm-a",
+                    definition_file="def.json",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        data = json.loads(payload.model_dump_json())
+        assert "resource_types" in data
+        assert data["resource_types"] == "lambda,step_function"
+
+    def test_batched_payload_resource_types_in_dump(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        data = payload.model_dump()
+        assert "resource_types" in data
+        assert data["resource_types"] == "lambda"
 
     def test_v1_payload_unchanged(self):
         """Guard rail: DispatchPayload (v1) still works exactly as before."""

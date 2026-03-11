@@ -7,7 +7,7 @@ validation. One dispatch per resource TYPE (not per resource).
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ferry_utils.constants import BATCHED_SCHEMA_VERSION, SCHEMA_VERSION
 
@@ -90,3 +90,16 @@ class BatchedDispatchPayload(BaseModel):
     trigger_sha: str
     deployment_tag: str
     pr_number: str = ""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resource_types(self) -> str:
+        """Comma-separated list of resource types with non-empty resource lists."""
+        types: list[str] = []
+        if self.lambdas:
+            types.append("lambda")
+        if self.step_functions:
+            types.append("step_function")
+        if self.api_gateways:
+            types.append("api_gateway")
+        return ",".join(types)
