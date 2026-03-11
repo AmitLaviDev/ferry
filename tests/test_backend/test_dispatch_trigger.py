@@ -17,7 +17,7 @@ from ferry_backend.dispatch.trigger import (
     trigger_dispatches,
 )
 from ferry_backend.github.client import GitHubClient
-from ferry_utils.models.dispatch import DispatchPayload
+from ferry_utils.models.dispatch import BatchedDispatchPayload
 
 # ---------------------------------------------------------------------------
 # build_deployment_tag
@@ -68,8 +68,10 @@ class TestTriggerDispatches:
             changed_files=changed_files,
         )
 
+    # --- Updated existing tests (adapted for batched dispatch v2) ---
+
     def test_trigger_dispatches_single_type(self, httpx_mock):
-        """Two lambdas -> one dispatch with both in resources list."""
+        """Two lambdas -> one batched dispatch with both in lambdas list."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -115,20 +117,17 @@ class TestTriggerDispatches:
         assert results[0]["status"] == 204
         assert results[0]["workflow"] == "ferry.yml"
 
-        # Verify payload contains both resources
+        # Verify payload is BatchedDispatchPayload v2 with both lambdas
         request = httpx_mock.get_requests()[0]
         body = json.loads(request.content)
-        payload_data = json.loads(body["inputs"]["payload"])
-        assert len(payload_data["resources"]) == 2
-        names = {r["name"] for r in payload_data["resources"]}
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.v == 2
+        assert len(payload.lambdas) == 2
+        names = {r.name for r in payload.lambdas}
         assert names == {"order", "payment"}
 
     def test_trigger_dispatches_multiple_types(self, httpx_mock):
-        """Lambda + step_function -> 2 dispatches."""
-        httpx_mock.add_response(
-            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
-            status_code=204,
-        )
+        """Lambda + step_function -> 1 batched dispatch (not 2)."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -177,6 +176,9 @@ class TestTriggerDispatches:
         types = {r["type"] for r in results}
         assert types == {"lambda", "step_function"}
 
+        # Only 1 API call (batched), not 2
+        assert len(httpx_mock.get_requests()) == 1
+
     def test_trigger_dispatches_empty(self, httpx_mock):
         """No affected resources -> no API calls, empty result."""
         config = self._make_config()
@@ -194,7 +196,7 @@ class TestTriggerDispatches:
         assert len(httpx_mock.get_requests()) == 0
 
     def test_trigger_dispatches_payload_format(self, httpx_mock):
-        """Verify JSON payload structure matches DispatchPayload schema."""
+        """Verify JSON payload structure matches BatchedDispatchPayload v2 schema."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -231,22 +233,22 @@ class TestTriggerDispatches:
         body = json.loads(request.content)
         assert body["ref"] == "main"  # default_branch default
 
-        # Parse the inner payload and validate against DispatchPayload
+        # Parse the inner payload and validate against BatchedDispatchPayload v2
         payload_json = body["inputs"]["payload"]
-        payload = DispatchPayload.model_validate_json(payload_json)
-        assert payload.resource_type == "lambda"
+        payload = BatchedDispatchPayload.model_validate_json(payload_json)
+        assert payload.v == 2
         assert payload.trigger_sha == "deadbeef123"
         assert payload.deployment_tag == "pr-42"
         assert payload.pr_number == "42"
-        assert len(payload.resources) == 1
-        assert payload.resources[0].name == "order"
-        assert payload.resources[0].source == "services/order"
-        assert payload.resources[0].ecr == "ferry/order"
+        assert len(payload.lambdas) == 1
+        assert payload.lambdas[0].name == "order"
+        assert payload.lambdas[0].source == "services/order"
+        assert payload.lambdas[0].ecr == "ferry/order"
         # function_name defaults to name when not set explicitly
-        assert payload.resources[0].function_name == "order"
+        assert payload.lambdas[0].function_name == "order"
 
     def test_trigger_dispatches_includes_explicit_function_name(self, httpx_mock):
-        """function_name that differs from name flows through dispatch payload."""
+        """function_name that differs from name flows through batched payload."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -282,17 +284,12 @@ class TestTriggerDispatches:
 
         request = httpx_mock.get_requests()[0]
         body = json.loads(request.content)
-        payload_data = json.loads(body["inputs"]["payload"])
-        resource = payload_data["resources"][0]
-        assert resource["name"] == "order"
-        assert resource["function_name"] == "order-processor-prod"
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.lambdas[0].name == "order"
+        assert payload.lambdas[0].function_name == "order-processor-prod"
 
     def test_trigger_dispatches_uses_correct_workflow_file(self, httpx_mock):
-        """All resource types dispatch to ferry.yml."""
-        httpx_mock.add_response(
-            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
-            status_code=204,
-        )
+        """All resource types dispatch to ferry.yml in a single batched call."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -341,8 +338,11 @@ class TestTriggerDispatches:
         workflows = {r["workflow"] for r in results}
         assert workflows == {"ferry.yml"}  # All types use unified workflow
 
+        # Only 1 API call (batched)
+        assert len(httpx_mock.get_requests()) == 1
+
     def test_trigger_dispatches_resource_field_mapping(self, httpx_mock):
-        """Verify source_dir -> 'source' and ecr_repo -> 'ecr' in payload."""
+        """Verify source_dir -> 'source' and ecr_repo -> 'ecr' in batched payload."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -377,10 +377,402 @@ class TestTriggerDispatches:
 
         request = httpx_mock.get_requests()[0]
         body = json.loads(request.content)
-        payload_data = json.loads(body["inputs"]["payload"])
-        resource = payload_data["resources"][0]
-        assert resource["source"] == "services/order-processor"
-        assert resource["ecr"] == "ferry/order-proc"
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.lambdas[0].source == "services/order-processor"
+        assert payload.lambdas[0].ecr == "ferry/order-proc"
+
+    # --- New tests for batched dispatch behavior ---
+
+    def test_trigger_dispatches_multiple_types_batched(self, httpx_mock):
+        """2 types -> 1 API call, results have 2 entries, payload is BatchedDispatchPayload v2."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected(
+                "order",
+                changed_files=("services/order/main.py",),
+            ),
+            self._make_affected(
+                "checkout",
+                resource_type="step_function",
+                changed_files=("workflows/checkout/def.json",),
+            ),
+        ]
+
+        client = GitHubClient()
+        results = trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        # Exactly 1 API call
+        assert len(httpx_mock.get_requests()) == 1
+        # 2 result entries (one per type)
+        assert len(results) == 2
+        types = {r["type"] for r in results}
+        assert types == {"lambda", "step_function"}
+
+        # Payload is BatchedDispatchPayload v2
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.v == 2
+        assert len(payload.lambdas) == 1
+        assert len(payload.step_functions) == 1
+
+    def test_trigger_dispatches_single_type_batched(self, httpx_mock):
+        """1 lambda -> 1 API call, payload is BatchedDispatchPayload v2 with only lambdas."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected(
+                "order",
+                changed_files=("services/order/main.py",),
+            ),
+        ]
+
+        client = GitHubClient()
+        results = trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        assert len(httpx_mock.get_requests()) == 1
+        assert len(results) == 1
+
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.v == 2
+        assert len(payload.lambdas) == 1
+        assert payload.step_functions == []
+        assert payload.api_gateways == []
+
+    def test_trigger_dispatches_batched_payload_format(self, httpx_mock):
+        """Verify all BatchedDispatchPayload fields: v, sha, tag, pr, resources."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected(
+                "order",
+                changed_files=("services/order/main.py",),
+            ),
+        ]
+
+        client = GitHubClient()
+        trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "deadbeef123",
+            "pr-42",
+            "42",
+        )
+
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+
+        assert payload.v == 2
+        assert payload.trigger_sha == "deadbeef123"
+        assert payload.deployment_tag == "pr-42"
+        assert payload.pr_number == "42"
+        assert len(payload.lambdas) == 1
+        lam = payload.lambdas[0]
+        assert lam.name == "order"
+        assert lam.source == "services/order"
+        assert lam.ecr == "ferry/order"
+        assert lam.function_name == "order"
+
+    def test_trigger_dispatches_all_three_types(self, httpx_mock):
+        """3 types -> 1 API call, 3 result entries, payload has all 3 lists populated."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+            api_gateways=[
+                ApiGatewayConfig(
+                    name="public-api",
+                    source_dir="apis/public",
+                    rest_api_id="abc123",
+                    stage_name="prod",
+                    spec_file="openapi.yaml",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected("order", changed_files=("services/order/main.py",)),
+            self._make_affected(
+                "checkout",
+                resource_type="step_function",
+                changed_files=("workflows/checkout/def.json",),
+            ),
+            self._make_affected(
+                "public-api",
+                resource_type="api_gateway",
+                changed_files=("apis/public/spec.yaml",),
+            ),
+        ]
+
+        client = GitHubClient()
+        results = trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        # 1 API call
+        assert len(httpx_mock.get_requests()) == 1
+        # 3 result entries
+        assert len(results) == 3
+        types = {r["type"] for r in results}
+        assert types == {"lambda", "step_function", "api_gateway"}
+
+        # Payload has all 3 lists
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert len(payload.lambdas) == 1
+        assert len(payload.step_functions) == 1
+        assert len(payload.api_gateways) == 1
+
+    def test_trigger_dispatches_return_shape(self, httpx_mock):
+        """Each result dict has 'type' (str), 'status' (int), 'workflow' (str) keys."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected("order", changed_files=("services/order/main.py",)),
+            self._make_affected(
+                "checkout",
+                resource_type="step_function",
+                changed_files=("workflows/checkout/def.json",),
+            ),
+        ]
+
+        client = GitHubClient()
+        results = trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        for result in results:
+            assert set(result.keys()) == {"type", "status", "workflow"}
+            assert isinstance(result["type"], str)
+            assert isinstance(result["status"], int)
+            assert isinstance(result["workflow"], str)
+
+    def test_trigger_dispatches_fallback_on_oversized(self, httpx_mock, monkeypatch):
+        """Oversized payload -> falls back to per-type v1 dispatch (N API calls)."""
+        monkeypatch.setattr("ferry_backend.dispatch.trigger._MAX_PAYLOAD_SIZE", 10)
+
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected("order", changed_files=("services/order/main.py",)),
+            self._make_affected(
+                "checkout",
+                resource_type="step_function",
+                changed_files=("workflows/checkout/def.json",),
+            ),
+        ]
+
+        client = GitHubClient()
+        results = trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        # Fallback: 2 API calls (one per type)
+        assert len(httpx_mock.get_requests()) == 2
+        assert len(results) == 2
+
+    def test_trigger_dispatches_fallback_uses_v1_payload(self, httpx_mock, monkeypatch):
+        """Fallback dispatches use v1 DispatchPayload with v=1, resource_type, resources."""
+        monkeypatch.setattr("ferry_backend.dispatch.trigger._MAX_PAYLOAD_SIZE", 10)
+
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+            step_functions=[
+                StepFunctionConfig(
+                    name="checkout",
+                    source_dir="workflows/checkout",
+                    state_machine_name="checkout-sm",
+                    definition_file="stepfunction.json",
+                ),
+            ],
+        )
+        affected = [
+            self._make_affected("order", changed_files=("services/order/main.py",)),
+            self._make_affected(
+                "checkout",
+                resource_type="step_function",
+                changed_files=("workflows/checkout/def.json",),
+            ),
+        ]
+
+        client = GitHubClient()
+        trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "main-sha123",
+            "",
+        )
+
+        # Each fallback request should have v1 DispatchPayload format
+        for request in httpx_mock.get_requests():
+            body = json.loads(request.content)
+            payload_data = json.loads(body["inputs"]["payload"])
+            assert payload_data["v"] == 1
+            assert "resource_type" in payload_data
+            assert "resources" in payload_data
 
 
 # ---------------------------------------------------------------------------
