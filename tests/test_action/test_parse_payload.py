@@ -7,7 +7,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from ferry_action.parse_payload import build_matrix, main
+from ferry_action.parse_payload import build_matrix, main, parse_payload
 
 
 def _make_payload(
@@ -45,6 +45,54 @@ def _make_payload(
         "deployment_tag": deployment_tag,
     }
     return json.dumps(payload)
+
+
+def _make_batched_payload(
+    *,
+    lambdas: list[dict] | None = None,
+    step_functions: list[dict] | None = None,
+    api_gateways: list[dict] | None = None,
+    trigger_sha: str = "abc1234def5678",
+    deployment_tag: str = "pr-42",
+) -> str:
+    """Build a valid v2 batched dispatch payload JSON string."""
+    payload: dict = {
+        "v": 2,
+        "trigger_sha": trigger_sha,
+        "deployment_tag": deployment_tag,
+    }
+    if lambdas is not None:
+        payload["lambdas"] = lambdas
+    if step_functions is not None:
+        payload["step_functions"] = step_functions
+    if api_gateways is not None:
+        payload["api_gateways"] = api_gateways
+    return json.dumps(payload)
+
+
+_LAMBDA_A = {
+    "resource_type": "lambda",
+    "name": "order-processor",
+    "source": "services/order-processor",
+    "ecr": "ferry/order-processor",
+    "function_name": "order-processor",
+    "runtime": "python3.14",
+}
+_SF_A = {
+    "resource_type": "step_function",
+    "name": "checkout-flow",
+    "source": "workflows/checkout",
+    "state_machine_name": "checkout-sm",
+    "definition_file": "stepfunction.json",
+}
+_AG_A = {
+    "resource_type": "api_gateway",
+    "name": "public-api",
+    "source": "apis/public",
+    "rest_api_id": "abc123",
+    "stage_name": "prod",
+    "spec_file": "openapi.yaml",
+}
 
 
 class TestBuildMatrix:
@@ -292,6 +340,158 @@ class TestBuildMatrix:
         assert names == {"flow-a", "flow-b"}
 
 
+class TestParsePayloadV2:
+    """Tests for parse_payload() with v2 batched payloads."""
+
+    def test_v2_all_three_types(self) -> None:
+        """V2 payload with all three types sets all flags and matrices."""
+        result = parse_payload(
+            _make_batched_payload(
+                lambdas=[_LAMBDA_A],
+                step_functions=[_SF_A],
+                api_gateways=[_AG_A],
+            )
+        )
+        assert result.has_lambdas is True
+        assert result.has_step_functions is True
+        assert result.has_api_gateways is True
+        assert len(result.lambda_matrix["include"]) == 1
+        assert len(result.sf_matrix["include"]) == 1
+        assert len(result.ag_matrix["include"]) == 1
+        assert result.resource_types == "lambda,step_function,api_gateway"
+
+    def test_v2_single_type_lambda(self) -> None:
+        """V2 payload with only lambdas sets only lambda flag and matrix."""
+        result = parse_payload(_make_batched_payload(lambdas=[_LAMBDA_A]))
+        assert result.has_lambdas is True
+        assert result.has_step_functions is False
+        assert result.has_api_gateways is False
+        assert len(result.lambda_matrix["include"]) == 1
+        assert result.sf_matrix["include"] == []
+        assert result.ag_matrix["include"] == []
+        assert result.resource_types == "lambda"
+
+    def test_v2_lambda_matrix_fields(self) -> None:
+        """V2 lambda matrix entry has correct fields and values."""
+        result = parse_payload(_make_batched_payload(lambdas=[_LAMBDA_A]))
+        entry = result.lambda_matrix["include"][0]
+        assert entry["name"] == "order-processor"
+        assert entry["source"] == "services/order-processor"
+        assert entry["ecr"] == "ferry/order-processor"
+        assert entry["function_name"] == "order-processor"
+        assert entry["trigger_sha"] == "abc1234def5678"
+        assert entry["deployment_tag"] == "pr-42"
+        assert entry["runtime"] == "python3.14"
+
+    def test_v2_sf_matrix_fields(self) -> None:
+        """V2 step function matrix entry has correct fields, no lambda fields."""
+        result = parse_payload(_make_batched_payload(step_functions=[_SF_A]))
+        entry = result.sf_matrix["include"][0]
+        assert entry["name"] == "checkout-flow"
+        assert entry["source"] == "workflows/checkout"
+        assert entry["state_machine_name"] == "checkout-sm"
+        assert entry["definition_file"] == "stepfunction.json"
+        assert entry["trigger_sha"] == "abc1234def5678"
+        assert entry["deployment_tag"] == "pr-42"
+        assert "ecr" not in entry
+        assert "runtime" not in entry
+
+    def test_v2_ag_matrix_fields(self) -> None:
+        """V2 API gateway matrix entry has correct fields, no lambda fields."""
+        result = parse_payload(_make_batched_payload(api_gateways=[_AG_A]))
+        entry = result.ag_matrix["include"][0]
+        assert entry["name"] == "public-api"
+        assert entry["source"] == "apis/public"
+        assert entry["rest_api_id"] == "abc123"
+        assert entry["stage_name"] == "prod"
+        assert entry["spec_file"] == "openapi.yaml"
+        assert entry["trigger_sha"] == "abc1234def5678"
+        assert entry["deployment_tag"] == "pr-42"
+        assert "ecr" not in entry
+        assert "runtime" not in entry
+
+    def test_v2_multiple_lambdas(self) -> None:
+        """V2 payload with two lambdas produces two matrix entries."""
+        lambda_b = {
+            "resource_type": "lambda",
+            "name": "email-sender",
+            "source": "services/email-sender",
+            "ecr": "ferry/email-sender",
+            "function_name": "email-sender",
+            "runtime": "python3.14",
+        }
+        result = parse_payload(_make_batched_payload(lambdas=[_LAMBDA_A, lambda_b]))
+        assert len(result.lambda_matrix["include"]) == 2
+        names = {e["name"] for e in result.lambda_matrix["include"]}
+        assert names == {"order-processor", "email-sender"}
+
+    def test_v2_empty_payload(self) -> None:
+        """V2 payload with no types sets all flags False and matrices empty."""
+        result = parse_payload(_make_batched_payload())
+        assert result.has_lambdas is False
+        assert result.has_step_functions is False
+        assert result.has_api_gateways is False
+        assert result.lambda_matrix["include"] == []
+        assert result.sf_matrix["include"] == []
+        assert result.ag_matrix["include"] == []
+        assert result.resource_types == ""
+
+    def test_v2_propagates_trigger_sha_and_tag(self) -> None:
+        """V2 trigger_sha and deployment_tag appear in every matrix entry."""
+        result = parse_payload(
+            _make_batched_payload(
+                lambdas=[_LAMBDA_A],
+                step_functions=[_SF_A],
+                api_gateways=[_AG_A],
+                trigger_sha="deadbeef",
+                deployment_tag="pr-99",
+            )
+        )
+        for matrix in [result.lambda_matrix, result.sf_matrix, result.ag_matrix]:
+            for entry in matrix["include"]:
+                assert entry["trigger_sha"] == "deadbeef"
+                assert entry["deployment_tag"] == "pr-99"
+
+
+class TestParsePayloadV1Compat:
+    """Tests for parse_payload() with v1 payloads (backward compatibility)."""
+
+    def test_v1_lambda_through_parse_payload(self) -> None:
+        """V1 lambda payload parsed through unified parse_payload."""
+        result = parse_payload(_make_payload())
+        assert result.has_lambdas is True
+        assert result.has_step_functions is False
+        assert result.has_api_gateways is False
+        assert len(result.lambda_matrix["include"]) == 2
+        assert result.resource_types == "lambda"
+
+    def test_v1_step_function_through_parse_payload(self) -> None:
+        """V1 step_function payload parsed through unified parse_payload."""
+        result = parse_payload(_make_payload(resources=[_SF_A], resource_type="step_function"))
+        assert result.has_step_functions is True
+        assert result.has_lambdas is False
+        assert result.has_api_gateways is False
+        assert len(result.sf_matrix["include"]) == 1
+
+    def test_v1_api_gateway_through_parse_payload(self) -> None:
+        """V1 api_gateway payload parsed through unified parse_payload."""
+        result = parse_payload(_make_payload(resources=[_AG_A], resource_type="api_gateway"))
+        assert result.has_api_gateways is True
+        assert result.has_lambdas is False
+        assert result.has_step_functions is False
+        assert len(result.ag_matrix["include"]) == 1
+
+    def test_v1_empty_resources_through_parse_payload(self) -> None:
+        """V1 payload with empty resources sets all flags False."""
+        result = parse_payload(_make_payload(resources=[]))
+        assert result.has_lambdas is False
+        assert result.has_step_functions is False
+        assert result.has_api_gateways is False
+        assert result.lambda_matrix["include"] == []
+        assert result.sf_matrix["include"] == []
+        assert result.ag_matrix["include"] == []
+
+
 class TestMain:
     """Tests for the main() CLI entrypoint."""
 
@@ -318,7 +518,7 @@ class TestMain:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        """Valid payload writes matrix JSON to GITHUB_OUTPUT file."""
+        """Valid v1 payload writes per-type flags and matrices to GITHUB_OUTPUT."""
         output_file = tmp_path / "github_output"
         output_file.touch()
 
@@ -329,14 +529,65 @@ class TestMain:
 
         content = output_file.read_text()
         lines = content.strip().split("\n")
-        assert len(lines) == 2
+        assert len(lines) == 7
 
-        # First line: matrix output
-        assert lines[0].startswith("matrix=")
-        matrix_json = lines[0].split("=", 1)[1]
-        matrix = json.loads(matrix_json)
-        assert "include" in matrix
-        assert len(matrix["include"]) == 2
+        outputs = {}
+        for line in lines:
+            key, _, value = line.partition("=")
+            outputs[key] = value
 
-        # Second line: resource_type output
-        assert lines[1] == "resource_type=lambda"
+        assert outputs["has_lambdas"] == "true"
+        assert outputs["has_step_functions"] == "false"
+        assert outputs["has_api_gateways"] == "false"
+
+        lambda_matrix = json.loads(outputs["lambda_matrix"])
+        assert len(lambda_matrix["include"]) == 2
+
+        sf_matrix = json.loads(outputs["sf_matrix"])
+        assert sf_matrix["include"] == []
+
+        ag_matrix = json.loads(outputs["ag_matrix"])
+        assert ag_matrix["include"] == []
+
+        assert outputs["resource_types"] == "lambda"
+
+    def test_valid_v2_payload_writes_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """Valid v2 batched payload writes per-type flags and matrices."""
+        output_file = tmp_path / "github_output"
+        output_file.touch()
+
+        monkeypatch.setenv(
+            "INPUT_PAYLOAD",
+            _make_batched_payload(lambdas=[_LAMBDA_A], step_functions=[_SF_A]),
+        )
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+
+        main()
+
+        content = output_file.read_text()
+        lines = content.strip().split("\n")
+        assert len(lines) == 7
+
+        outputs = {}
+        for line in lines:
+            key, _, value = line.partition("=")
+            outputs[key] = value
+
+        assert outputs["has_lambdas"] == "true"
+        assert outputs["has_step_functions"] == "true"
+        assert outputs["has_api_gateways"] == "false"
+
+        lambda_matrix = json.loads(outputs["lambda_matrix"])
+        assert len(lambda_matrix["include"]) == 1
+
+        sf_matrix = json.loads(outputs["sf_matrix"])
+        assert len(sf_matrix["include"]) == 1
+
+        ag_matrix = json.loads(outputs["ag_matrix"])
+        assert ag_matrix["include"] == []
+
+        assert outputs["resource_types"] == "lambda,step_function"
