@@ -3,9 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from ferry_utils.constants import SCHEMA_VERSION
+from ferry_utils.constants import BATCHED_SCHEMA_VERSION, SCHEMA_VERSION
 from ferry_utils.models.dispatch import (
     ApiGatewayResource,
+    BatchedDispatchPayload,
     DispatchPayload,
     LambdaResource,
     StepFunctionResource,
@@ -291,3 +292,205 @@ class TestDispatchPayload:
     def test_lambda_resource_missing_function_name_fails(self):
         with pytest.raises(ValidationError, match="function_name"):
             LambdaResource(name="fn", source="src/fn", ecr="fn-repo", runtime="python3.14")  # type: ignore[call-arg]
+
+
+class TestBatchedDispatchPayload:
+    """Tests for the v2 BatchedDispatchPayload model."""
+
+    def test_batched_payload_all_three_types(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            step_functions=[
+                StepFunctionResource(
+                    name="wf-a",
+                    source="workflows/wf-a",
+                    state_machine_name="sm-a",
+                    definition_file="def.json",
+                ),
+            ],
+            api_gateways=[
+                ApiGatewayResource(
+                    name="api-a",
+                    source="apis/api-a",
+                    rest_api_id="id123",
+                    stage_name="prod",
+                    spec_file="spec.yaml",
+                ),
+            ],
+            trigger_sha="abc123def456",
+            deployment_tag="v2.0.0-abc123d",
+        )
+        assert payload.v == 2
+        assert len(payload.lambdas) == 1
+        assert len(payload.step_functions) == 1
+        assert len(payload.api_gateways) == 1
+        assert payload.trigger_sha == "abc123def456"
+        assert payload.deployment_tag == "v2.0.0-abc123d"
+        assert payload.lambdas[0].name == "fn-a"
+        assert payload.step_functions[0].name == "wf-a"
+        assert payload.api_gateways[0].name == "api-a"
+
+    def test_batched_payload_single_type_only(self):
+        payload = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert len(payload.lambdas) == 1
+        assert payload.step_functions == []
+        assert payload.api_gateways == []
+
+    def test_batched_payload_empty_lists_valid(self):
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.lambdas == []
+        assert payload.step_functions == []
+        assert payload.api_gateways == []
+
+    def test_batched_payload_version_is_always_2(self):
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.v == 2
+        assert payload.v == BATCHED_SCHEMA_VERSION
+
+        # Explicit v=2 works
+        payload2 = BatchedDispatchPayload(
+            v=2,
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload2.v == 2
+
+        # v=1 should raise ValidationError (Literal[2] enforcement)
+        with pytest.raises(ValidationError, match="v"):
+            BatchedDispatchPayload(
+                v=1,
+                trigger_sha="abc123",
+                deployment_tag="v2.0.0",
+            )
+
+    def test_batched_payload_round_trip_json(self):
+        original = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            step_functions=[
+                StepFunctionResource(
+                    name="wf-a",
+                    source="workflows/wf-a",
+                    state_machine_name="sm-a",
+                    definition_file="def.json",
+                ),
+            ],
+            api_gateways=[
+                ApiGatewayResource(
+                    name="api-a",
+                    source="apis/api-a",
+                    rest_api_id="id123",
+                    stage_name="prod",
+                    spec_file="spec.yaml",
+                ),
+            ],
+            trigger_sha="abc123def456",
+            deployment_tag="v2.0.0-abc123d",
+            pr_number="42",
+        )
+        json_str = original.model_dump_json()
+        restored = BatchedDispatchPayload.model_validate_json(json_str)
+        assert restored.v == original.v
+        assert restored.trigger_sha == original.trigger_sha
+        assert restored.deployment_tag == original.deployment_tag
+        assert restored.pr_number == original.pr_number
+        assert len(restored.lambdas) == 1
+        assert restored.lambdas[0].name == "fn-a"
+        assert len(restored.step_functions) == 1
+        assert restored.step_functions[0].state_machine_name == "sm-a"
+        assert len(restored.api_gateways) == 1
+        assert restored.api_gateways[0].rest_api_id == "id123"
+
+    def test_batched_payload_round_trip_dict(self):
+        original = BatchedDispatchPayload(
+            lambdas=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        data = original.model_dump()
+        restored = BatchedDispatchPayload.model_validate(data)
+        assert restored.v == original.v
+        assert restored.trigger_sha == original.trigger_sha
+        assert restored.deployment_tag == original.deployment_tag
+        assert restored.lambdas == original.lambdas
+        assert restored.step_functions == original.step_functions
+        assert restored.api_gateways == original.api_gateways
+
+    def test_batched_payload_frozen(self):
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        with pytest.raises(ValidationError):
+            payload.trigger_sha = "new-sha"
+
+    def test_batched_payload_pr_number_defaults_empty(self):
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.pr_number == ""
+
+    def test_v1_payload_unchanged(self):
+        """Guard rail: DispatchPayload (v1) still works exactly as before."""
+        payload = DispatchPayload(
+            resource_type="lambdas",
+            resources=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123def456",
+            deployment_tag="v1.0.0-abc123d",
+        )
+        assert payload.v == 1
+        assert payload.v == SCHEMA_VERSION
+        assert payload.resource_type == "lambdas"
+        assert len(payload.resources) == 1
+        assert payload.trigger_sha == "abc123def456"
+        assert payload.pr_number == ""
