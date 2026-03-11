@@ -2,8 +2,9 @@
 
 from enum import StrEnum
 
-# Dispatch payload schema version
+# Dispatch payload schema versions
 SCHEMA_VERSION = 1
+BATCHED_SCHEMA_VERSION = 2
 
 
 class ResourceType(StrEnum):
