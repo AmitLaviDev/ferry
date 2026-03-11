@@ -5,18 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.5 Batched Dispatch -- Phase 25
+**Current focus:** v1.5 Batched Dispatch -- Phase 27
 
 ## Current Position
 
 Milestone: v1.5 Batched Dispatch
-Phase: 25 of 28 (Shared Models and Schema)
+Phase: 26 of 28 (Backend Batched Dispatch)
 Plan: 01 complete
-Status: Phase 25 complete
-Last activity: 2026-03-11 -- Phase 25 plan 01 executed (BatchedDispatchPayload v2 model)
+Status: Phase 26 complete
+Last activity: 2026-03-11 -- Phase 26 plan 01 executed (batched dispatch with payload-size fallback)
 
 ```
-v1.5 Progress: [##........] 1/4 phases
+v1.5 Progress: [#####.....] 2/4 phases
 ```
 
 ## Shipped Milestones
@@ -40,7 +40,7 @@ v1.5 Progress: [##........] 1/4 phases
 **v1.2:** 3 phases, 9 plans (2026-03-03 to 2026-03-08)
 **v1.3:** 4 phases, 7 plans (2026-03-08 to 2026-03-10)
 **v1.4:** 3 phases, 3 plans (2026-03-10)
-**v1.5:** Phase 25 plan 01: 2min (2026-03-11)
+**v1.5:** Phase 25 plan 01: 2min, Phase 26 plan 01: 3min (2026-03-11)
 
 ## Accumulated Context
 
@@ -52,6 +52,8 @@ v1.5 Progress: [##........] 1/4 phases
 - Retain v1 DispatchPayload for backward compat during rollout
 - v: Literal[2] enforces version at type level for discriminated union parsing
 - Additive model evolution: new model alongside existing, no modifications to v1
+- No feature flag -- v2 batched dispatch is the only path, v1 exists solely as >65KB fallback
+- Return shape unchanged: list[dict] per type, zero changes to handler.py
 
 ### Carry-forward Concerns
 
@@ -61,5 +63,5 @@ v1.5 Progress: [##........] 1/4 phases
 ## Session Continuity
 
 Last session: 2026-03-11
-Stopped at: Completed 25-01-PLAN.md (BatchedDispatchPayload v2 model added to ferry-utils).
-Next step: Plan and execute remaining Phase 25 plans, or proceed to Phase 26 (Backend Batched Dispatch).
+Stopped at: Completed 26-01-PLAN.md (batched dispatch with payload-size fallback in trigger.py).
+Next step: Proceed to Phase 27 (Action Parsing and Workflow Template).
