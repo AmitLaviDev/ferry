@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Batched Dispatch
 status: completed
-stopped_at: Completed 26-01-PLAN.md (batched dispatch with payload-size fallback in trigger.py).
-last_updated: "2026-03-11T12:51:40.840Z"
-last_activity: 2026-03-11 -- Phase 26 plan 01 executed (batched dispatch with payload-size fallback)
+stopped_at: Completed 27-01-PLAN.md (action parsing and workflow template for batched dispatch).
+last_updated: "2026-03-11T14:00:00.000Z"
+last_activity: 2026-03-11 -- Phase 27 plan 01 executed (v1/v2 payload parsing, per-type outputs, workflow template)
 progress:
   total_phases: 14
   completed_phases: 14
-  total_plans: 26
-  completed_plans: 26
+  total_plans: 27
+  completed_plans: 27
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.5 Batched Dispatch -- Phase 27
+**Current focus:** v1.5 Batched Dispatch -- Phase 28
 
 ## Current Position
 
 Milestone: v1.5 Batched Dispatch
-Phase: 26 of 28 (Backend Batched Dispatch)
+Phase: 27 of 28 (Action Parsing and Workflow Template)
 Plan: 01 complete
-Status: Phase 26 complete
-Last activity: 2026-03-11 -- Phase 26 plan 01 executed (batched dispatch with payload-size fallback)
+Status: Phase 27 complete
+Last activity: 2026-03-11 -- Phase 27 plan 01 executed (v1/v2 payload parsing, per-type outputs, workflow template)
 
 ```
-v1.5 Progress: [#####.....] 2/4 phases
+v1.5 Progress: [########..] 3/4 phases
 ```
 
 ## Shipped Milestones
@@ -55,7 +55,7 @@ v1.5 Progress: [#####.....] 2/4 phases
 **v1.2:** 3 phases, 9 plans (2026-03-03 to 2026-03-08)
 **v1.3:** 4 phases, 7 plans (2026-03-08 to 2026-03-10)
 **v1.4:** 3 phases, 3 plans (2026-03-10)
-**v1.5:** Phase 25 plan 01: 2min, Phase 26 plan 01: 3min (2026-03-11)
+**v1.5:** Phase 25 plan 01: 2min, Phase 26 plan 01: 3min, Phase 27 plan 01: 5min (2026-03-11)
 
 ## Accumulated Context
 
@@ -78,5 +78,5 @@ v1.5 Progress: [#####.....] 2/4 phases
 ## Session Continuity
 
 Last session: 2026-03-11
-Stopped at: Completed 26-01-PLAN.md (batched dispatch with payload-size fallback in trigger.py).
-Next step: Proceed to Phase 27 (Action Parsing and Workflow Template).
+Stopped at: Completed 27-01-PLAN.md (action parsing and workflow template for batched dispatch).
+Next step: Proceed to Phase 28 (E2E Validation).
