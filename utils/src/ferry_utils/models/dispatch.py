@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ferry_utils.constants import SCHEMA_VERSION
+from ferry_utils.constants import BATCHED_SCHEMA_VERSION, SCHEMA_VERSION
 
 
 class LambdaResource(BaseModel):
@@ -68,6 +68,25 @@ class DispatchPayload(BaseModel):
     v: int = SCHEMA_VERSION
     resource_type: str
     resources: list[Resource]
+    trigger_sha: str
+    deployment_tag: str
+    pr_number: str = ""
+
+
+class BatchedDispatchPayload(BaseModel):
+    """Batched payload sent via workflow_dispatch from Ferry App to Ferry Action.
+
+    v2 schema: One payload per push containing ALL affected resource types,
+    grouped into typed lists. Replaces per-type DispatchPayload (v1) to
+    eliminate multiple workflow runs per push.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    v: Literal[2] = BATCHED_SCHEMA_VERSION
+    lambdas: list[LambdaResource] = []
+    step_functions: list[StepFunctionResource] = []
+    api_gateways: list[ApiGatewayResource] = []
     trigger_sha: str
     deployment_tag: str
     pr_number: str = ""
