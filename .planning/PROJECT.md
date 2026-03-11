@@ -50,10 +50,14 @@ When a developer pushes code, every affected serverless resource is automaticall
 - ✓ Backend dispatches all types to `ferry.yml` (single target filename) — v1.4
 - ✓ Setup action exposes `resource_type` output for conditional job routing — v1.4
 - ✓ Docs updated with unified template and migration guide — v1.4
+- ✓ Batched dispatch: single workflow_dispatch per push with all affected types in one payload — v1.5
+- ✓ Per-type boolean flags and matrices for clean GHA job routing — v1.5
+- ✓ v2 payload schema with automatic >65KB fallback to per-type v1 dispatch — v1.5
+- ✓ Backward-compatible v1/v2 payload parsing in setup action — v1.5
 
 ### Active
 
-- v1.5 Batched Dispatch: Single dispatch per push deploys all affected resource types in one workflow run (eliminates per-type dispatch with skipped-job clutter in GHA UI)
+None -- all milestones through v1.5 shipped. Next: v2.0 PR Integration.
 
 ### Out of Scope
 
@@ -75,11 +79,11 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Current State
 
-v1.4 shipped. Unified workflow: single `ferry.yml` replaces three per-type workflow files. All resource types validated E2E through unified dispatch.
-- 9,384 lines of Python across ~170 files + 1,290 lines of Terraform
+v1.5 shipped. Batched dispatch: one push produces one workflow_dispatch with all affected resource types in a single payload. Clean GHA UI with only relevant deploy jobs active.
+- ~10,000 lines of Python across ~170 files + 1,290 lines of Terraform
 - Tech stack: Python 3.14, uv workspace, Pydantic v2, httpx, PyJWT, boto3, moto
 - Three packages: ferry-backend (backend Lambda), ferry-action (composite GHA action), ferry-shared (Pydantic models)
-- 272 tests passing, 0 lint errors
+- 320 tests passing, 0 lint errors
 - Infrastructure live: Lambda + Function URL + DynamoDB + Secrets Manager + ECR
 - Self-deploy pipeline working (push to main → build → ECR → Lambda update)
 - Full push-to-deploy loop proven with test repo (2 successful deploys + no-op skip)
@@ -108,9 +112,7 @@ workflow_dispatch → User's workflow calls ferry-action
 Runs entirely in user's GHA runner. Zero Ferry infrastructure for execution.
 
 **Dispatch Model:**
-One `workflow_dispatch` per resource type. A push changing 3 Lambdas and 1 Step Function sends 2 dispatches:
-1. Lambdas dispatch (payload lists the 3 changed Lambda resources)
-2. Step Functions dispatch (payload lists the 1 changed Step Function)
+One batched `workflow_dispatch` per push (v1.5). A push changing 3 Lambdas and 1 Step Function sends 1 dispatch containing all affected types. Deploy jobs gate on per-type boolean flags; only relevant jobs run. Falls back to per-type dispatch if payload exceeds 65KB.
 
 ### ferry.yaml Design
 
@@ -193,15 +195,9 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - **Mid-way deployments**: Deploy to staging/preview environments from PRs before merge. Requires environment mapping in ferry.yaml (e.g., `main` → prod, `develop` → staging).
 - Touches: webhook handler (new event types), dispatch model (plan vs apply mode), ferry.yaml schema (environment config), action scripts (dry-run mode), PR comment formatting.
 
-## Current Milestone: v1.5 Batched Dispatch
+## Current Milestone: None (v1.5 shipped)
 
-**Goal:** Single dispatch per push deploys all affected resource types in one workflow run (instead of one dispatch per type with 2 skipped jobs visible in GHA UI).
-
-**Target features:**
-- Batch all affected resource types into a single workflow_dispatch payload
-- Setup action outputs multiple matrices (one per affected type)
-- Workflow template handles multi-type payloads with only relevant jobs active
-- Clean GHA UI: 1 workflow run per push, no skipped-job noise
+v1.5 Batched Dispatch shipped 2026-03-11. Next milestone: v2.0 PR Integration.
 
 ---
-*Last updated: 2026-03-10 after starting v1.5 Batched Dispatch milestone*
+*Last updated: 2026-03-11 after completing v1.5 Batched Dispatch milestone*
