@@ -53,7 +53,7 @@ api_gateways:
 
 ## Workflow File
 
-Ferry uses a single workflow file named `ferry.yml`. When Ferry detects changes, it groups affected resources by type and fires one `workflow_dispatch` event per type -- all targeting this same file. Each dispatch includes a `resource_type` field, and the workflow routes to the correct deploy job using `if` guards.
+Ferry uses a single workflow file named `ferry.yml`. When Ferry detects changes, it groups affected resources by type and fires a single `workflow_dispatch` event targeting this file. The dispatch payload contains all affected types in one batch. The workflow routes to the correct deploy jobs using boolean flags output by the setup action.
 
 Create `.github/workflows/ferry.yml` in your repository with the following template:
 
@@ -61,7 +61,7 @@ Create `.github/workflows/ferry.yml` in your repository with the following templ
 # .github/workflows/ferry.yml
 name: Ferry Deploy
 
-run-name: "Ferry Deploy: ${{ github.event.inputs.payload && fromJson(github.event.inputs.payload).resource_type || 'manual' }}"
+run-name: "Ferry Deploy: ${{ github.event.inputs.payload && (fromJson(github.event.inputs.payload).resource_types || fromJson(github.event.inputs.payload).resource_type || 'dispatched') || 'manual' }}"
 
 on:
   workflow_dispatch:
@@ -83,8 +83,13 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.parse.outputs.matrix }}
-      resource_type: ${{ steps.parse.outputs.resource_type }}
+      has_lambdas: ${{ steps.parse.outputs.has_lambdas }}
+      has_step_functions: ${{ steps.parse.outputs.has_step_functions }}
+      has_api_gateways: ${{ steps.parse.outputs.has_api_gateways }}
+      lambda_matrix: ${{ steps.parse.outputs.lambda_matrix }}
+      sf_matrix: ${{ steps.parse.outputs.sf_matrix }}
+      ag_matrix: ${{ steps.parse.outputs.ag_matrix }}
+      resource_types: ${{ steps.parse.outputs.resource_types }}
     steps:
       - uses: actions/checkout@v4
       - name: Parse Ferry payload
@@ -96,13 +101,13 @@ jobs:
   deploy-lambda:
     name: "Ferry: deploy ${{ matrix.name }}"
     needs: setup
-    if: needs.setup.outputs.resource_type == 'lambda'
+    if: needs.setup.outputs.has_lambdas == 'true'
     runs-on: ubuntu-latest
     concurrency:
-      group: ferry-deploy-lambda
+      group: ferry-deploy-lambda-${{ matrix.name }}
       cancel-in-progress: false
     strategy:
-      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.setup.outputs.lambda_matrix) }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -134,13 +139,13 @@ jobs:
   deploy-step-function:
     name: "Ferry: deploy ${{ matrix.name }}"
     needs: setup
-    if: needs.setup.outputs.resource_type == 'step_function'
+    if: needs.setup.outputs.has_step_functions == 'true'
     runs-on: ubuntu-latest
     concurrency:
-      group: ferry-deploy-step-function
+      group: ferry-deploy-step-function-${{ matrix.name }}
       cancel-in-progress: false
     strategy:
-      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.setup.outputs.sf_matrix) }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -160,13 +165,13 @@ jobs:
   deploy-api-gateway:
     name: "Ferry: deploy ${{ matrix.name }}"
     needs: setup
-    if: needs.setup.outputs.resource_type == 'api_gateway'
+    if: needs.setup.outputs.has_api_gateways == 'true'
     runs-on: ubuntu-latest
     concurrency:
-      group: ferry-deploy-api-gateway
+      group: ferry-deploy-api-gateway-${{ matrix.name }}
       cancel-in-progress: false
     strategy:
-      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.setup.outputs.ag_matrix) }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -185,15 +190,9 @@ jobs:
           github-token: ${{ github.token }}
 ```
 
-### Migration from Per-Type Workflows
+### Migration from Per-Type Dispatch
 
-If you have the previous three-file setup (`ferry-lambdas.yml`, `ferry-step_functions.yml`, `ferry-api_gateways.yml`), follow this deploy order to avoid a gap in deployments:
-
-1. Add `.github/workflows/ferry.yml` to your repository and merge it to your default branch.
-2. Deploy the updated Ferry backend (if self-hosting) or confirm the hosted Ferry App has been updated.
-3. Delete the old per-type workflow files from your repository.
-
-Deploy in this order because the Ferry App dispatches to `ferry.yml` by name. If you deploy the backend before `ferry.yml` exists on the default branch, all dispatches return 404 and no deployments run.
+If you previously used Ferry v1.4 (per-type dispatch), update your `ferry.yml` to the template above. The setup action now outputs per-type boolean flags and matrices instead of a single `matrix` and `resource_type`. No other changes are needed -- the Ferry backend handles the transition automatically.
 
 ## OIDC Authentication
 
@@ -242,8 +241,8 @@ When you push code to a branch with an open PR (or to the default branch), Ferry
 
 1. **Webhook received** -- The Ferry App receives a `push` webhook from GitHub.
 2. **Change detection** -- Ferry reads your `ferry.yaml`, compares the changed files against each resource's `source_dir`, and groups affected resources by type.
-3. **Dispatch** -- For each resource type with changes, Ferry fires one `workflow_dispatch` event to `ferry.yml`. The dispatch payload is a JSON string containing the resource type and all affected resources of that type.
-4. **Matrix fan-out** -- Your workflow uses the Ferry Setup action (`./action/setup`) to parse the payload into a GHA matrix. Each matrix job handles one resource.
+3. **Dispatch** -- Ferry fires a single `workflow_dispatch` event to `ferry.yml` containing all affected resource types in one batched payload. If the payload exceeds 65KB, Ferry falls back to one dispatch per type.
+4. **Matrix fan-out** -- Your workflow uses the Ferry Setup action to parse the payload into per-type boolean flags and matrices. Deploy jobs gate on the boolean flags and use per-type matrices for fan-out.
 5. **Build and deploy** -- Each matrix job uses the Ferry Build and/or Deploy actions to build container images, push to ECR, and update the AWS resource.
 
 Ferry posts status updates to the PR throughout this process, so you can see deployment progress directly on the pull request.

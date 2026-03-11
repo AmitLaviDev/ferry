@@ -7,12 +7,27 @@ inputs:
     required: true
 
 outputs:
-  matrix:
-    description: "JSON string for fromJson() in GHA strategy matrix"
-    value: ${{ steps.parse.outputs.matrix }}
-  resource_type:
-    description: "Resource type string for conditional job routing"
-    value: ${{ steps.parse.outputs.resource_type }}
+  has_lambdas:
+    description: "Whether the payload contains Lambda resources ('true'/'false')"
+    value: ${{ steps.parse.outputs.has_lambdas }}
+  has_step_functions:
+    description: "Whether the payload contains Step Function resources ('true'/'false')"
+    value: ${{ steps.parse.outputs.has_step_functions }}
+  has_api_gateways:
+    description: "Whether the payload contains API Gateway resources ('true'/'false')"
+    value: ${{ steps.parse.outputs.has_api_gateways }}
+  lambda_matrix:
+    description: "JSON matrix for Lambda deploy job (fromJson-compatible)"
+    value: ${{ steps.parse.outputs.lambda_matrix }}
+  sf_matrix:
+    description: "JSON matrix for Step Function deploy job (fromJson-compatible)"
+    value: ${{ steps.parse.outputs.sf_matrix }}
+  ag_matrix:
+    description: "JSON matrix for API Gateway deploy job (fromJson-compatible)"
+    value: ${{ steps.parse.outputs.ag_matrix }}
+  resource_types:
+    description: "Comma-separated list of affected resource types"
+    value: ${{ steps.parse.outputs.resource_types }}
 
 runs:
   using: composite
