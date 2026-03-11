@@ -111,7 +111,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 | 18-21. Full-Chain E2E | v1.3 | 7/7 | Complete | 2026-03-10 |
 | 22-24. Unified Workflow | v1.4 | 3/3 | Complete | 2026-03-10 |
 | 25. Shared Models and Schema | v1.5 | 1/1 | Complete | 2026-03-11 |
-| 26. Backend Batched Dispatch | v1.5 | 1/1 | Complete | 2026-03-11 |
+| 26. Backend Batched Dispatch | v1.5 | Complete    | 2026-03-11 | 2026-03-11 |
 | 27. Action Parsing and Workflow Template | v1.5 | 0/? | Not started | - |
 | 28. E2E Validation | v1.5 | 0/? | Not started | - |
 
