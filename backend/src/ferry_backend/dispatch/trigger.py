@@ -1,9 +1,10 @@
-"""Dispatch triggering -- fire one workflow_dispatch per resource type.
+"""Dispatch triggering -- fire a single batched workflow_dispatch per push.
 
-Groups affected resources by type, builds DispatchPayload for each group,
-and POSTs to the GitHub Actions workflow_dispatch API.
+Groups affected resources by type, builds a BatchedDispatchPayload (v2)
+with typed resource lists, and POSTs a single dispatch to the GitHub Actions
+workflow_dispatch API.
 
-One dispatch per resource TYPE (not per resource, not monolithic).
+Falls back to per-type v1 dispatch if the combined payload exceeds 65 KB.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import structlog
 from ferry_utils.constants import WORKFLOW_FILENAME
 from ferry_utils.models.dispatch import (
     ApiGatewayResource,
+    BatchedDispatchPayload,
     DispatchPayload,
     LambdaResource,
     StepFunctionResource,
@@ -30,6 +32,12 @@ logger = structlog.get_logger()
 # Maximum payload size for workflow_dispatch inputs (GitHub limit is 65535,
 # but we use a conservative limit to avoid edge cases)
 _MAX_PAYLOAD_SIZE = 65535
+
+_TYPE_TO_FIELD: dict[str, str] = {
+    "lambda": "lambdas",
+    "step_function": "step_functions",
+    "api_gateway": "api_gateways",
+}
 
 
 def build_deployment_tag(pr_number: str, branch: str, sha: str) -> str:
@@ -100,6 +108,68 @@ def _build_resource(
     raise ValueError(msg)
 
 
+def _dispatch_per_type(
+    client: GitHubClient,
+    repo: str,
+    grouped: dict[str, list[AffectedResource]],
+    config: FerryConfig,
+    sha: str,
+    deployment_tag: str,
+    pr_number: str,
+    default_branch: str,
+) -> list[dict]:
+    """Fallback: fire one workflow_dispatch per resource type using v1 payloads.
+
+    Used when the combined BatchedDispatchPayload exceeds _MAX_PAYLOAD_SIZE.
+
+    Args:
+        client: Authenticated GitHubClient with installation token.
+        repo: Repository full name (owner/repo).
+        grouped: Resources grouped by type.
+        config: Parsed FerryConfig for resource field lookup.
+        sha: Trigger commit SHA.
+        deployment_tag: Tag for this deployment.
+        pr_number: PR number string (empty if not a PR merge).
+        default_branch: Default branch name for dispatch ref.
+
+    Returns:
+        List of result dicts: [{"type": str, "status": int, "workflow": str}].
+    """
+    results: list[dict] = []
+
+    for rtype, resources in grouped.items():
+        dispatch_resources = [_build_resource(rtype, r.name, config) for r in resources]
+
+        payload = DispatchPayload(
+            resource_type=rtype,
+            resources=dispatch_resources,
+            trigger_sha=sha,
+            deployment_tag=deployment_tag,
+            pr_number=pr_number,
+        )
+
+        workflow_file = WORKFLOW_FILENAME
+        payload_json = payload.model_dump_json()
+
+        resp = client.post(
+            f"/repos/{repo}/actions/workflows/{workflow_file}/dispatches",
+            json={"ref": default_branch, "inputs": {"payload": payload_json}},
+        )
+
+        logger.info(
+            "dispatch_triggered",
+            resource_type=rtype,
+            workflow=workflow_file,
+            resource_count=len(resources),
+            status=resp.status_code,
+            mode="per_type",
+        )
+
+        results.append({"type": rtype, "status": resp.status_code, "workflow": workflow_file})
+
+    return results
+
+
 def trigger_dispatches(
     client: GitHubClient,
     repo: str,
@@ -110,10 +180,11 @@ def trigger_dispatches(
     pr_number: str,
     default_branch: str = "main",
 ) -> list[dict]:
-    """Fire one workflow_dispatch per affected resource type.
+    """Fire workflow_dispatch for affected resources.
 
-    Groups affected resources by type, builds a DispatchPayload for each,
-    and POSTs to the GitHub Actions API.
+    Default: single batched dispatch (v2) containing all affected resource
+    types in one payload. Fallback: per-type dispatch (v1) if the combined
+    payload exceeds 65 KB.
 
     Args:
         client: Authenticated GitHubClient with installation token.
@@ -136,49 +207,58 @@ def trigger_dispatches(
     for resource in affected:
         grouped.setdefault(resource.resource_type, []).append(resource)
 
-    results: list[dict] = []
-
+    # Build typed resource lists for BatchedDispatchPayload
+    typed_resources: dict[str, list] = {}
     for rtype, resources in grouped.items():
-        # Build dispatch resources from config
-        dispatch_resources = [_build_resource(rtype, r.name, config) for r in resources]
+        field_name = _TYPE_TO_FIELD[rtype]
+        typed_resources[field_name] = [_build_resource(rtype, r.name, config) for r in resources]
 
-        payload = DispatchPayload(
-            resource_type=rtype,
-            resources=dispatch_resources,
-            trigger_sha=sha,
-            deployment_tag=deployment_tag,
-            pr_number=pr_number,
+    # Construct batched payload (v2)
+    payload = BatchedDispatchPayload(
+        **typed_resources,
+        trigger_sha=sha,
+        deployment_tag=deployment_tag,
+        pr_number=pr_number,
+    )
+
+    # Serialize and check size
+    payload_json = payload.model_dump_json()
+
+    if len(payload_json) > _MAX_PAYLOAD_SIZE:
+        logger.warning(
+            "dispatch_fallback_to_per_type",
+            payload_size=len(payload_json),
+            max_size=_MAX_PAYLOAD_SIZE,
+            type_count=len(grouped),
+        )
+        return _dispatch_per_type(
+            client,
+            repo,
+            grouped,
+            config,
+            sha,
+            deployment_tag,
+            pr_number,
+            default_branch,
         )
 
-        # Determine workflow file
-        workflow_file = WORKFLOW_FILENAME
+    # Single batched dispatch
+    workflow_file = WORKFLOW_FILENAME
+    resp = client.post(
+        f"/repos/{repo}/actions/workflows/{workflow_file}/dispatches",
+        json={"ref": default_branch, "inputs": {"payload": payload_json}},
+    )
 
-        # Check payload size
-        payload_json = payload.model_dump_json()
-        if len(payload_json) > _MAX_PAYLOAD_SIZE:
-            logger.error(
-                "dispatch_payload_too_large",
-                resource_type=rtype,
-                size=len(payload_json),
-                max_size=_MAX_PAYLOAD_SIZE,
-                resource_count=len(resources),
-            )
-            results.append({"type": rtype, "status": 413, "workflow": workflow_file})
-            continue
-
-        resp = client.post(
-            f"/repos/{repo}/actions/workflows/{workflow_file}/dispatches",
-            json={"ref": default_branch, "inputs": {"payload": payload_json}},
-        )
-
+    # Expand results: one entry per resource type in the batch
+    results: list[dict] = []
+    for rtype in grouped:
         logger.info(
             "dispatch_triggered",
             resource_type=rtype,
             workflow=workflow_file,
-            resource_count=len(resources),
+            resource_count=len(grouped[rtype]),
             status=resp.status_code,
+            mode="batched",
         )
-
         results.append({"type": rtype, "status": resp.status_code, "workflow": workflow_file})
-
     return results
