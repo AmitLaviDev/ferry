@@ -93,8 +93,8 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 
 **Milestone Goal:** Add PR-triggered deployments with a plan/apply model -- preview what will deploy on PR open/update, deploy on merge or explicit `/ferry apply` comment, with user-defined environment mapping and GitHub Environment support.
 
-- [ ] **Phase 29: Shared Models and Schema Extension** - v3 payload model, environment mapping config, ferry.yaml schema update
-- [ ] **Phase 30: PR Event Handler and Plan Comment** - Backend handles pull_request events, posts sticky plan preview comment, creates check run
+- [x] **Phase 29: Shared Models and Schema Extension** (1/1 plan) - v3 payload model, environment mapping config, ferry.yaml schema update
+- [ ] **Phase 30: PR Event Handler and Plan Comment** (1 plan) - Backend handles pull_request events, posts sticky plan preview comment, creates check run
 - [ ] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** - Backend handles PR comment commands: /ferry plan re-triggers plan preview, /ferry apply dispatches deploy
 - [ ] **Phase 32: Push Path Environment Resolution** - Existing push handler gains environment awareness for auto-deploy on merge
 - [ ] **Phase 33: Action v3 Parsing and Outputs** - Setup action parses v3 payload, outputs mode and environment with backward compatibility
@@ -112,7 +112,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
   2. `BatchedDispatchPayload` v3 includes `mode`, `environment`, `head_ref`, and `base_ref` fields with safe defaults
   3. A v2 payload (from v1.5) still parses successfully with `mode="deploy"` and `environment=""` defaults
   4. All existing tests continue to pass (no regressions from additive model changes)
-**Plans**: TBD
+**Plans**: 29-01 (models + tests)
 
 ### Phase 30: PR Event Handler and Plan Comment
 **Goal**: Developers see which resources would be deployed as a sticky PR comment every time a PR is opened or updated
@@ -124,17 +124,19 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
   3. When environments are configured, the plan comment shows the target environment name
   4. A Check Run appears on the PR reflecting plan status (success if resources detected, or neutral if no changes)
   5. No workflow_dispatch is triggered for plan mode (zero GHA runner minutes burned)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 30-01-PLAN.md -- PR event handler, sticky plan comment, check run, dedup extension
 
 ### Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)
-**Goal**: Developers can interact with Ferry via PR comments — `/ferry plan` re-triggers plan preview, `/ferry apply` triggers deploy
+**Goal**: Developers can interact with Ferry via PR comments -- `/ferry plan` re-triggers plan preview, `/ferry apply` triggers deploy
 **Depends on**: Phase 29, Phase 30 (reuses plan comment logic)
 **Requirements**: PLAN-05, DEPLOY-02, DEPLOY-03, DEPLOY-04
 **Success Criteria** (what must be TRUE):
   1. Commenting `/ferry plan` on a PR re-triggers the plan preview (updates the sticky comment with fresh change detection)
   2. Commenting `/ferry apply` on a PR triggers a workflow_dispatch with `mode="deploy"` and the correct environment
   3. The deploy uses the current PR head SHA (fetched fresh from the API), not a stale reference
-  4. Commenting `/ferry apply` or `/ferry plan` on a regular issue (not a PR) is silently ignored — no dispatch, no error
+  4. Commenting `/ferry apply` or `/ferry plan` on a regular issue (not a PR) is silently ignored -- no dispatch, no error
   5. The dispatch payload carries the resolved environment name based on the PR's target branch
 **Plans**: TBD
 
@@ -206,8 +208,8 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 | 18-21. Full-Chain E2E | v1.3 | 7/7 | Complete | 2026-03-10 |
 | 22-24. Unified Workflow | v1.4 | 3/3 | Complete | 2026-03-10 |
 | 25-28. Batched Dispatch | v1.5 | 4/4 | Complete | 2026-03-11 |
-| 29. Shared Models and Schema Extension | v2.0 | 0/? | Not started | - |
-| 30. PR Event Handler and Plan Comment | v2.0 | 0/? | Not started | - |
+| 29. Shared Models and Schema Extension | v2.0 | 1/1 | Complete | 2026-03-12 |
+| 30. PR Event Handler and Plan Comment | v2.0 | 0/1 | Not started | - |
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 0/? | Not started | - |
 | 32. Push Path Environment Resolution | v2.0 | 0/? | Not started | - |
 | 33. Action v3 Parsing and Outputs | v2.0 | 0/? | Not started | - |
