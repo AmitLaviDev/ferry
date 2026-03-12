@@ -1,7 +1,7 @@
 # Requirements: Ferry v2.0 PR Integration
 
 **Defined:** 2026-03-12
-**Core Value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed — with full visibility on the PR before merge.
+**Core Value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
 
 ## v2.0 Requirements
 
@@ -13,6 +13,7 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 - [ ] **PLAN-02**: Ferry updates the sticky PR comment when new commits are pushed to the PR
 - [ ] **PLAN-03**: Plan comment shows the target environment name (if environments configured)
 - [ ] **PLAN-04**: Ferry creates a Check Run on the PR reflecting plan status (success/failure)
+- [ ] **PLAN-05**: User can comment `/ferry plan` on a PR to manually trigger a plan preview
 
 ### Deploy Triggers
 
@@ -44,10 +45,10 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 
 - **ENVADV-01**: `/ferry apply <env>` comment to override target environment
 - **ENVADV-02**: Per-environment resource overrides in ferry.yaml (environment-specific aliases, stage names)
-- **ENVADV-03**: Branch glob patterns for environment mapping (e.g., `release/*` → staging)
+- **ENVADV-03**: Branch glob patterns for environment mapping (e.g., `release/*` -> staging)
 - **PERM-01**: Permission check on `/ferry apply` commenter (verify write access)
-- **PLAN-05**: Build dry-run in plan mode (verify container build succeeds without pushing)
-- **PLAN-06**: Diff preview showing what changed in each resource
+- **PLAN-06**: Build dry-run in plan mode (verify container build succeeds without pushing)
+- **PLAN-07**: Diff preview showing what changed in each resource
 
 ## Out of Scope
 
@@ -66,28 +67,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAN-01 | — | Pending |
-| PLAN-02 | — | Pending |
-| PLAN-03 | — | Pending |
-| PLAN-04 | — | Pending |
-| DEPLOY-01 | — | Pending |
-| DEPLOY-02 | — | Pending |
-| DEPLOY-03 | — | Pending |
-| DEPLOY-04 | — | Pending |
-| ENV-01 | — | Pending |
-| ENV-02 | — | Pending |
-| ENV-03 | — | Pending |
-| GHENV-01 | — | Pending |
-| GHENV-02 | — | Pending |
-| COMPAT-01 | — | Pending |
-| COMPAT-02 | — | Pending |
-| COMPAT-03 | — | Pending |
+| PLAN-01 | Phase 30 | Pending |
+| PLAN-02 | Phase 30 | Pending |
+| PLAN-03 | Phase 30 | Pending |
+| PLAN-04 | Phase 30 | Pending |
+| PLAN-05 | Phase 31 | Pending |
+| DEPLOY-01 | Phase 32 | Pending |
+| DEPLOY-02 | Phase 31 | Pending |
+| DEPLOY-03 | Phase 31 | Pending |
+| DEPLOY-04 | Phase 31 | Pending |
+| ENV-01 | Phase 29 | Pending |
+| ENV-02 | Phase 32 | Pending |
+| ENV-03 | Phase 32 | Pending |
+| GHENV-01 | Phase 34 | Pending |
+| GHENV-02 | Phase 34 | Pending |
+| COMPAT-01 | Phase 29 | Pending |
+| COMPAT-02 | Phase 33 | Pending |
+| COMPAT-03 | Phase 34 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- v2.0 requirements: 17 total
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-12*
-*Last updated: 2026-03-12 after initial definition*
+*Last updated: 2026-03-12 after roadmap creation*
