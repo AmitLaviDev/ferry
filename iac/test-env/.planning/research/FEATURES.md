@@ -1,191 +1,305 @@
-# Feature Landscape: Batched Dispatch (v1.5)
+# Feature Landscape: PR Integration (v2.0)
 
-**Domain:** GitHub Actions dispatch consolidation for multi-type serverless deploy tool
-**Researched:** 2026-03-10
-**Scope:** Replacing per-type `workflow_dispatch` with a single batched dispatch per push
+**Domain:** PR-triggered plan/apply deployment model for serverless deploy tool
+**Researched:** 2026-03-12
+**Scope:** Adding PR-triggered preview ("ferry plan"), merge/comment-triggered deploy ("ferry apply"), mid-way deployments, environment mapping, and GitHub Environment support
 
 ## Table Stakes
 
-Features users expect from batched dispatch. Missing = the feature feels broken or incomplete.
+Features users expect from a PR integration layer. Missing = the feature feels broken or incomplete compared to Atlantis/Digger/Vercel.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Single dispatch per push | The entire point of v1.5; one push = one workflow run regardless of how many types changed | Medium | Backend must batch all affected types into one payload, fire one `workflow_dispatch` |
-| All affected types deploy in one run | A push touching lambdas + SFs + APGW results in one workflow run with all three deploying | Medium | Setup action must parse batched payload and output per-type matrices |
-| Only relevant deploy jobs run (no skipped-job noise) | The v1.4 pain point: 2 skipped jobs per run. Batched dispatch must eliminate or reduce this | Medium-High | Requires setup action to output boolean flags (`has_lambdas`, `has_step_functions`, `has_api_gateways`) and jobs to use `if:` guards with empty-matrix protection |
-| Per-type matrix fan-out preserved | Lambdas still fan out in parallel via matrix; SF and APGW still use their own strategies | Low | Each deploy job gets its own matrix output from setup; no change to matrix shape |
-| Content-hash skip detection still works | Deploy-level skip for unchanged content must still function | None | No change needed -- happens inside deploy actions |
-| Payload schema backward-compatible or cleanly versioned | Breaking the dispatch contract between App and Action must be handled explicitly | Low | Bump `SCHEMA_VERSION` to 2; setup action can detect version and handle both during rollout |
-| Dynamic `run-name` shows all affected types | User sees "Ferry Deploy: lambda, step_function" not generic "Ferry Deploy" | Low | `run-name: "Ferry Deploy: ${{ github.event.inputs.payload && fromJson(github.event.inputs.payload).resource_types || 'manual' }}"` -- `fromJson` works in `run-name` context (HIGH confidence, already used in v1.4 template) |
-| Concurrency groups still prevent overlapping deploys of same type | Two rapid pushes both affecting lambdas must not deploy concurrently | Low | Job-level concurrency groups already in v1.4 template; preserved as-is |
-| Payload fits within GHA 65,535 character limit | Batched payload combining multiple types must not exceed the single-input size limit | Low | Current per-type payloads are small (a few KB). Even batching 3 types with 10+ resources each stays well under 65K. Existing `_MAX_PAYLOAD_SIZE` check in `trigger.py` still applies to the combined payload |
+| Feature | Why Expected | Complexity | Depends On |
+|---------|--------------|------------|------------|
+| Auto-plan on PR open/sync | Every competitor (Atlantis, Digger, Terraform Cloud, Vercel) auto-runs a preview when a PR is opened or updated. Users expect to see what will deploy without manual action | Medium | Backend: new `pull_request` event handler; reuse existing `match_resources` + `detect_config_changes` |
+| Plan posted as PR comment | Atlantis and Digger both post plan output as a PR comment (not just a Check Run). Comments persist across pushes and are more visible than Check Runs for multi-resource previews | Low | Existing `post_pr_comment` function; new formatting for plan output |
+| Update-in-place comment (not spam new comments) | Atlantis and Digger both update their existing comment on re-plan rather than posting a new one per push. Multiple comments per PR is universally considered noisy | Medium | Need to find existing Ferry comment (search by bot + marker), then PATCH instead of POST. GitHub Issues Comments API supports edit |
+| Auto-deploy on merge to target branch | The core "ferry apply" path: when a PR merges to `main`, affected resources deploy. This is what v1.0-v1.5 already does for push events, but v2.0 must explicitly tie it to the PR lifecycle | Low | Already works -- push event on default branch triggers dispatch. Need to connect PR number to the deployment for traceability |
+| Deploy status reported back to PR | After merge-triggered deploy, the user must see whether it succeeded or failed on the PR. Vercel posts deployment status; Atlantis posts apply output | Medium | Need a reporting mechanism: post-deploy comment on the merged PR, or update a Deployment Status via GitHub Deployments API |
+| `/ferry apply` comment trigger for mid-way deploy | Digger uses `digger apply`, Atlantis uses `atlantis apply`. This is table stakes for any plan/apply tool. Allows deploying from a PR before merge (to staging, preview, etc.) | Medium-High | Backend: new `issue_comment` webhook handler; must detect `/ferry apply` in comment body, validate commenter permissions, extract PR context (branch, SHA), then dispatch |
+| Environment-aware ferry.yaml | Users need to map branches to environments so `/ferry apply` knows WHERE to deploy. Without this, mid-way deploys have no target. Every deployment tool supports environment configuration | Medium | Schema extension to `ferry.yaml` v2: `environments:` block with branch-to-environment mapping |
+| Plan shows target environment | When the plan preview posts, it must say "This will deploy to **staging**" not just list resources. Environment context is critical for understanding impact | Low | Requires environment resolution (branch -> environment mapping) during plan |
+| Config error handling for new event types | Config errors on `pull_request` events must surface the same way as push events (PR comment with error details) | Low | Existing `ConfigError` handling + `post_pr_comment`; extend to new code paths |
+| `/ferry plan` comment trigger for manual re-plan | Sometimes auto-plan misses edge cases or users want to re-run after external changes. Atlantis supports `atlantis plan` to force re-plan | Low | Same `issue_comment` handler as `/ferry apply`; dispatch to plan path instead |
 
 ## Differentiators
 
-Features that make batched dispatch feel polished vs. a mechanical merge.
+Features that set Ferry apart from Atlantis/Digger/Terraform Cloud. Not expected by default, but high value.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Clean GHA UI: only active jobs visible | When only lambdas change, user sees `setup` + `deploy-lambda` jobs only, no grayed-out SF/APGW jobs | High | GHA has NO built-in way to hide skipped jobs (confirmed: no feature planned). The ONLY way to avoid skipped jobs appearing is to not define them in the workflow. This means either: (a) accept skipped jobs (current v1.4 behavior), or (b) use a fundamentally different workflow structure (see Architecture section). Option (b) is the differentiator but requires significant workflow redesign |
-| Ordered deploy across types | Deploy APGW after SF after Lambda when all three change in one push (respects dependency chain) | Medium | Use `needs:` between deploy jobs. Currently all types deploy independently; adding ordering is new behavior. Requires defining a dependency graph (lambda first, then SF, then APGW). Only relevant when multiple types present |
-| Single setup parse, multiple consumers | Setup job parses payload once, outputs N matrices -- downstream jobs each consume their own | Low | Already the pattern. Setup outputs `lambda_matrix`, `sf_matrix`, `apgw_matrix` instead of single `matrix`. Cleaner than v1.4 where setup only outputs one matrix because only one type is present |
-| Aggregated status reporting | One PR Check Run summary covering all types deployed in this push, not N separate statuses | Medium | Currently each deploy job posts its own Check Run. A summary job at the end could aggregate results. Requires a new `report` job with `if: always()` pattern |
-| Dispatch deduplication within batch | If a push somehow triggers the webhook twice (rare but possible), the batched dispatch deduplicates at the batch level not per-type | None | Already handled by DynamoDB dedup -- one webhook = one dedup key. Batching doesn't change this |
-| Graceful degradation for oversized payloads | If the combined payload exceeds 65K (extreme edge case), fall back to per-type dispatch | Medium | Backend checks combined size, splits into per-type dispatches if too large. Preserves v1.4 behavior as fallback |
+| Feature | Value Proposition | Complexity | Depends On |
+|---------|-------------------|------------|------------|
+| GitHub Environment integration (native secrets/vars) | Workflow jobs use `environment: staging` so GHA natively injects environment-level secrets and variables. No other serverless deploy tool does this -- Atlantis/Digger handle Terraform vars, not GHA Environment secrets | Medium | Dispatch payload must include `environment` field; workflow template uses `environment: ${{ needs.setup.outputs.environment }}` on deploy jobs. Requires ferry.yaml to define environment names matching GHA Environment names |
+| Deployment protection rules (approval gates) | GHA Environments support required reviewers before deployment proceeds. Ferry can leverage this for production deploys -- no custom approval logic needed, just use GHA's built-in gates | Low | Zero Ferry code -- entirely GHA Environment config. Just document the pattern: create a `production` GHA Environment with required reviewers, ferry.yaml maps `main` -> `production` |
+| Check Run + Comment (dual reporting) | Post both a Check Run (shows in PR checks tab, blocks merge if desired) AND a comment (visible in conversation). Atlantis does comment-only; Terraform Cloud does Check Run only. Both channels gives best visibility | Low | Already have both `create_check_run` and `post_pr_comment`. Use Check Run for pass/fail status (merge gating), comment for detailed plan output |
+| Collapsible plan output for large changes | When 10+ resources are affected, the plan comment becomes unwieldy. Use `<details>` HTML tags to collapse per-type sections. Atlantis has had long-standing issues with large plan output overflowing comments | Low | Markdown formatting in plan comment builder |
+| Content-hash preview in plan | Show whether each resource would actually deploy or skip (content unchanged). Current content-hash check happens at deploy time in the action; surfacing it at plan time tells the user "this Lambda changed files but the build output is identical, so it will be a no-op" | High | Would require running the build (or at least computing the hash) during plan phase. Likely too expensive for v2.0 MVP. Flag as future differentiator |
+| Concurrent PR isolation | Two PRs changing the same resource should not block each other's plans (unlike Atlantis which locks per-directory). Ferry's plan is read-only (no state to lock), so natural isolation | None | Already inherent -- plan is just change detection, no shared state. Worth documenting as a selling point vs Atlantis |
+| Branch deploy (deploy PR branch to non-prod) | `/ferry apply staging` deploys the PR's HEAD commit to staging without merging. The Lambda/SF/APGW gets the PR's code in a specific environment. Useful for QA before merge | High | Requires dispatching with PR branch SHA (not merge commit), environment parameter, and potentially different ECR tags or Lambda aliases per environment |
+| Stale plan detection | If the target branch has new commits since the plan was generated, warn the user that the plan may be outdated. Terraform has built-in stale plan detection; Atlantis re-plans automatically | Medium | Compare plan's `trigger_sha` against current branch HEAD. If different, add a warning banner to the plan comment or require re-plan |
 
 ## Anti-Features
 
-Features to explicitly NOT build as part of v1.5.
+Features to explicitly NOT build for v2.0.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Dynamic job generation at runtime | GHA does not support creating jobs dynamically -- all jobs must be statically defined in YAML. You cannot say "for each type in payload, create a deploy job" | Define 3 static deploy jobs (lambda, SF, APGW), each with `if:` guards based on setup outputs. This is a fundamental GHA limitation, not a design choice |
-| Single mega-matrix across all types | Putting lambdas, SFs, and APGW resources into one matrix would require each matrix entry to carry different fields depending on type, and each step would need type-conditional logic | Keep separate matrices per type. Each deploy job knows its type and has type-specific steps. Clean separation |
-| Reusable workflows (`workflow_call`) per type | Adds indirection (3 extra files), reusable workflows have context limitations (`secrets` access differs, `GITHUB_TOKEN` scoping), and the user must maintain 4 files instead of 1 | Keep everything in single `ferry.yml`. The whole point of v1.4 was consolidation |
-| Removing `if:` guards entirely | Cannot be done while having static deploy jobs. GHA evaluates all defined jobs and marks unused ones as skipped | Accept that skipped jobs show in GHA UI when not all types are affected. Use clear `name:` fields so it's obvious which ran. The alternative (not defining the jobs) breaks the workflow for pushes that DO affect those types |
-| Per-resource dispatch (one dispatch per changed resource) | Explodes the number of workflow runs. A push changing 5 lambdas + 2 SFs = 7 dispatches vs. 1 batched dispatch. Terrible UX, wasteful runner time | Batch by push event, fan out by type via matrices |
-| Waiting for GHA to add "hide skipped jobs" feature | Feature has been requested since 2021 with no indication of implementation (GitHub Community discussions #18001, #152605). Building around this limitation is more productive | Design clear job names, accept grayed-out jobs, document expected behavior |
-| Cross-type rollback in batch | If lambda deploys succeed but SF fails, do NOT roll back lambdas. Cross-resource rollback is unsolved for serverless and explicitly out of scope | Each type deploys independently. Failures are reported per-resource. User fixes and re-pushes |
-| Supporting multiple dispatch inputs | GHA allows up to 25 inputs for `workflow_dispatch`, but using a single `payload` JSON input is cleaner than splitting into `lambda_payload`, `sf_payload`, `apgw_payload` | Keep single `payload` input containing all types. Parse in setup action |
+| Ephemeral preview environments (auto-create Lambda/SF per PR) | Requires creating and destroying AWS resources dynamically (new Lambda functions, new ECR repos, new API Gateway stages per PR). Massively increases scope, cost, and complexity. Vercel can do this because they own the hosting platform; Ferry deploys to user's AWS | Deploy to pre-existing staging environment. User's IaC defines the staging Lambda/SF/APGW; Ferry deploys PR code to them via environment mapping |
+| Terraform plan execution (actual `terraform plan` output) | Ferry deploys code to existing infrastructure. It does not manage infrastructure. Running `terraform plan` would require Terraform state access, provider credentials, and is a fundamentally different tool | Show which resources will be DEPLOYED (code changes), not which infrastructure will change. Ferry's "plan" is a change detection preview, not a Terraform plan |
+| Auto-merge after successful deploy | Dangerous and opinionated. If deploy to staging succeeds, some tools auto-merge the PR. This bypasses code review and is an anti-pattern for most teams | Deploy and report status. Merge decision is human |
+| PR-level locking (Atlantis-style) | Atlantis locks state files per PR to prevent concurrent applies. Ferry has no shared state to lock -- each deploy is independent (update Lambda code, update SF definition). Locking would add complexity with zero benefit | No locking needed. Ferry deploys are idempotent: last deploy wins. If two PRs deploy to the same Lambda, the last merge wins (same as any CD tool) |
+| Rollback on failed deploy | Cross-resource rollback is unsolved for serverless (what if Lambda succeeds but SF fails?). Adding rollback for v2.0 would be a massive scope increase | Report failure clearly. User fixes and re-pushes. Previous version is still in ECR; user can re-deploy manually if urgent |
+| Custom slash commands beyond plan/apply | Supporting `/ferry lock`, `/ferry unlock`, `/ferry destroy`, etc. adds maintenance burden for rarely-used features | Start with `/ferry plan` and `/ferry apply [environment]`. Add more commands only if user demand justifies it |
+| Multi-account deploy from PR | Deploying to different AWS accounts per environment (staging in account A, prod in account B) requires multiple OIDC role ARNs and complex credential routing | Single AWS account per workflow run. Different environments use different Lambda function names / SF names / APGW stages within the same account. Multi-account is v3+ |
+| Deployment queue/ordering across PRs | If PR-1 and PR-2 both merge close together, ensuring PR-1 deploys before PR-2 requires a queue. This is the Digger "Run Queue" pattern | GitHub's merge order determines deploy order. Push events fire in merge order. If user needs strict ordering, use GitHub merge queue (native feature) |
+| Dashboard for deployment history | Building a UI to show deployment history across PRs is a significant frontend investment | PR is the dashboard. Each PR's comments show plan + apply results. GitHub's deployments tab shows deployment history natively if we use the Deployments API |
 
 ## Feature Dependencies
 
 ```
-Backend: trigger.py batches all types into single DispatchPayload v2
+ferry.yaml v2 schema (environments block)
     |
-    v
-Shared: DispatchPayload model v2 (supports multiple resource types)
-    |
-    v
-Setup Action: parse_payload.py outputs per-type matrices + boolean flags
-    |
-    +---> Updated ferry.yml template
+    +---> Environment resolution (branch -> environment mapping)
     |         |
-    |         +---> deploy-lambda job (if: has_lambdas)
-    |         +---> deploy-step-function job (if: has_step_functions)
-    |         +---> deploy-api-gateway job (if: has_api_gateways)
-    |
-    +---> Updated docs (setup.md workflow template section)
-    |
-    +---> Test repo: update ferry.yml, push multi-type change, verify single run
+    |         +---> Plan comment includes target environment
+    |         |
+    |         +---> Dispatch payload includes environment field
+    |                   |
+    |                   +---> Workflow template uses `environment:` on deploy jobs
+    |                   |         |
+    |                   |         +---> GHA injects environment-level secrets/vars
+    |                   |
+    |                   +---> `/ferry apply [env]` targets specific environment
     |
     v
-Constants: SCHEMA_VERSION bump (1 -> 2)
+Backend: pull_request event handler (auto-plan)
+    |
+    +---> Reuses existing change detection (match_resources, detect_config_changes)
+    |
+    +---> Plan comment formatting + update-in-place
+    |
+    +---> Check Run creation (reuse existing create_check_run)
+    |
+    v
+Backend: issue_comment event handler (/ferry apply, /ferry plan)
+    |
+    +---> Comment parsing (detect slash command + optional env arg)
+    |
+    +---> Permission validation (commenter has write access?)
+    |
+    +---> PR context extraction (branch, HEAD SHA, PR number)
+    |         |
+    |         +---> Need GitHub API call: get PR details from issue_comment payload
+    |
+    +---> Environment resolution (explicit env arg or branch-default mapping)
+    |
+    +---> Dispatch (reuse trigger_dispatches with env-aware payload)
+    |
+    v
+Deploy status reporting
+    |
+    +---> Post-deploy comment on PR (success/failure summary)
+    |
+    +---> GitHub Deployments API integration (optional, enhances visibility)
 ```
 
 ### Dependency Detail
 
-1. **Payload model (`dispatch.py`)**: Currently `DispatchPayload` has a single `resource_type: str` and `resources: list[Resource]` where all resources are the same type. The batched model needs either:
-   - **Option A (recommended)**: Change to `resource_types: list[str]` and keep `resources: list[Resource]` as a mixed-type list. The discriminated union already handles type routing via `resource_type` field on each Resource model. This is the minimal schema change.
-   - **Option B**: Nest by type: `lambdas: list[LambdaResource]`, `step_functions: list[StepFunctionResource]`, `api_gateways: list[ApiGatewayResource]`. Cleaner but larger schema change.
+1. **ferry.yaml v2 schema** is the foundation. Without environment definitions, mid-way deploys and GitHub Environment integration have no target. This must come first.
 
-2. **Backend (`trigger.py`)**: Currently loops over `grouped` dict and fires one dispatch per type. Must change to: build one combined payload with all types, fire one dispatch. The `_build_resource` function already handles all types -- just needs to be called for all groups and combined.
+2. **`pull_request` event handler** is independent of environments. Auto-plan works with or without environment mapping -- it just shows which resources would deploy. But it benefits from environment resolution to show "will deploy to staging."
 
-3. **Setup action (`parse_payload.py`)**: Currently calls one builder based on `payload.resource_type`. Must change to: iterate all resource types present, call each builder, output separate matrices. New outputs: `lambda_matrix`, `sf_matrix`, `apgw_matrix`, `has_lambdas`, `has_step_functions`, `has_api_gateways`.
+3. **`issue_comment` handler** depends on the PR context extraction (getting branch/SHA from a PR referenced by issue number) and environment resolution. It also depends on dispatch having an environment field.
 
-4. **Workflow template (`ferry.yml`)**: Jobs change from `if: needs.setup.outputs.resource_type == 'lambda'` to `if: needs.setup.outputs.has_lambdas == 'true'`. Each job references its type-specific matrix: `matrix: ${{ fromJson(needs.setup.outputs.lambda_matrix) }}`.
+4. **GitHub Environment integration** depends on environment being in the dispatch payload AND the workflow template using `environment:` on deploy jobs. This is a coordination point between backend, action, and workflow template.
 
-5. **Empty matrix guard**: When `has_lambdas` is false, the lambda job skips via `if:`. But if somehow the guard fails and the job runs with an empty matrix, GHA crashes. The `if:` guard is the primary protection. Secondary: setup action outputs `{"include":[]}` for inactive types, and the job's `if:` prevents evaluation. This is safe because GHA evaluates `if:` BEFORE `strategy.matrix` (HIGH confidence -- confirmed by GHA docs: "You can use the if conditional to prevent a job from running unless a condition is met").
+5. **Deploy status reporting** depends on dispatch working (so there are results to report). It can initially be a simple PR comment; GitHub Deployments API integration can come later.
 
-6. **Schema versioning**: Bump `SCHEMA_VERSION` to 2. The setup action should check `v` field and handle v1 payloads (single type) as a migration path during rollout. This allows the backend and action to be deployed independently without coordination.
+### Critical Path (minimum viable PR integration)
 
-## Comparison: Per-Type Dispatch (v1.4) vs. Batched Dispatch (v1.5)
+```
+ferry.yaml v2 schema  -->  pull_request handler  -->  plan comment
+                                                          |
+                                                          v
+                                               issue_comment handler  -->  /ferry apply dispatch
+                                                                              |
+                                                                              v
+                                                                     deploy status on PR
+```
 
-| Aspect | Per-Type (v1.4 current) | Batched (v1.5 target) |
-|--------|------------------------|----------------------|
-| Workflow runs per push | 1 per affected type (up to 3) | Always 1 |
-| Skipped jobs per run | 2 (the non-matching types) | 0-2 (types not affected still show as skipped) |
-| GHA UI clarity | Cluttered: 3 runs for a full-stack push, each with 2 grayed-out jobs | Cleaner: 1 run, but 0-2 grayed-out jobs remain when not all types affected |
-| Backend dispatches | N (one per type) | 1 (combined) |
-| Payload schema | Simple: one type per payload | Richer: multiple types per payload |
-| Concurrency risk | Low: each type has own run | Medium: one run deploys multiple types, job-level concurrency groups still protect per-type |
-| Failure isolation | Natural: each type in its own run | Good: jobs are independent within the run. One type failing does not cancel others (`fail-fast: false` on matrix, no cross-job dependency by default) |
-| Run-name readability | "Ferry Deploy: lambda" (clear) | "Ferry Deploy: lambda, step_function" (clear, lists all types) |
+Environment mapping and GHA Environment integration can be added incrementally after the core plan/apply loop works.
 
-### The Skipped-Job Reality
+## Existing Infrastructure Reuse
 
-The v1.5 batched dispatch REDUCES but does NOT ELIMINATE skipped-job visual clutter:
+The following v1.x components are directly reusable for v2.0:
 
-- **v1.4**: Push affects lambdas only -> 1 run, 2 skipped jobs (SF, APGW). **Same** push with all 3 types -> 3 runs, each with 2 skipped jobs = 6 skipped jobs total.
-- **v1.5**: Push affects lambdas only -> 1 run, 2 skipped jobs (SF, APGW). **Same** push with all 3 types -> 1 run, 0 skipped jobs.
+| Component | Current Use | v2.0 Reuse |
+|-----------|------------|------------|
+| `match_resources()` | Push change detection | Plan: detect what would deploy from PR diff |
+| `detect_config_changes()` | Config diff detection | Plan: detect config changes in PR |
+| `get_changed_files()` | Commit diff via GitHub API | Plan: PR diff (three-dot compare against target branch) |
+| `create_check_run()` | PR preview on push | Plan: Check Run with plan summary |
+| `post_pr_comment()` | Config error reporting | Plan: detailed plan comment |
+| `format_deployment_plan()` | Check Run text formatting | Plan: comment body (with enhancements) |
+| `trigger_dispatches()` | Push deploy dispatch | Apply: dispatch with environment context |
+| `build_deployment_tag()` | Deploy tag generation | Apply: tag with environment prefix |
+| `verify_signature()` | Webhook auth | All new event types |
+| `is_duplicate()` | Webhook dedup | All new event types |
+| `fetch_ferry_config()` | Config loading | Plan + Apply: load config from PR branch |
+| `BatchedDispatchPayload` | Deploy payload | Apply: extended with environment field |
 
-The win is most visible when multiple types change: 3 runs with 6 skipped jobs collapses to 1 run with 0 skipped jobs. For single-type pushes, the visual noise is identical.
+The reuse surface is substantial. The core plan logic is "run change detection and format the output as a comment." The core apply logic is "run trigger_dispatches with extra context." The NEW code is primarily: event routing (PR and comment events), environment resolution, comment update-in-place, and status reporting.
 
-## Industry Comparison
+## Webhook Events Required
 
-### Digger/OpenTaco (direct competitor model)
-- **Dispatch model**: One `workflow_dispatch` per project per operation (plan or apply). NOT batched.
-- **Payload**: Each dispatch carries a full `Spec` JSON with one Job containing one project.
-- **Concurrency**: Backend orchestrates ordering; `max_concurrency_per_batch` controls parallelism.
-- **Multiple projects**: Each gets its own GHA workflow run. Concurrency and ordering managed server-side.
-- **Implication for Ferry**: Digger chose per-project dispatch. Ferry's v1.4 per-type dispatch is already more efficient (N types << N resources). Batching to single dispatch goes further.
+| Event | GitHub Header | When Fires | Ferry Use |
+|-------|--------------|------------|-----------|
+| `push` (existing) | `x-github-event: push` | On every push to any branch | Default branch: auto-deploy (existing v1.x). Non-default: auto-plan (v2.0 enhancement) |
+| `pull_request` | `x-github-event: pull_request` | PR opened, synchronized, reopened, closed | `opened/synchronize/reopened`: auto-plan. `closed + merged`: could trigger apply (alternative to push event) |
+| `issue_comment` | `x-github-event: issue_comment` | Comment created on issue/PR | Detect `/ferry plan` and `/ferry apply [env]` commands |
 
-### Atlantis (Terraform, non-GHA)
-- **Dispatch model**: Atlantis runs its own server; no GHA dispatch. Processes all affected projects from a single PR event.
-- **Parallel execution**: `parallel_plan: true` / `parallel_apply: true` runs projects concurrently within Atlantis server.
-- **Locking**: Per-directory+workspace locks allow parallel operations on different projects.
-- **Implication for Ferry**: Atlantis's model is closest to batched -- one event triggers processing of all affected resources. Ferry's batched dispatch replicates this within GHA constraints.
+**Important `issue_comment` nuance**: The payload does NOT include full PR details. The `issue` object has a `pull_request` key (with just a URL) if the comment is on a PR. Ferry must make an additional API call (`GET /repos/{owner}/{repo}/pulls/{number}`) to get the PR's head SHA, base branch, and merge status. This is confirmed by GitHub docs and Digger/Atlantis implementations.
 
-### Terraform Cloud/Spacelift
-- **Dispatch model**: Workspace-per-resource. Each workspace triggered independently by VCS webhooks.
-- **Batching**: No batching -- each workspace runs independently.
-- **Implication for Ferry**: No precedent for batching here; these tools embrace per-resource isolation.
+**Event selection for auto-plan**: Use `push` event (already received) rather than subscribing to `pull_request`. The handler already receives push events for non-default branches and creates Check Runs. Extending this path to also post plan comments is simpler than adding a new event subscription. However, `pull_request` events provide richer context (PR number, base branch, merge status) that `push` events lack. **Recommendation**: Subscribe to `pull_request` events for auto-plan, keep `push` for deploy-on-merge.
 
-### Summary
-No direct competitor batches multiple heterogeneous deploy types into a single GHA workflow run. Ferry's batched dispatch would be novel in this space. The pattern is sound (setup job + conditional matrix jobs is well-documented in GHA ecosystem) but there is no prior art to copy from.
+## GitHub App Permission Updates
 
-## GHA Behavioral Claims (Verified)
+The Ferry GitHub App will need additional webhook subscriptions:
 
-| Claim | Status | Source | Confidence |
-|-------|--------|--------|------------|
-| `fromJson` works in `run-name` context | Verified | Already used in v1.4 ferry.yml template; GitHub docs confirm `inputs` context available in `run-name` | HIGH |
-| Empty matrix crashes GHA with "Matrix vector does not contain any values" | Verified | GitHub Community Discussion #27096; multiple confirmations | HIGH |
-| `if:` on a job is evaluated BEFORE `strategy.matrix` | Verified | GitHub docs: "You can use the if conditional to prevent a job from running unless a condition is met" -- skipped jobs never evaluate matrix | HIGH |
-| Skipped jobs cannot be hidden from GHA UI | Verified | GitHub Community Discussions #18001, #152605; no planned fix | HIGH |
-| `inputs` context works at workflow-level concurrency for `workflow_dispatch` | UNRELIABLE | GitHub Community Discussion #35341, #45734; use `github.event.inputs` or job-level concurrency instead | HIGH (that it is unreliable) |
-| Maximum payload for `workflow_dispatch` inputs: 65,535 characters | Verified | GitHub docs (workflow syntax) | HIGH |
-| Maximum 25 inputs for `workflow_dispatch` | Verified | GitHub docs (workflow syntax) | HIGH |
-| `success()` returns false if dependency was skipped | Verified | GitHub Community Discussion #45058; use `if: always() && !failure() && !cancelled()` for downstream jobs after conditional deps | HIGH |
-| Job-level concurrency groups can use `needs` outputs | Not verified | No explicit docs found; likely works since job-level expressions have access to `needs` context. Flag for testing | LOW |
-| Multiple `workflow_dispatch` to same workflow file run concurrently by default | Verified | Default GHA behavior; no concurrency group = parallel runs | HIGH |
+| Permission/Event | Current | v2.0 Needed | Why |
+|-----------------|---------|-------------|-----|
+| Pull requests (read) | Yes | Yes | Already have |
+| Pull requests (write) | No | Yes | To post/update PR comments from issue_comment handler (already can post via issues API, but PR-specific operations may need this) |
+| Issues (write) | Yes | Yes | Already have -- used for PR comments |
+| Pull request events | No | Yes | Subscribe to `pull_request` webhook events |
+| Issue comment events | No | Yes | Subscribe to `issue_comment` webhook events |
+| Deployments (write) | No | Optional | To create GitHub Deployments for enhanced visibility |
+| Environments (read) | No | Optional | To validate environment names against GHA Environments |
+
+## Plan Comment Format (Proposed)
+
+Based on Atlantis and Digger patterns, adapted for Ferry's serverless context:
+
+```markdown
+## Ferry: Deployment Plan
+
+**Target:** `staging` (branch `feature/new-api` -> `main`)
+**Commit:** `abc1234`
+
+### Resources affected (5)
+
+<details>
+<summary>Lambdas (3)</summary>
+
+| Resource | Change | Source |
+|----------|--------|--------|
+| ~ **order-processor** | modified | `services/order-processor/handler.py` |
+| ~ **payment-handler** | modified | `services/payment-handler/utils.py` |
+| + **notification-sender** | new | `services/notification-sender/` |
+
+</details>
+
+<details open>
+<summary>Step Functions (1)</summary>
+
+| Resource | Change | Source |
+|----------|--------|--------|
+| ~ **checkout-flow** | modified | `workflows/checkout/definition.json` |
+
+</details>
+
+<details>
+<summary>API Gateways (1)</summary>
+
+| Resource | Change | Source |
+|----------|--------|--------|
+| ~ **main-api** | modified | `definitions/api_gateway.yaml` |
+
+</details>
+
+---
+*Ferry will deploy these resources when this PR is merged to `main`.*
+*To deploy now: comment `/ferry apply staging`*
+
+<!-- ferry:plan:marker -->
+```
+
+Key design decisions:
+- **Collapsible sections** (`<details>`) prevent comment bloat with many resources
+- **Table format** is scannable (vs. Atlantis's raw text dump)
+- **HTML comment marker** (`<!-- ferry:plan:marker -->`) enables find-and-update of existing comment
+- **Environment callout** at top makes deployment target immediately clear
+- **Action prompt** at bottom tells users how to deploy mid-way
+
+## Environment Mapping Design (Proposed ferry.yaml v2)
+
+```yaml
+version: 2
+
+environments:
+  staging:
+    branches: ["develop", "feature/*"]
+  production:
+    branches: ["main"]
+
+lambdas:
+  order-processor:
+    source: services/order-processor
+    ecr: ferry/order-processor
+    # Resource definitions stay the same -- environments are orthogonal
+```
+
+Design principles:
+- **Environments are global**, not per-resource. All resources deploy to the same environment when triggered.
+- **Branch patterns** support exact match and glob. `feature/*` matches any feature branch.
+- **No environment-specific resource overrides** in v2.0. The same Lambda function name deploys in all environments. If users need different function names per environment, that is handled via GHA Environment variables (e.g., `vars.LAMBDA_FUNCTION_NAME`), not ferry.yaml.
+- **Default behavior** when no `environments:` block: `main` -> no specific environment (backward compatible with v1.x).
 
 ## MVP Recommendation
 
-Prioritize (in order of implementation):
+Prioritize (in implementation order):
 
-1. **Payload model v2** -- Add support for multiple resource types in `DispatchPayload`. Minimal schema: rename `resource_type` to `resource_types: list[str]`, keep `resources: list[Resource]` as mixed-type discriminated union list. Bump `SCHEMA_VERSION` to 2. Add tests.
+1. **`pull_request` event handler + auto-plan** -- Subscribe to `pull_request` events, detect changes on PR open/sync, post plan as PR comment with update-in-place. This is the highest-visibility feature and reuses 80% of existing change detection code.
 
-2. **Backend: batch into single dispatch** -- `trigger.py` combines all affected types into one payload, fires one `workflow_dispatch`. The loop over `grouped.items()` becomes "build one payload with all resources, dispatch once." Add fallback: if combined payload exceeds 65K, fall back to per-type dispatch (preserves v1.4 behavior). Add tests.
+2. **Plan comment formatting** -- Collapsible per-type sections, table format, HTML comment marker for update-in-place. Builds on existing `format_deployment_plan`.
 
-3. **Setup action: multi-type output** -- `parse_payload.py` detects v2 payload, outputs `lambda_matrix`, `sf_matrix`, `apgw_matrix` JSON strings and `has_lambdas`, `has_step_functions`, `has_api_gateways` boolean outputs. Handle v1 payloads for backward compatibility during rollout. Add tests.
+3. **ferry.yaml v2 schema: `environments:` block** -- Add optional `environments:` section with branch-to-environment mapping. Validate patterns. Keep backward compatible (missing environments block = v1.x behavior).
 
-4. **Updated ferry.yml template** -- Change `if:` guards from `resource_type == 'lambda'` to `has_lambdas == 'true'`. Change matrix references from `needs.setup.outputs.matrix` to `needs.setup.outputs.lambda_matrix`. Update `run-name` to show all affected types.
+4. **Environment resolution** -- Given a branch name, resolve to an environment using ferry.yaml patterns. Used by both plan (display) and apply (dispatch).
 
-5. **Docs update** -- Update setup.md workflow template section with new ferry.yml.
+5. **`issue_comment` handler + `/ferry apply [env]`** -- Parse slash commands from PR comments, validate permissions, extract PR context (additional API call), resolve environment, dispatch deploy.
 
-6. **Test repo: multi-type push** -- Push a change touching all 3 types. Verify: single workflow run, all 3 deploy jobs active, correct resources per type, correct run-name.
+6. **Dispatch payload: environment field** -- Extend `BatchedDispatchPayload` with optional `environment` field. Setup action exposes it as output.
 
-Defer:
-- **Ordered cross-type deploys**: Not needed for v1.5. Types deploy independently. Add dependency ordering in v2.0 if needed.
-- **Aggregated status reporting**: A summary job would be nice but is not core to batching. Defer to v2.0.
-- **Eliminating skipped-job UI noise entirely**: Not possible with GHA's static job model. Accept 0-2 skipped jobs when not all types change. The major UX win (3 runs -> 1 run) is delivered without solving this.
+7. **Workflow template: `environment:` on deploy jobs** -- Deploy jobs use `environment: ${{ needs.setup.outputs.environment }}` so GHA injects environment-level secrets/vars.
+
+8. **Deploy status reporting** -- After dispatch, post result (success/failure) back to the PR as a comment.
+
+Defer to v2.1+:
+- **GitHub Deployments API integration**: Enhanced visibility but not required for core plan/apply loop
+- **`/ferry plan` manual re-plan**: Auto-plan covers the common case; manual re-plan is a convenience
+- **Stale plan detection**: Nice-to-have warning when target branch has moved since plan was generated
+- **Branch deploy (deploy PR branch to non-prod)**: Complex (different SHA routing), valuable for QA workflows
+- **Content-hash preview in plan**: Would require running builds during plan phase -- expensive and slow
+- **Deployment protection rules documentation**: Works out-of-the-box with GHA Environments; just needs a docs page
 
 ## Sources
 
-- [GitHub Docs: Running variations of jobs in a workflow (matrix strategy)](https://docs.github.com/actions/using-jobs/using-a-matrix-for-your-jobs) -- Matrix fromJson pattern, dynamic matrices (HIGH confidence)
-- [GitHub Docs: Workflow syntax for GitHub Actions](https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions) -- `run-name` expressions, `workflow_dispatch` input limits (65,535 chars, 25 inputs), `if:` conditional syntax (HIGH confidence)
-- [GitHub Docs: Control the concurrency of workflows and jobs](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs) -- Concurrency group syntax, job-level vs workflow-level (HIGH confidence)
-- [GitHub Docs: Using conditions to control job execution](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/using-conditions-to-control-job-execution) -- `if:` evaluated before matrix; skipped job behavior (HIGH confidence)
-- [GitHub Community: Job with dynamic matrix crashes if matrix contains zero elements (#27096)](https://github.com/orgs/community/discussions/27096) -- Empty `fromJson` matrix crash, workarounds (HIGH confidence)
-- [GitHub Community: Hide Skipped jobs from Action UI (#152605)](https://github.com/orgs/community/discussions/152605) -- No GHA feature to hide skipped jobs (HIGH confidence)
-- [GitHub Community: Hide Jobs in Actions UI when If is false (#18001)](https://github.com/orgs/community/discussions/18001) -- Confirmed: skipped jobs always visible, no planned fix (HIGH confidence)
-- [GitHub Community: inputs context not working for concurrency group (#35341)](https://github.com/orgs/community/discussions/35341) -- `inputs` unreliable at workflow-level concurrency (HIGH confidence)
-- [GitHub Community: Workflow level concurrency ignores inputs variables (#45734)](https://github.com/orgs/community/discussions/45734) -- Use `github.event.inputs` at workflow level (HIGH confidence)
-- [GitHub Community: success() returns false if dependent jobs are skipped (#45058)](https://github.com/orgs/community/discussions/45058) -- Implicit `success()` treats skipped as not-success (HIGH confidence)
-- [GitHub Community: workflow_dispatch inputs - max length, number of inputs (#120093)](https://github.com/orgs/community/discussions/120093) -- 65,535 total, 25 max inputs (HIGH confidence)
-- [Advanced Usage of GitHub Actions Matrix Strategy (devopsdirective, 2025)](https://devopsdirective.com/posts/2025/08/advanced-github-actions-matrix/) -- Dynamic matrix patterns, multi-job fan-out (MEDIUM confidence)
-- [Digger CE source code: `ci_backends/github_actions.go`](https://github.com/diggerhq/digger/blob/develop/backend/ci_backends/github_actions.go) -- One dispatch per project per operation; no batching (HIGH confidence, read source)
-- [Digger CE source code: `libs/spec/models.go`](https://github.com/diggerhq/digger/blob/develop/libs/spec/models.go) -- Spec carries single Job; confirms per-project dispatch (HIGH confidence, read source)
-- [Atlantis: Run plan/apply for multiple projects in parallel (#260)](https://github.com/runatlantis/atlantis/issues/260) -- `parallel_plan`/`parallel_apply` for concurrent project execution (MEDIUM confidence)
-- [Atlantis: Locking and Concurrency Control](https://deepwiki.com/runatlantis/atlantis/5.1-locking-and-concurrency-control) -- Per-directory+workspace locks (MEDIUM confidence)
-- Existing Ferry codebase: `trigger.py`, `parse_payload.py`, `constants.py`, `dispatch.py` models, `setup.md` (PRIMARY source)
+- [Atlantis: Using Atlantis](https://www.runatlantis.io/docs/using-atlantis) -- Plan/apply comment model, autoplan on PR open (HIGH confidence)
+- [Atlantis: Locking](https://www.runatlantis.io/docs/locking) -- Per-directory+workspace locks, concurrent PR isolation (HIGH confidence)
+- [Atlantis: Server Configuration](https://www.runatlantis.io/docs/server-configuration.html) -- `enable-diff-markdown-format`, plan output rendering (MEDIUM confidence)
+- [Atlantis: Diff markdown format issue (#2244)](https://github.com/runatlantis/atlantis/issues/2244) -- Plan output formatting challenges (MEDIUM confidence)
+- [Digger: Building apply-after-merge workflow](https://medium.com/@DiggerHQ/building-apply-after-merge-workflow-in-digger-f59c6598be59) -- Apply-before-merge vs apply-after-merge, Run Queue concept (MEDIUM confidence)
+- [Terraform Cloud: UI and VCS-driven run workflow](https://developer.hashicorp.com/terraform/cloud-docs/run/ui) -- Speculative plans on PR, auto-plan on PR update (HIGH confidence)
+- [Terramate: Mastering Terraform Workflows](https://terramate.io/rethinking-iac/mastering-terraform-workflows-apply-before-merge-vs-apply-after-merge/) -- Stale plan detection, apply-before vs after merge tradeoffs (MEDIUM confidence)
+- [GitHub Docs: Managing environments for deployment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) -- GHA Environments, secrets/vars, protection rules, branch restrictions (HIGH confidence)
+- [GitHub Docs: Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments) -- Deployment status reporting, environment parameter (HIGH confidence)
+- [GitHub Docs: REST API endpoints for deployments](https://docs.github.com/en/rest/deployments/deployments) -- Deployments API for status tracking (HIGH confidence)
+- [GitHub Blog: Enabling branch deployments through IssueOps](https://github.blog/engineering/engineering-principles/enabling-branch-deployments-through-issueops-with-github-actions/) -- IssueOps pattern for comment-triggered deploys (HIGH confidence)
+- [GitHub Blog: IssueOps: Automate CI/CD with GitHub Issues and Actions](https://github.blog/engineering/issueops-automate-ci-cd-and-more-with-github-issues-and-actions/) -- IssueOps patterns (HIGH confidence)
+- [peter-evans/slash-command-dispatch](https://github.com/peter-evans/slash-command-dispatch) -- Slash command -> repository_dispatch pattern for GHA (HIGH confidence)
+- [GitHub Docs: Webhook events - issue_comment](https://docs.github.com/en/webhooks/webhook-events-and-payloads) -- issue_comment payload structure, PR detection via `issue.pull_request` key (HIGH confidence)
+- [GitHub Blog: Actions pull_request_target and environment branch protections changes (2025-11-07)](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/) -- Environment branch protection now evaluates against default branch for pull_request_target (HIGH confidence)
+- [Vercel: Deploying GitHub Projects](https://vercel.com/docs/git/vercel-for-github) -- Auto preview URL per PR, deployment status checks (HIGH confidence)
+- [Netlify: Deploy Previews](https://docs.netlify.com/deploy/deploy-types/deploy-previews/) -- Preview URL per PR, comment with preview link (HIGH confidence)
+- [AWS Blog: Previewing environments using containerized Lambda functions](https://aws.amazon.com/blogs/compute/previewing-environments-using-containerized-aws-lambda-functions/) -- Ephemeral Lambda preview environments (MEDIUM confidence)
+- [ServerlessFirst: How to prevent concurrent deployments of serverless stacks in GitHub Actions](https://serverlessfirst.com/emails/how-to-prevent-concurrent-deployments-of-serverless-stacks-in-github-actions/) -- GHA concurrency groups for serverless deploy (MEDIUM confidence)
+- Existing Ferry codebase: `handler.py`, `runs.py`, `trigger.py`, `schema.py`, `dispatch.py` models (PRIMARY source)
