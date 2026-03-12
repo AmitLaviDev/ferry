@@ -81,6 +81,7 @@ def create_check_run(
     sha: str,
     affected: list[AffectedResource],
     error: str | None = None,
+    no_change_conclusion: str = "success",
 ) -> dict:
     """Post a GitHub Check Run with deployment plan or error.
 
@@ -90,6 +91,8 @@ def create_check_run(
         sha: Commit SHA to attach the Check Run to.
         affected: List of AffectedResource (empty list if no changes).
         error: Config error message (if ferry.yaml validation failed).
+        no_change_conclusion: Conclusion for no-changes case (default "success").
+            Use "neutral" for pull_request events to distinguish from success.
 
     Returns:
         Response JSON from the Check Runs API.
@@ -100,7 +103,7 @@ def create_check_run(
         summary = "ferry.yaml validation failed"
         text = f"```\n{error}\n```"
     elif not affected:
-        conclusion = "success"
+        conclusion = no_change_conclusion
         title = "No Changes Detected"
         summary = "No resources affected by this change."
         text = None

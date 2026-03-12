@@ -54,6 +54,19 @@ PUSH_PAYLOAD = {
     },
 }
 
+PR_PAYLOAD = {
+    "action": "opened",
+    "number": 42,
+    "pull_request": {
+        "number": 42,
+        "head": {"sha": "pr_head_sha_123"},
+        "base": {"ref": "main"},
+    },
+    "repository": {
+        "full_name": "owner/repo",
+    },
+}
+
 
 class TestIsDuplicate:
     def test_first_delivery_is_not_duplicate(self, dynamodb_client):
@@ -107,3 +120,42 @@ class TestIsDuplicate:
         now = int(time.time())
         # TTL should be approximately 24 hours from now (within 10 second tolerance)
         assert abs(expires_at - (now + 86400)) < 10
+
+
+class TestIsDuplicatePR:
+    """Deduplication tests for pull_request event payloads."""
+
+    def test_first_pr_delivery_is_not_duplicate(self, dynamodb_client):
+        result = is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        assert result is False
+
+    def test_same_pr_delivery_is_duplicate(self, dynamodb_client):
+        is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        result = is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        assert result is True
+
+    def test_requeued_pr_event_is_duplicate(self, dynamodb_client):
+        """Re-queued PR event with new delivery ID but same PR+SHA is duplicate."""
+        is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        result = is_duplicate("delivery-pr-002", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        assert result is True
+
+    def test_different_head_sha_is_not_duplicate(self, dynamodb_client):
+        """PR with different head SHA (new push) is not a duplicate."""
+        is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        pr_payload_new_sha = {
+            **PR_PAYLOAD,
+            "pull_request": {
+                **PR_PAYLOAD["pull_request"],
+                "head": {"sha": "new_head_sha_456"},
+            },
+        }
+        result = is_duplicate("delivery-pr-002", pr_payload_new_sha, TABLE_NAME, dynamodb_client)
+        assert result is False
+
+    def test_pr_and_push_keys_are_isolated(self, dynamodb_client):
+        """PR and push dedup keys do not interfere with each other."""
+        # A push payload with the same repo should not collide with a PR payload
+        is_duplicate("delivery-001", PUSH_PAYLOAD, TABLE_NAME, dynamodb_client)
+        result = is_duplicate("delivery-pr-001", PR_PAYLOAD, TABLE_NAME, dynamodb_client)
+        assert result is False

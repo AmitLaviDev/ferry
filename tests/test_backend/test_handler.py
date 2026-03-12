@@ -207,7 +207,7 @@ class TestHandler:
     def test_non_push_event_returns_ignored(self, dynamodb_env):
         from ferry_backend.webhook.handler import handler
 
-        event = _make_push_event(event_type="pull_request")
+        event = _make_push_event(event_type="issues")
         result = handler(event, None)
         assert result["statusCode"] == 200
         body = json.loads(result["body"])

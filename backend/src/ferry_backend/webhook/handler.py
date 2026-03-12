@@ -15,6 +15,13 @@ import structlog
 
 from ferry_backend.auth.jwt import generate_app_jwt
 from ferry_backend.auth.tokens import get_installation_token
+from ferry_backend.checks.plan import (
+    find_plan_comment,
+    format_no_changes_comment,
+    format_plan_comment,
+    resolve_environment,
+    upsert_plan_comment,
+)
 from ferry_backend.checks.runs import (
     create_check_run,
     find_merged_pr,
@@ -98,9 +105,9 @@ def handler(event: dict, context: object) -> dict:
         event_type=event_type,
     )
 
-    # 5. Filter non-push events
-    if event_type != "push":
-        log.info("webhook_event_ignored", reason="non-push event")
+    # 5. Filter unsupported events
+    if event_type not in {"push", "pull_request"}:
+        log.info("webhook_event_ignored", reason="unsupported event")
         return _response(200, {"status": "ignored"})
 
     # 6. Parse payload (after signature validation)
@@ -119,6 +126,10 @@ def handler(event: dict, context: object) -> dict:
     ):
         log.info("webhook_duplicate_delivery")
         return _response(200, {"status": "duplicate"})
+
+    # Route pull_request events to dedicated handler
+    if event_type == "pull_request":
+        return _handle_pull_request(payload, repo)
 
     # --- Phase 2: Auth -> Config -> Detect -> Dispatch/Check Run ---
     # Wrapped in top-level exception handler (Phase 8) to ensure
@@ -274,6 +285,125 @@ def handler(event: dict, context: object) -> dict:
 
     except Exception as exc:
         log.error("unhandled_error", error=str(exc), exc_info=True)
+        return _response(
+            500,
+            {"status": "internal_error", "error": "internal server error"},
+        )
+
+
+def _handle_pull_request(payload: dict, repo: str) -> dict:
+    """Handle pull_request webhook events.
+
+    Posts a sticky plan comment showing affected resources and creates a
+    Check Run. Updates an existing plan comment on subsequent pushes.
+
+    Args:
+        payload: Parsed pull_request webhook payload.
+        repo: Repository full name (owner/repo).
+
+    Returns:
+        Lambda Function URL response dict.
+    """
+    action = payload.get("action", "")
+    if action not in {"opened", "synchronize", "reopened"}:
+        log.info("pr_action_ignored", action=action)
+        return _response(200, {"status": "ignored", "reason": "unsupported PR action"})
+
+    pr = payload["pull_request"]
+    pr_number = pr["number"]
+    head_sha = pr["head"]["sha"]
+    base_branch = pr["base"]["ref"]
+
+    structlog.contextvars.bind_contextvars(
+        pr_number=pr_number,
+        head_sha=head_sha[:7],
+        base_branch=base_branch,
+    )
+
+    try:
+        # Authenticate as GitHub App installation
+        jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
+        github_client.app_auth(jwt_token)
+        inst_token = get_installation_token(
+            github_client,
+            jwt_token,
+            settings.installation_id,
+        )
+        github_client.installation_auth(inst_token)
+
+        # Fetch and validate config
+        raw_yaml = fetch_ferry_config(github_client, repo, head_sha)
+        parsed = parse_config(raw_yaml)
+        config = validate_config(parsed)
+
+        # Detect changes using base_branch as compare base
+        changed_files = get_changed_files(
+            github_client,
+            repo,
+            base_branch,
+            head_sha,
+        )
+        affected = match_resources(config, changed_files)
+
+        # Config diff if ferry.yaml itself changed
+        if "ferry.yaml" in changed_files:
+            try:
+                old_raw = fetch_ferry_config(github_client, repo, base_branch)
+                old_parsed = parse_config(old_raw)
+                old_config = validate_config(old_parsed)
+            except ConfigError:
+                old_config = None
+            config_affected = detect_config_changes(old_config, config)
+            affected = merge_affected(affected, config_affected)
+
+        log.info("pr_changes_detected", affected_count=len(affected))
+
+        # Plan comment
+        environment = resolve_environment(config, base_branch)
+        if affected:
+            body = format_plan_comment(affected, environment)
+            upsert_plan_comment(github_client, repo, pr_number, body)
+        else:
+            # No changes: update existing comment to no-changes, or stay silent
+            existing = find_plan_comment(github_client, repo, pr_number)
+            if existing:
+                body = format_no_changes_comment()
+                upsert_plan_comment(github_client, repo, pr_number, body)
+
+        # Check Run (always)
+        create_check_run(
+            github_client,
+            repo,
+            head_sha,
+            affected,
+            no_change_conclusion="neutral",
+        )
+
+        return _response(
+            200,
+            {"status": "processed", "affected": len(affected)},
+        )
+
+    except ConfigError as exc:
+        log.error("pr_config_error", error=str(exc))
+        comment_body = (
+            f"**Ferry: Configuration Error**\n\nferry.yaml validation failed:\n```\n{exc!s}\n```"
+        )
+        upsert_plan_comment(github_client, repo, pr_number, comment_body)
+        return _response(
+            200,
+            {"status": "config_error", "error": str(exc)},
+        )
+
+    except GitHubAuthError as exc:
+        log.error("pr_auth_error", error=str(exc), exc_info=True)
+        return _response(
+            500,
+            {"status": "auth_error", "error": str(exc)},
+        )
+
+    except Exception as exc:
+        log.error("pr_unhandled_error", error=str(exc), exc_info=True)
         return _response(
             500,
             {"status": "internal_error", "error": "internal server error"},

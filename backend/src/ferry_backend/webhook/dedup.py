@@ -81,9 +81,13 @@ def _try_record(client: object, table_name: str, pk: str, expires_at: int) -> bo
 
 
 def _build_event_key(payload: dict) -> str | None:
-    """Build event-level dedup key from push event payload.
+    """Build event-level dedup key from webhook event payload.
 
+    For pull_request events: EVENT#pull_request#{repo}#{number}#{head_sha}
     For push events: EVENT#push#{repo_full_name}#{after_sha}
+
+    The pull_request check comes first because PR payloads also contain
+    ``repository`` and ``after`` fields that would match the push pattern.
 
     Args:
         payload: Parsed webhook event payload.
@@ -91,6 +95,17 @@ def _build_event_key(payload: dict) -> str | None:
     Returns:
         Dedup key string, or None if payload lacks required fields.
     """
+    # Check for pull_request FIRST (discriminator)
+    pr = payload.get("pull_request")
+    if pr is not None:
+        repo = payload.get("repository", {}).get("full_name")
+        number = pr.get("number")
+        head_sha = pr.get("head", {}).get("sha")
+        if repo and number is not None and head_sha:
+            return f"EVENT#pull_request#{repo}#{number}#{head_sha}"
+        return None
+
+    # Push event fallback
     repo = payload.get("repository", {}).get("full_name")
     after_sha = payload.get("after")
     if repo and after_sha:
