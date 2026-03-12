@@ -57,7 +57,12 @@ When a developer pushes code, every affected serverless resource is automaticall
 
 ### Active
 
-None -- all milestones through v1.5 shipped. Next: v2.0 PR Integration.
+- [ ] PR change detection: On PR open/sync, detect which resources would be deployed and post preview as PR comment
+- [ ] PR deploy on merge: Automatically deploy affected resources when PR merges to target branch
+- [ ] Comment-triggered deploy: `/ferry apply` comment on PR triggers mid-way deploy to mapped environment
+- [ ] Environment mapping: User-defined environments in ferry.yaml with branch-to-environment mapping
+- [ ] GitHub Environment support: Workflow jobs use `environment: <name>` so GHA natively injects env-level secrets/vars
+- [ ] Mid-way deployments: Deploy to staging/preview environments from PRs before merge via comment trigger
 
 ### Out of Scope
 
@@ -66,7 +71,7 @@ None -- all milestones through v1.5 shipped. Next: v2.0 PR Integration.
 - SageMaker model deployment — different workflow, not serverless compute
 - Multi-account AWS — single target account per workflow run for v1
 - ~~Unified workflow (single `ferry.yml` instead of per-type workflow files) — shipped in v1.4~~
-- PR integration with "ferry plan" / "ferry apply" and mid-way deployments — v2.0
+- ~~PR integration with "ferry plan" / "ferry apply" and mid-way deployments — moved to v2.0 Active~~
 - Environment/branch mapping — v2.0
 - RBAC / permissions — relies on GitHub App installation permissions
 - SQS / complex event processing — keep backend thin, process synchronously
@@ -195,9 +200,16 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - **Mid-way deployments**: Deploy to staging/preview environments from PRs before merge. Requires environment mapping in ferry.yaml (e.g., `main` → prod, `develop` → staging).
 - Touches: webhook handler (new event types), dispatch model (plan vs apply mode), ferry.yaml schema (environment config), action scripts (dry-run mode), PR comment formatting.
 
-## Current Milestone: None (v1.5 shipped)
+## Current Milestone: v2.0 PR Integration
 
-v1.5 Batched Dispatch shipped 2026-03-11. Next milestone: v2.0 PR Integration.
+**Goal:** Add PR-triggered deployments with a plan/apply model — preview what will deploy on PR open/update, deploy on merge or explicit `/ferry apply` comment, with user-defined environment mapping and GitHub Environment support.
+
+**Target features:**
+- ferry plan: detect changed resources on PR and post preview as PR comment
+- ferry apply: auto-deploy on merge + `/ferry apply` comment trigger for mid-way deploys
+- Environment mapping: user-defined environments in ferry.yaml (branch → environment)
+- GitHub Environment support: workflow jobs use `environment:` for native secrets/vars injection
+- Mid-way deployments: deploy to staging/preview from PRs before merge
 
 ---
-*Last updated: 2026-03-11 after completing v1.5 Batched Dispatch milestone*
+*Last updated: 2026-03-12 after starting v2.0 PR Integration milestone*

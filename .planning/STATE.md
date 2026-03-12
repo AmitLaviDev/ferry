@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Batched Dispatch
-status: completed
-stopped_at: Completed 28-01-PLAN.md (E2E validation — both single-type and multi-type batched dispatch proven).
-last_updated: "2026-03-11T21:40:00.000Z"
-last_activity: 2026-03-11 -- Phase 28 plan 01 executed (E2E validation of batched dispatch)
+milestone: v2.0
+milestone_name: PR Integration
+status: defining_requirements
+stopped_at: Defining requirements for v2.0 PR Integration
+last_updated: "2026-03-12T00:00:00.000Z"
+last_activity: 2026-03-12 -- Milestone v2.0 started
 progress:
-  total_phases: 14
-  completed_phases: 14
-  total_plans: 28
-  completed_plans: 28
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-10)
+See: .planning/PROJECT.md (updated 2026-03-12)
 
-**Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v1.5 Batched Dispatch -- COMPLETE
+**Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed — with full visibility on the PR before merge.
+**Current focus:** v2.0 PR Integration — Defining requirements
 
 ## Current Position
 
-Milestone: v1.5 Batched Dispatch
-Phase: 28 of 28 (E2E Validation)
-Plan: 01 complete
-Status: Milestone v1.5 complete
+Milestone: v2.0 PR Integration
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
 
 ```
-v1.5 Progress: [##########] 4/4 phases
+v2.0 Progress: [░░░░░░░░░░] 0%
 ```
 
 ## Shipped Milestones
@@ -43,19 +43,6 @@ v1.5 Progress: [##########] 4/4 phases
 | v1.3 | Full-Chain E2E | 18-21 | 2026-03-10 |
 | v1.4 | Unified Workflow | 22-24 | 2026-03-10 |
 | v1.5 | Batched Dispatch | 25-28 | 2026-03-11 |
-
-## Performance Metrics
-
-**Velocity (v1.0):**
-- Total plans completed: 20
-- Average duration: 4min
-- Total execution time: 1.27 hours
-
-**v1.1:** 5 phases, 8 plans (2026-02-28 to 2026-03-03)
-**v1.2:** 3 phases, 9 plans (2026-03-03 to 2026-03-08)
-**v1.3:** 4 phases, 7 plans (2026-03-08 to 2026-03-10)
-**v1.4:** 3 phases, 3 plans (2026-03-10)
-**v1.5:** 4 phases, 4 plans (2026-03-11) — Phase 25: 2min, Phase 26: 3min, Phase 27: 5min, Phase 28: 10min
 
 ## Accumulated Context
 
@@ -73,10 +60,10 @@ v1.5 Progress: [##########] 4/4 phases
 ### Carry-forward Concerns
 
 - Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
-- `pr_lookup_failed` (403) on push events -- relevant for v2.0, not v1.5
+- `pr_lookup_failed` (403) on push events -- relevant for v2.0
 
 ## Session Continuity
 
-Last session: 2026-03-11
-Stopped at: v1.5 milestone complete. All 4 phases (25-28) shipped and validated E2E.
-Next step: Complete milestone (archive v1.5) or begin v2.0 planning.
+Last session: 2026-03-12
+Stopped at: Defining requirements for v2.0 PR Integration
+Next step: Define requirements, create roadmap
