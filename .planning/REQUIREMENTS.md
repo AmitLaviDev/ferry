@@ -13,14 +13,14 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 - [ ] **PLAN-02**: Ferry updates the sticky PR comment when new commits are pushed to the PR
 - [ ] **PLAN-03**: Plan comment shows the target environment name (if environments configured)
 - [ ] **PLAN-04**: Ferry creates a Check Run on the PR reflecting plan status (success/failure)
-- [ ] **PLAN-05**: User can comment `/ferry plan` on a PR to manually trigger a plan preview
+- [x] **PLAN-05**: User can comment `/ferry plan` on a PR to manually trigger a plan preview
 
 ### Deploy Triggers
 
 - [ ] **DEPLOY-01**: Ferry auto-deploys affected resources when a PR merges to a mapped branch
-- [ ] **DEPLOY-02**: User can trigger deploy from a PR by commenting `/ferry apply`
-- [ ] **DEPLOY-03**: `/ferry apply` deploys to the environment mapped to the PR's target branch
-- [ ] **DEPLOY-04**: Ferry ignores `/ferry apply` comments on issues (non-PR)
+- [x] **DEPLOY-02**: User can trigger deploy from a PR by commenting `/ferry apply`
+- [x] **DEPLOY-03**: `/ferry apply` deploys to the environment mapped to the PR's target branch
+- [x] **DEPLOY-04**: Ferry ignores `/ferry apply` comments on issues (non-PR)
 
 ### Environment Mapping
 
@@ -49,6 +49,9 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 - **PERM-01**: Permission check on `/ferry apply` commenter (verify write access)
 - **PLAN-06**: Build dry-run in plan mode (verify container build succeeds without pushing)
 - **PLAN-07**: Diff preview showing what changed in each resource
+- **SELFDEP-01**: `/ferry apply --lambdas` to deploy only Lambda resources from plan
+- **SELFDEP-02**: `/ferry apply --lambda <name>` to deploy a single named resource
+- **SELFDEP-03**: Selective flags composable across resource types (e.g., `--lambdas --step-functions`)
 
 ## Out of Scope
 
@@ -71,11 +74,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAN-02 | Phase 30 | Pending |
 | PLAN-03 | Phase 30 | Pending |
 | PLAN-04 | Phase 30 | Pending |
-| PLAN-05 | Phase 31 | Pending |
+| PLAN-05 | Phase 31 | Complete |
 | DEPLOY-01 | Phase 32 | Pending |
-| DEPLOY-02 | Phase 31 | Pending |
-| DEPLOY-03 | Phase 31 | Pending |
-| DEPLOY-04 | Phase 31 | Pending |
+| DEPLOY-02 | Phase 31 | Complete |
+| DEPLOY-03 | Phase 31 | Complete |
+| DEPLOY-04 | Phase 31 | Complete |
 | ENV-01 | Phase 29 | Pending |
 | ENV-02 | Phase 32 | Pending |
 | ENV-03 | Phase 32 | Pending |
