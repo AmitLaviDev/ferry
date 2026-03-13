@@ -28,6 +28,12 @@ outputs:
   resource_types:
     description: "Comma-separated list of affected resource types"
     value: ${{ steps.parse.outputs.resource_types }}
+  mode:
+    description: "Dispatch mode ('deploy')"
+    value: ${{ steps.parse.outputs.mode }}
+  environment:
+    description: "Target environment name (empty string if no environment)"
+    value: ${{ steps.parse.outputs.environment }}
 
 runs:
   using: composite

@@ -34,6 +34,8 @@ class ParseResult:
     has_step_functions: bool
     has_api_gateways: bool
     resource_types: str
+    mode: str
+    environment: str
 
 
 def _build_lambda_matrix(payload: DispatchPayload) -> list[dict]:
@@ -162,6 +164,8 @@ def _parse_v1(payload_str: str) -> ParseResult:
         has_step_functions=is_sf and has_resources,
         has_api_gateways=is_ag and has_resources,
         resource_types=payload.resource_type if has_resources else "",
+        mode=payload.mode,
+        environment=payload.environment,
     )
 
 
@@ -221,6 +225,8 @@ def _parse_v2(payload_str: str) -> ParseResult:
         has_step_functions=bool(sf_entries),
         has_api_gateways=bool(ag_entries),
         resource_types=",".join(types),
+        mode=payload.mode,
+        environment=payload.environment,
     )
 
 
@@ -244,6 +250,8 @@ def main() -> None:
     set_output("sf_matrix", json.dumps(result.sf_matrix, separators=(",", ":")))
     set_output("ag_matrix", json.dumps(result.ag_matrix, separators=(",", ":")))
     set_output("resource_types", result.resource_types)
+    set_output("mode", result.mode)
+    set_output("environment", result.environment)
 
 
 if __name__ == "__main__":

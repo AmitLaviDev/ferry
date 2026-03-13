@@ -71,6 +71,8 @@ class DispatchPayload(BaseModel):
     trigger_sha: str
     deployment_tag: str
     pr_number: str = ""
+    mode: str = "deploy"
+    environment: str = ""
 
 
 class BatchedDispatchPayload(BaseModel):
@@ -90,6 +92,10 @@ class BatchedDispatchPayload(BaseModel):
     trigger_sha: str
     deployment_tag: str
     pr_number: str = ""
+    mode: str = "deploy"
+    environment: str = ""
+    head_ref: str = ""
+    base_ref: str = ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property
