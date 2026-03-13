@@ -215,7 +215,7 @@ Plans:
 | 29. Shared Models and Schema Extension | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 30. PR Event Handler and Plan Comment | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 1/1 | Complete | 2026-03-13 |
-| 32. Push Path Environment Resolution | v2.0 | 1/1 | Complete | 2026-03-13 |
+| 32. Push Path Environment Resolution | v2.0 | Complete    | 2026-03-13 | 2026-03-13 |
 | 33. Action v3 Parsing and Outputs | v2.0 | 0/? | Not started | - |
 | 34. Workflow Template and GitHub Environments | v2.0 | 0/? | Not started | - |
 | 35. E2E Validation | v2.0 | 0/? | Not started | - |
