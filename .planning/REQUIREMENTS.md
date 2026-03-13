@@ -17,7 +17,7 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 
 ### Deploy Triggers
 
-- [ ] **DEPLOY-01**: Ferry auto-deploys affected resources when a PR merges to a mapped branch
+- [x] **DEPLOY-01**: Ferry auto-deploys affected resources when a PR merges to a mapped branch
 - [x] **DEPLOY-02**: User can trigger deploy from a PR by commenting `/ferry apply`
 - [x] **DEPLOY-03**: `/ferry apply` deploys to the environment mapped to the PR's target branch
 - [x] **DEPLOY-04**: Ferry ignores `/ferry apply` comments on issues (non-PR)
@@ -25,8 +25,8 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 ### Environment Mapping
 
 - [ ] **ENV-01**: User can define environments in ferry.yaml with branch-to-environment mapping
-- [ ] **ENV-02**: Ferry resolves the correct environment name based on the branch being deployed to
-- [ ] **ENV-03**: When no environment matches (or no environments configured), pushes produce no Ferry activity
+- [x] **ENV-02**: Ferry resolves the correct environment name based on the branch being deployed to
+- [x] **ENV-03**: When no environment matches (or no environments configured), pushes produce no Ferry activity
 
 ### GitHub Environments
 
@@ -75,13 +75,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAN-03 | Phase 30 | Pending |
 | PLAN-04 | Phase 30 | Pending |
 | PLAN-05 | Phase 31 | Complete |
-| DEPLOY-01 | Phase 32 | Pending |
+| DEPLOY-01 | Phase 32 | Complete |
 | DEPLOY-02 | Phase 31 | Complete |
 | DEPLOY-03 | Phase 31 | Complete |
 | DEPLOY-04 | Phase 31 | Complete |
 | ENV-01 | Phase 29 | Pending |
-| ENV-02 | Phase 32 | Pending |
-| ENV-03 | Phase 32 | Pending |
+| ENV-02 | Phase 32 | Complete |
+| ENV-03 | Phase 32 | Complete |
 | GHENV-01 | Phase 34 | Pending |
 | GHENV-02 | Phase 34 | Pending |
 | COMPAT-01 | Phase 29 | Pending |
