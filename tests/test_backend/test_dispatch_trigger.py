@@ -662,6 +662,70 @@ class TestTriggerDispatches:
             assert isinstance(result["status"], int)
             assert isinstance(result["workflow"], str)
 
+    def test_trigger_dispatches_forwards_environment_fields(self, httpx_mock):
+        """mode, environment, head_ref, base_ref flow into BatchedDispatchPayload."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+        )
+        affected = [self._make_affected("order")]
+        client = GitHubClient()
+        trigger_dispatches(
+            client,
+            "owner/repo",
+            config,
+            affected,
+            "sha123",
+            "pr-42",
+            "42",
+            mode="deploy",
+            environment="staging",
+            head_ref="feature-branch",
+            base_ref="develop",
+        )
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.mode == "deploy"
+        assert payload.environment == "staging"
+        assert payload.head_ref == "feature-branch"
+        assert payload.base_ref == "develop"
+
+    def test_trigger_dispatches_defaults_without_environment(self, httpx_mock):
+        """Without environment kwargs, defaults apply (backward-compatible)."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
+            status_code=204,
+        )
+        config = self._make_config(
+            lambdas=[
+                LambdaConfig(
+                    name="order",
+                    source_dir="services/order",
+                    ecr_repo="ferry/order",
+                ),
+            ],
+        )
+        affected = [self._make_affected("order")]
+        client = GitHubClient()
+        trigger_dispatches(client, "owner/repo", config, affected, "sha123", "main-sha123", "")
+        request = httpx_mock.get_requests()[0]
+        body = json.loads(request.content)
+        payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
+        assert payload.mode == "deploy"
+        assert payload.environment == ""
+        assert payload.head_ref == ""
+        assert payload.base_ref == ""
+
     def test_trigger_dispatches_fallback_on_oversized(self, httpx_mock, monkeypatch):
         """Oversized payload -> falls back to per-type v1 dispatch (N API calls)."""
         monkeypatch.setattr("ferry_backend.dispatch.trigger._MAX_PAYLOAD_SIZE", 10)

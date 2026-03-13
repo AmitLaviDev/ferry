@@ -17,8 +17,6 @@ import pytest
 import yaml
 from moto import mock_aws
 
-from ferry_backend.checks.plan import PLAN_MARKER
-
 TABLE_NAME = "ferry-state"
 WEBHOOK_SECRET = "test-webhook-secret"
 
@@ -191,36 +189,12 @@ def _mock_check_run(httpx_mock):
     )
 
 
-def _mock_find_no_plan_comment(httpx_mock, pr_number=42):
-    """Mock listing PR comments (paginated GET) returning no plan comment."""
-    httpx_mock.add_response(
-        url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments?per_page=100&page=1",
-        json=[],
-    )
-
-
-def _mock_find_existing_plan_comment(httpx_mock, pr_number=42, comment_id=50):
-    """Mock listing PR comments (paginated GET) returning an existing plan comment."""
-    httpx_mock.add_response(
-        url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments?per_page=100&page=1",
-        json=[{"id": comment_id, "body": f"{PLAN_MARKER}\nold plan"}],
-    )
-
-
 def _mock_create_comment(httpx_mock, pr_number=42):
     """Mock creating a new PR comment (POST, no query params)."""
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments",
         json={"id": 99, "body": "new plan"},
         status_code=201,
-    )
-
-
-def _mock_update_comment(httpx_mock, comment_id=50):
-    """Mock updating an existing PR comment via PATCH."""
-    httpx_mock.add_response(
-        url=f"https://api.github.com/repos/owner/repo/issues/comments/{comment_id}",
-        json={"id": comment_id, "body": "updated plan"},
     )
 
 
@@ -237,7 +211,6 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -249,26 +222,30 @@ class TestHandlerPR:
         assert body["status"] == "processed"
         assert body["affected"] == 1
 
-        # Verify plan comment was posted
+        # Verify plan comment was posted via POST (not PATCH)
         requests = httpx_mock.get_requests()
         comment_posts = [
             r for r in requests if r.method == "POST" and "/issues/42/comments" in str(r.url)
         ]
         assert len(comment_posts) == 1
         comment_body = json.loads(comment_posts[0].content)["body"]
-        assert PLAN_MARKER in comment_body
+        assert "## \U0001f6a2 Ferry: Deployment Plan" in comment_body
         assert "order-processor" in comment_body
+
+        # Verify no PATCH requests (non-sticky)
+        patch_reqs = [r for r in requests if r.method == "PATCH"]
+        assert len(patch_reqs) == 0
 
         # Verify check run was posted
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 1
 
-    def test_pr_synchronize_updates_existing_comment(
+    def test_pr_synchronize_posts_new_comment(
         self,
         dynamodb_env,
         httpx_mock,
     ):
-        """PR synchronize with existing comment -> PATCH update."""
+        """PR synchronize -> posts NEW comment (not PATCH update)."""
         head_sha = "c" * 40
         event = _make_pr_event(
             action="synchronize",
@@ -279,9 +256,7 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        # upsert_plan_comment -> find_plan_comment (GET) -> PATCH
-        _mock_find_existing_plan_comment(httpx_mock)
-        _mock_update_comment(httpx_mock)
+        _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -291,18 +266,21 @@ class TestHandlerPR:
         assert body["status"] == "processed"
         assert body["affected"] == 1
 
-        # Verify PATCH was used to update existing comment
+        # Verify POST was used (not PATCH)
         requests = httpx_mock.get_requests()
+        comment_posts = [
+            r for r in requests if r.method == "POST" and "/issues/42/comments" in str(r.url)
+        ]
+        assert len(comment_posts) == 1
         patch_reqs = [r for r in requests if r.method == "PATCH"]
-        assert len(patch_reqs) == 1
-        assert "/issues/comments/50" in str(patch_reqs[0].url)
+        assert len(patch_reqs) == 0
 
-    def test_pr_opened_no_changes_no_comment_neutral_check(
+    def test_pr_opened_no_changes_posts_no_changes_comment(
         self,
         dynamodb_env,
         httpx_mock,
     ):
-        """PR opened, no changes, no existing comment -> silent + neutral check run."""
+        """PR opened, no changes -> posts no-changes comment + neutral check run."""
         head_sha = "d" * 40
         event = _make_pr_event(
             action="opened",
@@ -313,8 +291,7 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha, yaml_b64=FERRY_YAML_B64)
         _mock_compare(httpx_mock, "main", head_sha, ["unrelated/readme.md"])
-        # find_plan_comment: no existing comment
-        _mock_find_no_plan_comment(httpx_mock)
+        _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -324,10 +301,14 @@ class TestHandlerPR:
         assert body["status"] == "processed"
         assert body["affected"] == 0
 
-        # Verify NO plan comment was posted (no POST to issues)
+        # Verify no-changes comment was posted
         requests = httpx_mock.get_requests()
-        comment_posts = [r for r in requests if r.method == "POST" and "/issues/" in str(r.url)]
-        assert len(comment_posts) == 0
+        comment_posts = [
+            r for r in requests if r.method == "POST" and "/issues/42/comments" in str(r.url)
+        ]
+        assert len(comment_posts) == 1
+        comment_body = json.loads(comment_posts[0].content)["body"]
+        assert "No Ferry-managed resources" in comment_body
 
         # Verify check run was posted with neutral conclusion
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
@@ -335,12 +316,12 @@ class TestHandlerPR:
         check_body = json.loads(check_reqs[0].content)
         assert check_body["conclusion"] == "neutral"
 
-    def test_pr_synchronize_no_changes_updates_existing_comment(
+    def test_pr_synchronize_no_changes_posts_no_changes_comment(
         self,
         dynamodb_env,
         httpx_mock,
     ):
-        """PR sync, no changes, existing plan comment -> update to no-changes."""
+        """PR sync, no changes -> posts new no-changes comment."""
         head_sha = "e" * 40
         event = _make_pr_event(
             action="synchronize",
@@ -351,12 +332,7 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha, yaml_b64=FERRY_YAML_B64)
         _mock_compare(httpx_mock, "main", head_sha, ["unrelated/readme.md"])
-        # 1st GET: handler calls find_plan_comment -> finds existing
-        _mock_find_existing_plan_comment(httpx_mock)
-        # 2nd GET: upsert_plan_comment calls find_plan_comment again -> finds existing
-        _mock_find_existing_plan_comment(httpx_mock)
-        # PATCH: upsert updates existing comment
-        _mock_update_comment(httpx_mock)
+        _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -366,10 +342,18 @@ class TestHandlerPR:
         assert body["status"] == "processed"
         assert body["affected"] == 0
 
-        # Verify PATCH was used to update existing comment
+        # Verify no-changes comment was posted via POST
         requests = httpx_mock.get_requests()
+        comment_posts = [
+            r for r in requests if r.method == "POST" and "/issues/42/comments" in str(r.url)
+        ]
+        assert len(comment_posts) == 1
+        comment_body = json.loads(comment_posts[0].content)["body"]
+        assert "No Ferry-managed resources" in comment_body
+
+        # No PATCH (non-sticky)
         patch_reqs = [r for r in requests if r.method == "PATCH"]
-        assert len(patch_reqs) == 1
+        assert len(patch_reqs) == 0
 
     def test_pr_with_environment_shows_env_in_comment(
         self,
@@ -388,7 +372,6 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha, yaml_b64=FERRY_YAML_WITH_ENVS_B64)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -434,7 +417,7 @@ class TestHandlerPR:
         dynamodb_env,
         httpx_mock,
     ):
-        """PR with invalid ferry.yaml -> error comment via upsert."""
+        """PR with invalid ferry.yaml -> error comment via POST."""
         head_sha = "h" * 40
         event = _make_pr_event(
             action="opened",
@@ -449,8 +432,6 @@ class TestHandlerPR:
             status_code=404,
             json={"message": "Not Found"},
         )
-        # upsert_plan_comment: find (no existing) + create
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -483,7 +464,6 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -514,7 +494,6 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -543,7 +522,6 @@ class TestHandlerPR:
         _mock_ferry_config(httpx_mock, head_sha)
         # Compare should use "develop" (base_ref) not a SHA
         _mock_compare(httpx_mock, "develop", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -576,7 +554,6 @@ class TestHandlerPR:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_find_no_plan_comment(httpx_mock)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 

@@ -1,7 +1,8 @@
 """Lambda Function URL entry point for GitHub webhook processing.
 
 Wires together signature validation, deduplication, config loading,
-change detection, dispatch triggering, and Check Run creation.
+change detection, dispatch triggering, Check Run creation, and
+comment-driven /ferry plan and /ferry apply workflows.
 
 Response format follows Lambda Function URL payload format v2:
 {statusCode: int, headers: dict, body: str (JSON)}
@@ -16,11 +17,13 @@ import structlog
 from ferry_backend.auth.jwt import generate_app_jwt
 from ferry_backend.auth.tokens import get_installation_token
 from ferry_backend.checks.plan import (
-    find_plan_comment,
+    find_apply_comment,
+    format_apply_comment,
+    format_apply_status_update,
     format_no_changes_comment,
     format_plan_comment,
+    parse_ferry_command,
     resolve_environment,
-    upsert_plan_comment,
 )
 from ferry_backend.checks.runs import (
     create_check_run,
@@ -45,6 +48,7 @@ from ferry_backend.logging import configure_logging
 from ferry_backend.settings import Settings
 from ferry_backend.webhook.dedup import is_duplicate
 from ferry_backend.webhook.signature import verify_signature
+from ferry_utils.constants import WORKFLOW_FILENAME
 from ferry_utils.errors import ConfigError, GitHubAuthError
 
 # Module-level initialization for Lambda cold start optimization
@@ -63,12 +67,9 @@ def handler(event: dict, context: object) -> dict:
     2. Normalize headers to lowercase
     3. Validate HMAC-SHA256 signature (before JSON parsing)
     4. Check for required headers
-    5. Filter non-push events
+    5. Filter non-supported events
     6. Deduplicate
-    7. Authenticate as GitHub App installation
-    8. Fetch and validate config
-    9. Detect changes
-    10. Dispatch or create Check Run
+    7. Route to event-specific handler
 
     Args:
         event: Lambda Function URL event (payload format v2).
@@ -106,7 +107,7 @@ def handler(event: dict, context: object) -> dict:
     )
 
     # 5. Filter unsupported events
-    if event_type not in {"push", "pull_request"}:
+    if event_type not in {"push", "pull_request", "issue_comment", "workflow_run"}:
         log.info("webhook_event_ignored", reason="unsupported event")
         return _response(200, {"status": "ignored"})
 
@@ -127,14 +128,17 @@ def handler(event: dict, context: object) -> dict:
         log.info("webhook_duplicate_delivery")
         return _response(200, {"status": "duplicate"})
 
-    # Route pull_request events to dedicated handler
+    # Route to event-specific handler
     if event_type == "pull_request":
         return _handle_pull_request(payload, repo)
 
-    # --- Phase 2: Auth -> Config -> Detect -> Dispatch/Check Run ---
-    # Wrapped in top-level exception handler (Phase 8) to ensure
-    # all errors produce structured JSON responses.
+    if event_type == "issue_comment":
+        return _handle_issue_comment(payload, repo)
 
+    if event_type == "workflow_run":
+        return _handle_workflow_run(payload, repo)
+
+    # --- Push event: Auth -> Config -> Detect -> Dispatch/Check Run ---
     try:
         # 8. Authenticate as GitHub App installation
         jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
@@ -171,9 +175,6 @@ def handler(event: dict, context: object) -> dict:
             # All resources affected on initial push
             affected = detect_config_changes(None, config)
         else:
-            # PR branches: merge-base diff (default_branch...head)
-            # Default branch: before...after (the merge commit landing)
-            # Three-dot compare uses merge-base automatically for PR branches
             compare_base = before_sha if is_default_branch else default_branch
             changed_files = get_changed_files(
                 github_client,
@@ -206,7 +207,6 @@ def handler(event: dict, context: object) -> dict:
         # 12. Branch-dependent behavior
         # Default branch pushes: trigger dispatches
         if is_default_branch and affected:
-            # For default branch, find merged PR number
             prs = find_open_prs(github_client, repo, after_sha)
             pr_number = str(prs[0]["number"]) if prs else ""
             tag = build_deployment_tag(pr_number, branch, after_sha)
@@ -243,11 +243,9 @@ def handler(event: dict, context: object) -> dict:
 
     except ConfigError as exc:
         log.error("config_error", error=str(exc))
-        # Surface config errors as PR comments (not Check Runs)
         comment_body = (
             f"**Ferry: Configuration Error**\n\nferry.yaml validation failed:\n```\n{exc!s}\n```"
         )
-        # PR branches: comment on the open PR
         prs = find_open_prs(github_client, repo, after_sha)
         if prs:
             post_pr_comment(
@@ -257,7 +255,6 @@ def handler(event: dict, context: object) -> dict:
                 comment_body,
             )
         else:
-            # Default branch: find the merged PR
             merged_pr = find_merged_pr(github_client, repo, after_sha)
             if merged_pr:
                 post_pr_comment(
@@ -291,11 +288,16 @@ def handler(event: dict, context: object) -> dict:
         )
 
 
+# ---------------------------------------------------------------------------
+# pull_request event handler
+# ---------------------------------------------------------------------------
+
+
 def _handle_pull_request(payload: dict, repo: str) -> dict:
     """Handle pull_request webhook events.
 
-    Posts a sticky plan comment showing affected resources and creates a
-    Check Run. Updates an existing plan comment on subsequent pushes.
+    Posts a new plan comment (non-sticky) showing affected resources and
+    creates a Check Run.
 
     Args:
         payload: Parsed pull_request webhook payload.
@@ -358,17 +360,13 @@ def _handle_pull_request(payload: dict, repo: str) -> dict:
 
         log.info("pr_changes_detected", affected_count=len(affected))
 
-        # Plan comment
+        # Plan comment (new comment per event, not sticky)
         environment = resolve_environment(config, base_branch)
         if affected:
-            body = format_plan_comment(affected, environment)
-            upsert_plan_comment(github_client, repo, pr_number, body)
+            comment_body = format_plan_comment(affected, environment)
         else:
-            # No changes: update existing comment to no-changes, or stay silent
-            existing = find_plan_comment(github_client, repo, pr_number)
-            if existing:
-                body = format_no_changes_comment()
-                upsert_plan_comment(github_client, repo, pr_number, body)
+            comment_body = format_no_changes_comment()
+        post_pr_comment(github_client, repo, pr_number, comment_body)
 
         # Check Run (always)
         create_check_run(
@@ -389,7 +387,7 @@ def _handle_pull_request(payload: dict, repo: str) -> dict:
         comment_body = (
             f"**Ferry: Configuration Error**\n\nferry.yaml validation failed:\n```\n{exc!s}\n```"
         )
-        upsert_plan_comment(github_client, repo, pr_number, comment_body)
+        post_pr_comment(github_client, repo, pr_number, comment_body)
         return _response(
             200,
             {"status": "config_error", "error": str(exc)},
@@ -408,6 +406,345 @@ def _handle_pull_request(payload: dict, repo: str) -> dict:
             500,
             {"status": "internal_error", "error": "internal server error"},
         )
+
+
+# ---------------------------------------------------------------------------
+# issue_comment event handler (/ferry plan, /ferry apply)
+# ---------------------------------------------------------------------------
+
+
+def _handle_issue_comment(payload: dict, repo: str) -> dict:
+    """Handle issue_comment webhook events for /ferry commands.
+
+    Processes /ferry plan and /ferry apply commands on PR comments.
+    Ignores comments on regular issues, edited/deleted comments, and
+    non-ferry commands.
+
+    Args:
+        payload: Parsed issue_comment webhook payload.
+        repo: Repository full name (owner/repo).
+
+    Returns:
+        Lambda Function URL response dict.
+    """
+    # 1. Filter: only action=created
+    action = payload.get("action", "")
+    if action != "created":
+        log.info("comment_action_ignored", action=action)
+        return _response(200, {"status": "ignored", "reason": "not a new comment"})
+
+    # 2. Parse command
+    comment = payload["comment"]
+    comment_body = comment["body"]
+    command = parse_ferry_command(comment_body)
+    if command is None:
+        log.info("comment_not_ferry_command")
+        return _response(200, {"status": "ignored", "reason": "not a ferry command"})
+
+    # 3. Guard: must be on a PR (not a plain issue) -> DEPLOY-04
+    issue = payload["issue"]
+    if "pull_request" not in issue:
+        log.info("comment_on_issue_ignored", command=command)
+        return _response(200, {"status": "ignored", "reason": "comment on issue, not PR"})
+
+    pr_number = issue["number"]
+    comment_id = comment["id"]
+
+    structlog.contextvars.bind_contextvars(
+        pr_number=pr_number,
+        comment_id=comment_id,
+        command=command,
+    )
+
+    try:
+        # 4. Auth
+        jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
+        github_client.app_auth(jwt_token)
+        inst_token = get_installation_token(
+            github_client,
+            jwt_token,
+            settings.installation_id,
+        )
+        github_client.installation_auth(inst_token)
+
+        # 5. Add rocket reaction (always, even for closed PR or no resources)
+        github_client.post(
+            f"/repos/{repo}/issues/comments/{comment_id}/reactions",
+            json={"content": "rocket"},
+        )
+
+        # 6. Guard: PR must be open
+        if issue.get("state") != "open":
+            refusal = (
+                f"**Ferry:** PR #{pr_number} is not open -- `/ferry {command}` requires an open PR."
+            )
+            post_pr_comment(github_client, repo, pr_number, refusal)
+            return _response(200, {"status": "refused", "reason": "PR not open"})
+
+        # 7. Fetch fresh PR data (head SHA + base branch)
+        pr_resp = github_client.get(f"/repos/{repo}/pulls/{pr_number}")
+        pr_data = pr_resp.json()
+        head_sha = pr_data["head"]["sha"]
+        base_branch = pr_data["base"]["ref"]
+        default_branch = payload["repository"]["default_branch"]
+
+        structlog.contextvars.bind_contextvars(
+            head_sha=head_sha[:7],
+            base_branch=base_branch,
+        )
+
+        # 8. Fetch and validate config
+        raw_yaml = fetch_ferry_config(github_client, repo, head_sha)
+        parsed = parse_config(raw_yaml)
+        config = validate_config(parsed)
+
+        # 9. Detect changes
+        changed_files = get_changed_files(github_client, repo, base_branch, head_sha)
+        affected = match_resources(config, changed_files)
+
+        if "ferry.yaml" in changed_files:
+            try:
+                old_raw = fetch_ferry_config(github_client, repo, base_branch)
+                old_parsed = parse_config(old_raw)
+                old_config = validate_config(old_parsed)
+            except ConfigError:
+                old_config = None
+            config_affected = detect_config_changes(old_config, config)
+            affected = merge_affected(affected, config_affected)
+
+        log.info("comment_changes_detected", affected_count=len(affected))
+        environment = resolve_environment(config, base_branch)
+
+        # 10. Route by command
+        if command == "plan":
+            return _handle_plan_command(
+                repo,
+                pr_number,
+                head_sha,
+                affected,
+                environment,
+            )
+        # command == "apply"
+        return _handle_apply_command(
+            repo,
+            pr_number,
+            head_sha,
+            base_branch,
+            default_branch,
+            affected,
+            environment,
+            config,
+        )
+
+    except ConfigError as exc:
+        log.error("comment_config_error", error=str(exc))
+        error_body = (
+            f"**Ferry: Configuration Error**\n\nferry.yaml validation failed:\n```\n{exc!s}\n```"
+        )
+        post_pr_comment(github_client, repo, pr_number, error_body)
+        return _response(200, {"status": "config_error", "error": str(exc)})
+
+    except GitHubAuthError as exc:
+        log.error("comment_auth_error", error=str(exc), exc_info=True)
+        return _response(500, {"status": "auth_error", "error": str(exc)})
+
+    except Exception as exc:
+        log.error("comment_unhandled_error", error=str(exc), exc_info=True)
+        return _response(500, {"status": "internal_error", "error": "internal server error"})
+
+
+def _handle_plan_command(
+    repo: str,
+    pr_number: int,
+    head_sha: str,
+    affected: list,
+    environment: object,
+) -> dict:
+    """Execute /ferry plan: post plan comment + check run.
+
+    Args:
+        repo: Repository full name.
+        pr_number: PR number.
+        head_sha: Current PR head SHA.
+        affected: Detected affected resources.
+        environment: Resolved environment mapping (or None).
+
+    Returns:
+        Lambda Function URL response dict.
+    """
+    comment_body = (
+        format_plan_comment(affected, environment) if affected else format_no_changes_comment()
+    )
+    post_pr_comment(github_client, repo, pr_number, comment_body)
+    create_check_run(github_client, repo, head_sha, affected, no_change_conclusion="neutral")
+    return _response(200, {"status": "processed", "command": "plan", "affected": len(affected)})
+
+
+def _handle_apply_command(
+    repo: str,
+    pr_number: int,
+    head_sha: str,
+    base_branch: str,
+    default_branch: str,
+    affected: list,
+    environment: object,
+    config: object,
+) -> dict:
+    """Execute /ferry apply: dispatch deploy + post apply comment + check run.
+
+    Args:
+        repo: Repository full name.
+        pr_number: PR number.
+        head_sha: Current PR head SHA.
+        base_branch: PR base branch name.
+        default_branch: Repository default branch.
+        affected: Detected affected resources.
+        environment: Resolved environment mapping (or None).
+        config: Validated FerryConfig.
+
+    Returns:
+        Lambda Function URL response dict.
+    """
+    if not affected:
+        body = "**Ferry:** No Ferry-managed resources affected -- nothing to deploy."
+        post_pr_comment(github_client, repo, pr_number, body)
+        return _response(200, {"status": "processed", "command": "apply", "affected": 0})
+
+    env_name = environment.name if environment else ""
+    tag = build_deployment_tag(str(pr_number), base_branch, head_sha)
+    trigger_dispatches(
+        github_client,
+        repo,
+        config,
+        affected,
+        head_sha,
+        tag,
+        str(pr_number),
+        default_branch=default_branch,
+        mode="deploy",
+        environment=env_name,
+        head_ref=head_sha,
+        base_ref=base_branch,
+    )
+    body = format_apply_comment(affected, environment, head_sha)
+    post_pr_comment(github_client, repo, pr_number, body)
+    create_check_run(github_client, repo, head_sha, affected)
+    log.info("apply_dispatched", affected_count=len(affected))
+    return _response(
+        200,
+        {"status": "processed", "command": "apply", "affected": len(affected)},
+    )
+
+
+# ---------------------------------------------------------------------------
+# workflow_run event handler (apply status update)
+# ---------------------------------------------------------------------------
+
+
+def _handle_workflow_run(payload: dict, repo: str) -> dict:
+    """Handle workflow_run webhook events for deploy status updates.
+
+    When a Ferry workflow_dispatch run completes, finds and updates the
+    corresponding apply comment with the final conclusion and run link.
+
+    Args:
+        payload: Parsed workflow_run webhook payload.
+        repo: Repository full name (owner/repo).
+
+    Returns:
+        Lambda Function URL response dict.
+    """
+    action = payload.get("action", "")
+    if action != "completed":
+        log.info("workflow_run_action_ignored", action=action)
+        return _response(200, {"status": "ignored", "reason": "not completed"})
+
+    wf_run = payload["workflow_run"]
+
+    # Filter: only workflow_dispatch-triggered runs
+    if wf_run.get("event") != "workflow_dispatch":
+        log.info("workflow_run_not_dispatch", trigger_event=wf_run.get("event"))
+        return _response(200, {"status": "ignored", "reason": "not dispatch-triggered"})
+
+    # Filter: only Ferry workflow
+    expected_path = f".github/workflows/{WORKFLOW_FILENAME}"
+    if wf_run.get("path") != expected_path:
+        log.info("workflow_run_not_ferry", path=wf_run.get("path"))
+        return _response(200, {"status": "ignored", "reason": "not ferry workflow"})
+
+    run_id = wf_run["id"]
+    conclusion = wf_run.get("conclusion", "unknown")
+    run_url = wf_run.get("html_url", "")
+
+    structlog.contextvars.bind_contextvars(
+        run_id=run_id,
+        conclusion=conclusion,
+    )
+
+    try:
+        # Auth
+        jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
+        github_client.app_auth(jwt_token)
+        inst_token = get_installation_token(
+            github_client,
+            jwt_token,
+            settings.installation_id,
+        )
+        github_client.installation_auth(inst_token)
+
+        # Fetch run details to get dispatch inputs
+        run_resp = github_client.get(f"/repos/{repo}/actions/runs/{run_id}")
+        run_data = run_resp.json()
+        inputs = run_data.get("inputs") or {}
+        payload_json = inputs.get("payload", "{}")
+        dispatch_data = json.loads(payload_json)
+        trigger_sha = dispatch_data.get("trigger_sha", "")
+        pr_number_str = dispatch_data.get("pr_number", "")
+
+        if not trigger_sha or not pr_number_str:
+            log.info(
+                "workflow_run_no_correlation",
+                trigger_sha=trigger_sha,
+                pr_number=pr_number_str,
+            )
+            return _response(200, {"status": "ignored", "reason": "no correlation data"})
+
+        pr_number = int(pr_number_str)
+
+        # Find and update apply comment
+        existing = find_apply_comment(github_client, repo, pr_number, trigger_sha)
+        if existing:
+            updated_body = format_apply_status_update(existing["body"], conclusion, run_url)
+            github_client.patch(
+                f"/repos/{repo}/issues/comments/{existing['id']}",
+                json={"body": updated_body},
+            )
+            log.info(
+                "apply_comment_updated",
+                pr_number=pr_number,
+                conclusion=conclusion,
+            )
+        else:
+            log.warning(
+                "apply_comment_not_found",
+                pr_number=pr_number,
+                trigger_sha=trigger_sha[:7],
+            )
+
+        return _response(200, {"status": "processed", "conclusion": conclusion})
+
+    except GitHubAuthError as exc:
+        log.error("workflow_run_auth_error", error=str(exc), exc_info=True)
+        return _response(500, {"status": "auth_error", "error": str(exc)})
+
+    except Exception as exc:
+        log.error("workflow_run_unhandled_error", error=str(exc), exc_info=True)
+        return _response(500, {"status": "internal_error", "error": "internal server error"})
+
+
+# ---------------------------------------------------------------------------
+# Response helper
+# ---------------------------------------------------------------------------
 
 
 def _response(status_code: int, body: dict) -> dict:

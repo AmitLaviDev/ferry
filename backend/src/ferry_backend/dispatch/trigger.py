@@ -179,6 +179,11 @@ def trigger_dispatches(
     deployment_tag: str,
     pr_number: str,
     default_branch: str = "main",
+    *,
+    mode: str = "deploy",
+    environment: str = "",
+    head_ref: str = "",
+    base_ref: str = "",
 ) -> list[dict]:
     """Fire workflow_dispatch for affected resources.
 
@@ -195,6 +200,10 @@ def trigger_dispatches(
         deployment_tag: Tag for this deployment (e.g., "pr-42" or "main-abc1234").
         pr_number: PR number string (empty if not a PR merge).
         default_branch: Default branch name for dispatch ref.
+        mode: Dispatch mode ("deploy" for normal deploys).
+        environment: Target environment name (empty for default).
+        head_ref: Head branch/SHA for the dispatch.
+        base_ref: Base branch for the dispatch.
 
     Returns:
         List of result dicts: [{"type": str, "status": int, "workflow": str}].
@@ -219,6 +228,10 @@ def trigger_dispatches(
         trigger_sha=sha,
         deployment_tag=deployment_tag,
         pr_number=pr_number,
+        mode=mode,
+        environment=environment,
+        head_ref=head_ref,
+        base_ref=base_ref,
     )
 
     # Serialize and check size

@@ -83,11 +83,13 @@ def _try_record(client: object, table_name: str, pk: str, expires_at: int) -> bo
 def _build_event_key(payload: dict) -> str | None:
     """Build event-level dedup key from webhook event payload.
 
+    For issue_comment events: EVENT#issue_comment#{repo}#{comment_id}
+    For workflow_run events: EVENT#workflow_run#{repo}#{run_id}
     For pull_request events: EVENT#pull_request#{repo}#{number}#{head_sha}
     For push events: EVENT#push#{repo_full_name}#{after_sha}
 
-    The pull_request check comes first because PR payloads also contain
-    ``repository`` and ``after`` fields that would match the push pattern.
+    The comment and workflow_run checks come first because they have
+    unique discriminator keys (``comment`` and ``workflow_run``).
 
     Args:
         payload: Parsed webhook event payload.
@@ -95,7 +97,25 @@ def _build_event_key(payload: dict) -> str | None:
     Returns:
         Dedup key string, or None if payload lacks required fields.
     """
-    # Check for pull_request FIRST (discriminator)
+    # Check for issue_comment (comment key is discriminator)
+    comment = payload.get("comment")
+    if comment is not None:
+        repo = payload.get("repository", {}).get("full_name")
+        comment_id = comment.get("id")
+        if repo and comment_id is not None:
+            return f"EVENT#issue_comment#{repo}#{comment_id}"
+        return None
+
+    # Check for workflow_run (workflow_run key is discriminator)
+    workflow_run = payload.get("workflow_run")
+    if workflow_run is not None:
+        repo = payload.get("repository", {}).get("full_name")
+        run_id = workflow_run.get("id")
+        if repo and run_id is not None:
+            return f"EVENT#workflow_run#{repo}#{run_id}"
+        return None
+
+    # Check for pull_request FIRST among remaining (discriminator)
     pr = payload.get("pull_request")
     if pr is not None:
         repo = payload.get("repository", {}).get("full_name")
