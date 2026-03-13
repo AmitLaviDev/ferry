@@ -98,7 +98,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 - [x] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** (1/1 plan) - PR comment commands, deploy dispatch, workflow_run status updates
 - [x] **Phase 32: Push Path Environment Resolution** (1/1 plan) - Existing push handler gains environment awareness for auto-deploy on merge
 - [ ] **Phase 33: Action v3 Parsing and Outputs** - Setup action parses v3 payload, outputs mode and environment with backward compatibility
-- [ ] **Phase 34: Workflow Template and GitHub Environments** - Updated ferry.yml template with environment: key, mode guard, and docs
+- [x] **Phase 34: Workflow Template and GitHub Environments** (1/1 plan) - Updated ferry.yml template with environment: key, mode guard, and docs
 - [ ] **Phase 35: E2E Validation** - Full PR lifecycle proven in test repo: plan comment, /ferry apply, merge deploy, environment secrets
 
 ## Phase Details
@@ -175,7 +175,9 @@ Plans:
   2. Deploy jobs only run when `mode == 'deploy'` (layered on top of existing boolean type gates)
   3. Empty environment string (no environments configured) results in deploy jobs running without an environment (no crash, no error)
   4. Documentation includes the updated workflow template and instructions for adding `pull_request` and `issue_comment` webhook subscriptions
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 34-01-PLAN.md -- Update docs/setup.md with v2.0 workflow template, environments section, mode guards, and webhook events
 
 ### Phase 35: E2E Validation
 **Goal**: Full PR lifecycle proven end-to-end in the real test environment
@@ -219,5 +221,5 @@ Plans:
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 32. Push Path Environment Resolution | v2.0 | Complete    | 2026-03-13 | 2026-03-13 |
 | 33. Action v3 Parsing and Outputs | v2.0 | 0/1 | Planned | - |
-| 34. Workflow Template and GitHub Environments | v2.0 | 0/? | Not started | - |
+| 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 0/? | Not started | - |
