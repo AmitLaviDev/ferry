@@ -95,7 +95,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 
 - [x] **Phase 29: Shared Models and Schema Extension** (1/1 plan) - v3 payload model, environment mapping config, ferry.yaml schema update
 - [ ] **Phase 30: PR Event Handler and Plan Comment** (1 plan) - Backend handles pull_request events, posts sticky plan preview comment, creates check run
-- [ ] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** - Backend handles PR comment commands: /ferry plan re-triggers plan preview, /ferry apply dispatches deploy
+- [ ] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** (1 plan) - PR comment commands, deploy dispatch, workflow_run status updates
 - [ ] **Phase 32: Push Path Environment Resolution** - Existing push handler gains environment awareness for auto-deploy on merge
 - [ ] **Phase 33: Action v3 Parsing and Outputs** - Setup action parses v3 payload, outputs mode and environment with backward compatibility
 - [ ] **Phase 34: Workflow Template and GitHub Environments** - Updated ferry.yml template with environment: key, mode guard, and docs
@@ -133,12 +133,14 @@ Plans:
 **Depends on**: Phase 29, Phase 30 (reuses plan comment logic)
 **Requirements**: PLAN-05, DEPLOY-02, DEPLOY-03, DEPLOY-04
 **Success Criteria** (what must be TRUE):
-  1. Commenting `/ferry plan` on a PR re-triggers the plan preview (updates the sticky comment with fresh change detection)
+  1. Commenting `/ferry plan` on a PR re-triggers the plan preview (posts a new comment with fresh change detection)
   2. Commenting `/ferry apply` on a PR triggers a workflow_dispatch with `mode="deploy"` and the correct environment
   3. The deploy uses the current PR head SHA (fetched fresh from the API), not a stale reference
   4. Commenting `/ferry apply` or `/ferry plan` on a regular issue (not a PR) is silently ignored -- no dispatch, no error
   5. The dispatch payload carries the resolved environment name based on the PR's target branch
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 31-01-PLAN.md -- Command parser, issue_comment handler, workflow_run handler, dedup, tests
 
 ### Phase 32: Push Path Environment Resolution
 **Goal**: Merging a PR to a mapped branch automatically deploys affected resources to the correct environment
@@ -210,7 +212,7 @@ Plans:
 | 25-28. Batched Dispatch | v1.5 | 4/4 | Complete | 2026-03-11 |
 | 29. Shared Models and Schema Extension | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 30. PR Event Handler and Plan Comment | v2.0 | 0/1 | Not started | - |
-| 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 0/? | Not started | - |
+| 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 0/1 | Not started | - |
 | 32. Push Path Environment Resolution | v2.0 | 0/? | Not started | - |
 | 33. Action v3 Parsing and Outputs | v2.0 | 0/? | Not started | - |
 | 34. Workflow Template and GitHub Environments | v2.0 | 0/? | Not started | - |
