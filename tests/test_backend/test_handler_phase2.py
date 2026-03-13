@@ -42,8 +42,27 @@ dJ8Nt0KHAHly/eJUzHRv7YWpBqzDAH7bNzMn7Ay7CuGJ0OKAOC+yP3WRFO8LGTGK
 3FvWnEJDcGS/GD2s/DLKQQ==
 -----END RSA PRIVATE KEY-----"""
 
-# Minimal ferry.yaml for tests
+# Minimal ferry.yaml for tests (with environments for environment-gated dispatch)
 FERRY_YAML = yaml.dump(
+    {
+        "version": 1,
+        "environments": {
+            "production": {"branch": "main", "auto_deploy": True},
+        },
+        "lambdas": [
+            {
+                "name": "order-processor",
+                "source_dir": "services/order-processor",
+                "ecr_repo": "ferry/order-processor",
+            },
+        ],
+    }
+)
+
+FERRY_YAML_B64 = base64.b64encode(FERRY_YAML.encode()).decode()
+
+# ferry.yaml without environments (for tests needing no-environment behavior)
+FERRY_YAML_NO_ENVS = yaml.dump(
     {
         "version": 1,
         "lambdas": [
@@ -56,7 +75,7 @@ FERRY_YAML = yaml.dump(
     }
 )
 
-FERRY_YAML_B64 = base64.b64encode(FERRY_YAML.encode()).decode()
+FERRY_YAML_NO_ENVS_B64 = base64.b64encode(FERRY_YAML_NO_ENVS.encode()).decode()
 
 # The PEM key above is intentionally malformed for size.
 # We'll mock the JWT generation instead.
@@ -218,8 +237,8 @@ class TestHandlerPhase2:
     ):
         """Push to default branch with changed lambda files -> dispatch.
 
-        Compare API called with before_sha...after_sha. No check run
-        posted (no open PR for this commit).
+        Compare API called with before_sha...after_sha. Check Run created
+        for environment-mapped branch with auto_deploy: true.
         """
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
@@ -245,6 +264,7 @@ class TestHandlerPhase2:
         # No open PRs for this commit (default branch merge)
         _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_dispatch(httpx_mock)
+        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -259,19 +279,20 @@ class TestHandlerPhase2:
         dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 1
 
-        # Verify NO check run was posted (no open PR)
+        # Verify Check Run was created (environment-mapped branch)
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
-        assert len(check_reqs) == 0
+        assert len(check_reqs) == 1
 
-    def test_handler_pr_branch_push_creates_check_run(
+    def test_handler_unmapped_branch_push_silent(
         self,
         dynamodb_env,
         httpx_mock,
         monkeypatch,
     ):
-        """Push to feature branch with open PR -> check run, no dispatch.
+        """Push to unmapped feature branch -> no check run, no dispatch.
 
-        Compare API called with default_branch...after_sha (merge-base).
+        Compare API called with before_sha...after_sha (incremental).
+        Unmapped branches produce zero Ferry activity after change detection.
         """
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
@@ -289,19 +310,13 @@ class TestHandlerPhase2:
 
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, after)
-        # PR branch: compare uses default_branch (main) as base
+        # Push path: compare uses before_sha as base (incremental)
         _mock_compare(
             httpx_mock,
-            "main",
+            before,
             after,
             ["services/order-processor/main.py"],
         )
-        _mock_prs_for_commit(
-            httpx_mock,
-            after,
-            prs=[{"number": 42, "state": "open"}],
-        )
-        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -309,41 +324,32 @@ class TestHandlerPhase2:
         body = json.loads(result["body"])
         assert result["statusCode"] == 200
         assert body["status"] == "processed"
-        assert body["affected"] == 1
 
-        # Verify check run was posted
+        # Verify NO check run (unmapped branch)
         requests = httpx_mock.get_requests()
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
-        assert len(check_reqs) == 1
-
-        # Verify check run body content
-        check_body = json.loads(check_reqs[0].content)
-        assert check_body["name"] == "Ferry: Deployment Plan"
-        assert check_body["conclusion"] == "success"
-        assert "order-processor" in check_body["output"]["text"]
+        assert len(check_reqs) == 0
 
         # Verify NO dispatch was triggered
         dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 0
 
-    def test_handler_pr_branch_second_push_full_diff(
+    def test_handler_push_uses_incremental_diff(
         self,
         dynamodb_env,
         httpx_mock,
         monkeypatch,
     ):
-        """Second push to PR branch still uses merge-base comparison.
+        """Push to any branch uses before_sha...after_sha (incremental diff).
 
-        Compare API should use default_branch...after_sha, NOT
-        before_sha...after_sha. This ensures the Check Run shows ALL
-        affected resources, not just incremental changes.
+        Compare API should use before_sha...after_sha for all pushes.
+        Unmapped branches are silently ignored after change detection.
         """
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
             lambda app_id, pk: "fake-jwt",
         )
 
-        # Second push: before_sha is NOT the initial push
         before = "c" * 40
         after = "d" * 40
         event = _make_push_event(
@@ -355,19 +361,13 @@ class TestHandlerPhase2:
 
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, after)
-        # Must use main...after (merge-base), NOT before...after
+        # Push path: compare uses before_sha...after_sha (incremental)
         _mock_compare(
             httpx_mock,
-            "main",
+            before,
             after,
             ["services/order-processor/main.py"],
         )
-        _mock_prs_for_commit(
-            httpx_mock,
-            after,
-            prs=[{"number": 42, "state": "open"}],
-        )
-        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -375,13 +375,12 @@ class TestHandlerPhase2:
         body = json.loads(result["body"])
         assert body["status"] == "processed"
 
-        # Verify compare was called with main...after, not before...after
+        # Verify compare was called with before...after (incremental)
         requests = httpx_mock.get_requests()
         compare_reqs = [r for r in requests if "compare" in str(r.url)]
         assert len(compare_reqs) == 1
         compare_url = str(compare_reqs[0].url)
-        assert f"compare/main...{after}" in compare_url
-        assert f"compare/{before}" not in compare_url
+        assert f"compare/{before}...{after}" in compare_url
 
     def test_config_error_posts_pr_comment_not_check_run(
         self,
@@ -437,22 +436,23 @@ class TestHandlerPhase2:
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 0
 
-    def test_handler_no_changes_creates_empty_check_run(
+    def test_handler_no_changes_unmapped_branch_silent(
         self,
         dynamodb_env,
         httpx_mock,
         monkeypatch,
     ):
-        """Push to PR branch, no file matches -> 'No resources affected'."""
+        """Push to unmapped branch, no file matches -> silent (no check run)."""
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
             lambda app_id, pk: "fake-jwt",
         )
 
+        before = "a" * 40
         after = "f" * 40
         event = _make_push_event(
             ref="refs/heads/feature-branch",
-            before="a" * 40,
+            before=before,
             after=after,
             delivery_id="delivery-p2-005",
         )
@@ -462,16 +462,10 @@ class TestHandlerPhase2:
         # Changed files don't match any resource source_dir
         _mock_compare(
             httpx_mock,
-            "main",
+            before,
             after,
             ["unrelated/readme.md"],
         )
-        _mock_prs_for_commit(
-            httpx_mock,
-            after,
-            prs=[{"number": 42, "state": "open"}],
-        )
-        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -480,13 +474,10 @@ class TestHandlerPhase2:
         assert body["status"] == "processed"
         assert body["affected"] == 0
 
-        # Verify check run was posted with "No Changes Detected"
+        # Verify NO check run (unmapped branch)
         requests = httpx_mock.get_requests()
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
-        assert len(check_reqs) == 1
-        check_body = json.loads(check_reqs[0].content)
-        assert check_body["conclusion"] == "success"
-        assert check_body["output"]["title"] == "No Changes Detected"
+        assert len(check_reqs) == 0
 
     def test_handler_initial_push_dispatches_all(
         self,
@@ -497,6 +488,7 @@ class TestHandlerPhase2:
         """before SHA is all zeros -> all resources dispatched.
 
         Uses detect_config_changes(None, config) for initial push.
+        Environment-mapped branch with auto_deploy: true.
         """
         monkeypatch.setattr(
             "ferry_backend.webhook.handler.generate_app_jwt",
@@ -515,9 +507,10 @@ class TestHandlerPhase2:
         _mock_installation_token(httpx_mock)
         _mock_ferry_config(httpx_mock, after)
         # No compare API call needed for initial push
-        # Initial push on default branch -> dispatch + find PRs
+        # Initial push on mapped branch -> dispatch + find PRs + check run
         _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_dispatch(httpx_mock)
+        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -555,10 +548,13 @@ class TestHandlerPhase2:
         before = "h" * 40
         after = "i" * 40
 
-        # New config has the resource
+        # New config has the resource and environments
         new_yaml = yaml.dump(
             {
                 "version": 1,
+                "environments": {
+                    "production": {"branch": "main", "auto_deploy": True},
+                },
                 "lambdas": [
                     {
                         "name": "order-processor",
@@ -597,6 +593,7 @@ class TestHandlerPhase2:
         )
         _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_dispatch(httpx_mock)
+        _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -607,7 +604,7 @@ class TestHandlerPhase2:
         # The resource should be detected as "new" via config diff
         assert body["affected"] == 1
 
-        # Verify dispatch was called (default branch push)
+        # Verify dispatch was called (mapped branch push)
         requests = httpx_mock.get_requests()
         dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
         assert len(dispatch_reqs) == 1

@@ -26,7 +26,7 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 
 - [ ] **ENV-01**: User can define environments in ferry.yaml with branch-to-environment mapping
 - [ ] **ENV-02**: Ferry resolves the correct environment name based on the branch being deployed to
-- [ ] **ENV-03**: When no environment matches (or no environments configured), Ferry deploys without an environment (v1.x behavior)
+- [ ] **ENV-03**: When no environment matches (or no environments configured), pushes produce no Ferry activity
 
 ### GitHub Environments
 

@@ -138,7 +138,21 @@ def handler(event: dict, context: object) -> dict:
     if event_type == "workflow_run":
         return _handle_workflow_run(payload, repo)
 
-    # --- Push event: Auth -> Config -> Detect -> Dispatch/Check Run ---
+    # --- Push event ---
+
+    # Early return: branch deletion (before any API calls)
+    ref = payload.get("ref", "")
+    deleted = payload.get("deleted", False)
+
+    if deleted:
+        log.info("push_branch_deleted", ref=ref)
+        return _response(200, {"status": "ignored", "reason": "branch deleted"})
+
+    # Early return: tag push (not a branch ref)
+    if not ref.startswith("refs/heads/"):
+        log.info("push_tag_ignored", ref=ref)
+        return _response(200, {"status": "ignored", "reason": "tag push"})
+
     try:
         # 8. Authenticate as GitHub App installation
         jwt_token = generate_app_jwt(settings.app_id, settings.private_key)
@@ -153,14 +167,11 @@ def handler(event: dict, context: object) -> dict:
         # 9. Extract push context
         before_sha = payload.get("before", "")
         after_sha = payload.get("after", "")
-        ref = payload.get("ref", "")
         default_branch = payload["repository"]["default_branch"]
         branch = ref.removeprefix("refs/heads/")
-        is_default_branch = branch == default_branch
 
         structlog.contextvars.bind_contextvars(
             branch=branch,
-            is_default_branch=is_default_branch,
             after_sha=after_sha[:7],
         )
 
@@ -175,11 +186,10 @@ def handler(event: dict, context: object) -> dict:
             # All resources affected on initial push
             affected = detect_config_changes(None, config)
         else:
-            compare_base = before_sha if is_default_branch else default_branch
             changed_files = get_changed_files(
                 github_client,
                 repo,
-                compare_base,
+                before_sha,
                 after_sha,
             )
             affected = match_resources(config, changed_files)
@@ -204,9 +214,23 @@ def handler(event: dict, context: object) -> dict:
 
         log.info("changes_detected", affected_count=len(affected))
 
-        # 12. Branch-dependent behavior
-        # Default branch pushes: trigger dispatches
-        if is_default_branch and affected:
+        # 12. Environment-gated dispatch
+        environment = resolve_environment(config, branch)
+
+        if environment is None:
+            log.info("push_no_environment_match", branch=branch)
+            return _response(200, {"status": "processed", "affected": len(affected)})
+
+        if not environment.auto_deploy:
+            log.info(
+                "push_auto_deploy_disabled",
+                branch=branch,
+                environment=environment.name,
+            )
+            return _response(200, {"status": "processed", "affected": len(affected)})
+
+        # Match + auto_deploy: true -> dispatch + Check Run
+        if affected:
             prs = find_open_prs(github_client, repo, after_sha)
             pr_number = str(prs[0]["number"]) if prs else ""
             tag = build_deployment_tag(pr_number, branch, after_sha)
@@ -219,22 +243,19 @@ def handler(event: dict, context: object) -> dict:
                 tag,
                 pr_number,
                 default_branch=default_branch,
+                mode="deploy",
+                environment=environment.name,
+                head_ref=after_sha,
+                base_ref=branch,
             )
             log.info(
                 "dispatches_triggered",
                 count=len({r.resource_type for r in affected}),
+                environment=environment.name,
             )
 
-        # 13. Check Run for PRs (always, even with no changes)
-        if not is_default_branch:
-            prs = find_open_prs(github_client, repo, after_sha)
-            if prs:
-                create_check_run(
-                    github_client,
-                    repo,
-                    after_sha,
-                    affected,
-                )
+        # Check Run (always for auto_deploy matched branches, even with no changes)
+        create_check_run(github_client, repo, after_sha, affected)
 
         return _response(
             200,
