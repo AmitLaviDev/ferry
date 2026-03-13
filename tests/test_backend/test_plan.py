@@ -1,22 +1,26 @@
-"""Tests for sticky PR plan comment functions.
+"""Tests for PR plan comment formatting, command parsing, and apply comment functions.
 
 Tests cover:
-- format_plan_comment: single lambda, multiple types, with/without env, no file paths, marker
+- format_plan_comment: single lambda, multiple types, with/without env, no file paths, header
 - format_no_changes_comment: output shape
 - resolve_environment: match, no match, empty, first match
-- find_plan_comment: found, not found, empty, API error, pagination
-- upsert_plan_comment: creates new, updates existing
+- parse_ferry_command: plan, apply, case-insensitive, trailing text, invalid inputs
+- format_apply_comment: marker, resource count, environment, waiting line
+- format_apply_status_update: success/failure/cancelled replace waiting line
+- find_apply_comment: found, not found, empty, pagination
 """
 
 from __future__ import annotations
 
 from ferry_backend.checks.plan import (
-    PLAN_MARKER,
-    find_plan_comment,
+    APPLY_MARKER_TEMPLATE,
+    find_apply_comment,
+    format_apply_comment,
+    format_apply_status_update,
     format_no_changes_comment,
     format_plan_comment,
+    parse_ferry_command,
     resolve_environment,
-    upsert_plan_comment,
 )
 from ferry_backend.config.schema import EnvironmentMapping, FerryConfig
 from ferry_backend.detect.changes import AffectedResource
@@ -39,7 +43,7 @@ class TestFormatPlanComment:
             ),
         ]
         body = format_plan_comment(affected)
-        assert PLAN_MARKER in body
+        assert body.startswith("## ")
         assert "## \U0001f6a2 Ferry: Deployment Plan" in body
         assert "#### Lambdas" in body
         assert "- **order-processor** _(modified)_" in body
@@ -137,8 +141,8 @@ class TestFormatPlanComment:
         assert "main.py" not in body
         assert "requirements.txt" not in body
 
-    def test_marker_is_first_line(self):
-        """PLAN_MARKER is the very first line of the comment body."""
+    def test_header_is_first_line(self):
+        """Header is the very first line of the comment body (no marker)."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -148,7 +152,7 @@ class TestFormatPlanComment:
             ),
         ]
         body = format_plan_comment(affected)
-        assert body.startswith(PLAN_MARKER)
+        assert body.startswith("## ")
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +162,9 @@ class TestFormatPlanComment:
 
 class TestFormatNoChangesComment:
     def test_output_shape(self):
-        """No-changes comment has marker, header, and message."""
+        """No-changes comment has header and message, no marker."""
         body = format_no_changes_comment()
-        assert body.startswith(PLAN_MARKER)
+        assert body.startswith("## ")
         assert "## \U0001f6a2 Ferry: Deployment Plan" in body
         assert "No Ferry-managed resources affected by this PR." in body
 
@@ -213,30 +217,235 @@ class TestResolveEnvironment:
 
 
 # ---------------------------------------------------------------------------
-# find_plan_comment
+# parse_ferry_command
 # ---------------------------------------------------------------------------
 
 
-class TestFindPlanComment:
+class TestParseCommand:
+    def test_plan(self):
+        assert parse_ferry_command("/ferry plan") == "plan"
+
+    def test_apply(self):
+        assert parse_ferry_command("/ferry apply") == "apply"
+
+    def test_whitespace_trimmed(self):
+        assert parse_ferry_command("  /ferry  apply  ") == "apply"
+
+    def test_case_insensitive_plan(self):
+        assert parse_ferry_command("/Ferry Plan") == "plan"
+
+    def test_case_insensitive_apply(self):
+        assert parse_ferry_command("/FERRY APPLY") == "apply"
+
+    def test_trailing_text_ignored(self):
+        assert parse_ferry_command("/ferry apply staging") == "apply"
+
+    def test_not_at_start(self):
+        assert parse_ferry_command("Please /ferry plan") is None
+
+    def test_multiline_not_entire_body(self):
+        assert parse_ferry_command("some text\n/ferry plan") is None
+
+    def test_no_command(self):
+        assert parse_ferry_command("/ferry") is None
+
+    def test_unknown_command(self):
+        assert parse_ferry_command("/ferry status") is None
+
+    def test_empty(self):
+        assert parse_ferry_command("") is None
+
+
+# ---------------------------------------------------------------------------
+# format_apply_comment
+# ---------------------------------------------------------------------------
+
+
+class TestFormatApplyComment:
+    def test_marker_present(self):
+        """Apply comment includes SHA-specific marker."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        env = EnvironmentMapping(name="staging", branch="develop")
+        body = format_apply_comment(affected, env, "abc123def456789")
+        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123def456789")
+        assert marker in body
+
+    def test_resource_count(self):
+        """Apply comment shows resource count."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+            AffectedResource(
+                name="checkout-flow",
+                resource_type="step_function",
+                change_kind="new",
+                changed_files=("workflows/checkout/definition.json",),
+            ),
+        ]
+        env = EnvironmentMapping(name="staging", branch="develop")
+        body = format_apply_comment(affected, env, "abc123")
+        assert "2 resource(s)" in body
+
+    def test_environment_name(self):
+        """Apply comment shows environment name."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        env = EnvironmentMapping(name="production", branch="main")
+        body = format_apply_comment(affected, env, "abc123")
+        assert "**production**" in body
+
+    def test_no_environment_shows_default(self):
+        """Apply comment without environment shows 'default'."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        body = format_apply_comment(affected, None, "abc123")
+        assert "**default**" in body
+
+    def test_waiting_line(self):
+        """Apply comment includes waiting line."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        body = format_apply_comment(affected, None, "abc123")
+        assert "_Waiting for workflow to complete..._" in body
+
+    def test_sha_truncation(self):
+        """Apply comment shows truncated SHA."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        body = format_apply_comment(affected, None, "abc123def456789")
+        assert "`abc123d`" in body
+
+    def test_header(self):
+        """Apply comment has deploy triggered header."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        body = format_apply_comment(affected, None, "abc123")
+        assert "## \U0001f6a2 Ferry: Deploy Triggered" in body
+
+
+# ---------------------------------------------------------------------------
+# format_apply_status_update
+# ---------------------------------------------------------------------------
+
+
+class TestFormatApplyStatusUpdate:
+    def _base_body(self) -> str:
+        return (
+            "<!-- ferry:apply:abc123 -->\n"
+            "## \U0001f6a2 Ferry: Deploy Triggered\n\n"
+            "Deploying **1 resource(s)** to **staging** at `abc123d`...\n\n"
+            "_Waiting for workflow to complete..._"
+        )
+
+    def test_success(self):
+        """Success conclusion replaces waiting line with checkmark."""
+        updated = format_apply_status_update(
+            self._base_body(), "success", "https://github.com/runs/123"
+        )
+        assert "_Waiting for workflow to complete..._" not in updated
+        assert "\u2705" in updated
+        assert "`success`" in updated
+        assert "https://github.com/runs/123" in updated
+
+    def test_failure(self):
+        """Failure conclusion shows red X."""
+        updated = format_apply_status_update(
+            self._base_body(), "failure", "https://github.com/runs/456"
+        )
+        assert "\u274c" in updated
+        assert "`failure`" in updated
+
+    def test_cancelled(self):
+        """Cancelled conclusion shows warning."""
+        updated = format_apply_status_update(
+            self._base_body(), "cancelled", "https://github.com/runs/789"
+        )
+        assert "\u26a0\ufe0f" in updated
+        assert "`cancelled`" in updated
+
+    def test_unknown_conclusion(self):
+        """Unknown conclusion shows question mark."""
+        updated = format_apply_status_update(
+            self._base_body(), "timed_out", "https://github.com/runs/000"
+        )
+        assert "\u2753" in updated
+        assert "`timed_out`" in updated
+
+    def test_run_url_in_link(self):
+        """Run URL appears in [View run] link."""
+        updated = format_apply_status_update(
+            self._base_body(), "success", "https://github.com/runs/123"
+        )
+        assert "[View run](https://github.com/runs/123)" in updated
+
+
+# ---------------------------------------------------------------------------
+# find_apply_comment
+# ---------------------------------------------------------------------------
+
+
+class TestFindApplyComment:
     _BASE_URL = "https://api.github.com/repos/owner/repo/issues/42/comments"
     _PAGE1_URL = f"{_BASE_URL}?per_page=100&page=1"
 
     def test_found(self, httpx_mock):
-        """Returns comment dict when marker is found."""
+        """Returns comment dict when apply marker is found."""
+        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123")
         httpx_mock.add_response(
             url=self._PAGE1_URL,
             json=[
                 {"id": 1, "body": "unrelated comment"},
-                {"id": 2, "body": f"{PLAN_MARKER}\n## Plan"},
+                {"id": 2, "body": f"{marker}\n## Deploy"},
             ],
         )
         client = GitHubClient()
-        result = find_plan_comment(client, "owner/repo", 42)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
         assert result is not None
         assert result["id"] == 2
 
     def test_not_found(self, httpx_mock):
-        """Returns None when no comment has the marker."""
+        """Returns None when no comment has the apply marker."""
         httpx_mock.add_response(
             url=self._PAGE1_URL,
             json=[
@@ -245,7 +454,7 @@ class TestFindPlanComment:
             ],
         )
         client = GitHubClient()
-        result = find_plan_comment(client, "owner/repo", 42)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
         assert result is None
 
     def test_empty(self, httpx_mock):
@@ -255,7 +464,7 @@ class TestFindPlanComment:
             json=[],
         )
         client = GitHubClient()
-        result = find_plan_comment(client, "owner/repo", 42)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
         assert result is None
 
     def test_api_error(self, httpx_mock):
@@ -266,16 +475,17 @@ class TestFindPlanComment:
             status_code=500,
         )
         client = GitHubClient()
-        result = find_plan_comment(client, "owner/repo", 42)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
         assert result is None
 
     def test_pagination(self, httpx_mock):
         """Finds comment on the second page of results."""
         page2_url = f"{self._BASE_URL}?per_page=100&page=2"
+        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123")
         # Page 1: 100 unrelated comments (full page -> triggers next page)
         page1 = [{"id": i, "body": f"comment {i}"} for i in range(100)]
-        # Page 2: contains the plan comment
-        page2 = [{"id": 200, "body": f"{PLAN_MARKER}\nPlan here"}]
+        # Page 2: contains the apply comment
+        page2 = [{"id": 200, "body": f"{marker}\nDeploy here"}]
 
         httpx_mock.add_response(
             url=self._PAGE1_URL,
@@ -287,62 +497,19 @@ class TestFindPlanComment:
         )
 
         client = GitHubClient()
-        result = find_plan_comment(client, "owner/repo", 42)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
         assert result is not None
         assert result["id"] == 200
 
-
-# ---------------------------------------------------------------------------
-# upsert_plan_comment
-# ---------------------------------------------------------------------------
-
-
-class TestUpsertPlanComment:
-    _COMMENTS_URL = "https://api.github.com/repos/owner/repo/issues/42/comments"
-    _FIND_URL = f"{_COMMENTS_URL}?per_page=100&page=1"
-
-    def test_creates_new(self, httpx_mock):
-        """Creates new comment when no existing plan comment found."""
-        # find_plan_comment: GET with params returns empty
+    def test_different_sha_not_matched(self, httpx_mock):
+        """A comment with a different SHA marker is not matched."""
+        marker_other = APPLY_MARKER_TEMPLATE.format(sha="other_sha")
         httpx_mock.add_response(
-            url=self._FIND_URL,
-            json=[],
+            url=self._PAGE1_URL,
+            json=[
+                {"id": 1, "body": f"{marker_other}\n## Deploy"},
+            ],
         )
-        # POST new comment (no query params)
-        httpx_mock.add_response(
-            url=self._COMMENTS_URL,
-            json={"id": 99, "body": "new plan"},
-            status_code=201,
-        )
-
         client = GitHubClient()
-        result = upsert_plan_comment(client, "owner/repo", 42, "new plan body")
-        assert result["id"] == 99
-
-        # Verify POST was made (second request, after GET for search)
-        requests = httpx_mock.get_requests()
-        post_reqs = [r for r in requests if r.method == "POST"]
-        assert len(post_reqs) == 1
-
-    def test_updates_existing(self, httpx_mock):
-        """Updates existing comment via PATCH when marker found."""
-        # find_plan_comment: GET with params returns the existing comment
-        httpx_mock.add_response(
-            url=self._FIND_URL,
-            json=[{"id": 50, "body": f"{PLAN_MARKER}\nold plan"}],
-        )
-        # PATCH existing comment
-        httpx_mock.add_response(
-            url="https://api.github.com/repos/owner/repo/issues/comments/50",
-            json={"id": 50, "body": "updated plan"},
-        )
-
-        client = GitHubClient()
-        result = upsert_plan_comment(client, "owner/repo", 42, "updated plan body")
-        assert result["id"] == 50
-
-        # Verify PATCH was made
-        requests = httpx_mock.get_requests()
-        patch_reqs = [r for r in requests if r.method == "PATCH"]
-        assert len(patch_reqs) == 1
-        assert "/issues/comments/50" in str(patch_reqs[0].url)
+        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        assert result is None

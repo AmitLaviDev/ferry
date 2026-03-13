@@ -1,12 +1,16 @@
-"""Sticky PR plan comment -- branded deployment preview on pull requests.
+"""PR comment formatting and command parsing for plan/apply workflows.
 
-Creates and updates a single "plan" comment per PR showing affected resources,
-environment mapping, and expected deployment behavior. Uses a hidden HTML marker
-to find and update the same comment across PR synchronize events.
+Provides:
+- format_plan_comment / format_no_changes_comment -- branded plan previews
+- parse_ferry_command -- parse /ferry plan|apply from comment body
+- format_apply_comment / format_apply_status_update -- apply comment lifecycle
+- find_apply_comment -- paginated search for SHA-specific apply marker
+- resolve_environment -- match branch to environment mapping
 """
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import structlog
@@ -18,14 +22,44 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-PLAN_MARKER = "<!-- ferry:plan -->"
-
 # Display names for resource type section headers
 _TYPE_DISPLAY_NAMES: dict[str, str] = {
     "lambda": "Lambdas",
     "step_function": "Step Functions",
     "api_gateway": "API Gateways",
 }
+
+FERRY_EMOJI = "\U0001f6a2"
+
+# ---------------------------------------------------------------------------
+# Command parsing
+# ---------------------------------------------------------------------------
+
+_COMMAND_RE = re.compile(
+    r"^\s*/ferry\s+(plan|apply)(?:\s.*)?$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def parse_ferry_command(body: str) -> str | None:
+    """Parse /ferry command from comment body.
+
+    Recognises ``/ferry plan`` and ``/ferry apply`` at the start of the
+    (trimmed) body text.  Case-insensitive, trailing text is ignored.
+
+    Args:
+        body: Raw comment body text.
+
+    Returns:
+        ``"plan"`` or ``"apply"`` if matched, otherwise ``None``.
+    """
+    match = _COMMAND_RE.match(body.strip())
+    return match.group(1).lower() if match else None
+
+
+# ---------------------------------------------------------------------------
+# Environment resolution
+# ---------------------------------------------------------------------------
 
 
 def resolve_environment(
@@ -50,11 +84,16 @@ def resolve_environment(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Plan comment formatting
+# ---------------------------------------------------------------------------
+
+
 def format_plan_comment(
     affected: list[AffectedResource],
     environment: EnvironmentMapping | None = None,
 ) -> str:
-    """Format a branded sticky plan comment for a PR.
+    """Format a branded plan comment for a PR.
 
     Args:
         affected: List of AffectedResource from change detection.
@@ -63,13 +102,13 @@ def format_plan_comment(
     Returns:
         Markdown body for the PR comment.
     """
-    parts: list[str] = [PLAN_MARKER]
+    parts: list[str] = []
 
     # Header
     if environment:
-        parts.append(f"## \U0001f6a2 Ferry: Deployment Plan \u2192 **{environment.name}**")
+        parts.append(f"## {FERRY_EMOJI} Ferry: Deployment Plan \u2192 **{environment.name}**")
     else:
-        parts.append("## \U0001f6a2 Ferry: Deployment Plan")
+        parts.append(f"## {FERRY_EMOJI} Ferry: Deployment Plan")
 
     parts.append("")
 
@@ -110,37 +149,104 @@ def format_plan_comment(
 
 
 def format_no_changes_comment() -> str:
-    """Format a no-changes update for an existing plan comment.
+    """Format a no-changes comment for a PR.
 
     Returns:
         Markdown body indicating no resources are affected.
     """
     parts: list[str] = [
-        PLAN_MARKER,
-        "## \U0001f6a2 Ferry: Deployment Plan",
+        f"## {FERRY_EMOJI} Ferry: Deployment Plan",
         "",
         "No Ferry-managed resources affected by this PR.",
     ]
     return "\n".join(parts)
 
 
-def find_plan_comment(
+# ---------------------------------------------------------------------------
+# Apply comment formatting
+# ---------------------------------------------------------------------------
+
+APPLY_MARKER_TEMPLATE = "<!-- ferry:apply:{sha} -->"
+
+
+def format_apply_comment(
+    affected: list[AffectedResource],
+    environment: EnvironmentMapping | None,
+    head_sha: str,
+) -> str:
+    """Format a deploy-triggered comment for a PR.
+
+    Args:
+        affected: List of AffectedResource being deployed.
+        environment: Optional environment mapping (for display name).
+        head_sha: Commit SHA being deployed (used in marker and display).
+
+    Returns:
+        Markdown body for the apply comment.
+    """
+    marker = APPLY_MARKER_TEMPLATE.format(sha=head_sha)
+    env_name = environment.name if environment else "default"
+    parts = [
+        marker,
+        f"## {FERRY_EMOJI} Ferry: Deploy Triggered",
+        "",
+        f"Deploying **{len(affected)} resource(s)** to **{env_name}** at `{head_sha[:7]}`...",
+        "",
+        "_Waiting for workflow to complete..._",
+    ]
+    return "\n".join(parts)
+
+
+def format_apply_status_update(
+    original_body: str,
+    conclusion: str,
+    run_url: str,
+) -> str:
+    """Replace the waiting line in an apply comment with the final status.
+
+    Args:
+        original_body: The existing apply comment body.
+        conclusion: Workflow run conclusion (success, failure, cancelled, etc.).
+        run_url: URL to the GitHub Actions workflow run.
+
+    Returns:
+        Updated comment body with conclusion and run link.
+    """
+    status_emoji = {"success": "\u2705", "failure": "\u274c", "cancelled": "\u26a0\ufe0f"}
+    emoji = status_emoji.get(conclusion, "\u2753")
+    status_line = f"**Result:** {emoji} `{conclusion}` -- [View run]({run_url})"
+    return original_body.replace(
+        "_Waiting for workflow to complete..._",
+        status_line,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Find apply comment (paginated)
+# ---------------------------------------------------------------------------
+
+
+def find_apply_comment(
     client: GitHubClient,
     repo: str,
     pr_number: int,
+    trigger_sha: str,
 ) -> dict | None:
-    """Find an existing plan comment on a PR by the hidden marker.
+    """Find an existing apply comment on a PR by the SHA-specific marker.
 
-    Paginates through issue comments looking for ``PLAN_MARKER`` in the body.
+    Paginates through issue comments looking for the apply marker with the
+    given trigger SHA.
 
     Args:
         client: Authenticated GitHubClient.
         repo: Repository full name (owner/repo).
         pr_number: PR number to search comments on.
+        trigger_sha: The SHA used in the apply marker.
 
     Returns:
         The comment dict if found, or None.
     """
+    marker = APPLY_MARKER_TEMPLATE.format(sha=trigger_sha)
     page = 1
     per_page = 100
     while True:
@@ -150,7 +256,7 @@ def find_plan_comment(
         )
         if resp.status_code != 200:
             logger.warning(
-                "plan_comment_search_failed",
+                "apply_comment_search_failed",
                 status_code=resp.status_code,
                 repo=repo,
                 pr_number=pr_number,
@@ -162,8 +268,7 @@ def find_plan_comment(
             return None
 
         for comment in comments:
-            body = comment.get("body", "")
-            if PLAN_MARKER in body:
+            if marker in comment.get("body", ""):
                 return comment
 
         # If fewer than per_page results, we've seen all comments
@@ -171,51 +276,3 @@ def find_plan_comment(
             return None
 
         page += 1
-
-
-def upsert_plan_comment(
-    client: GitHubClient,
-    repo: str,
-    pr_number: int,
-    body: str,
-) -> dict:
-    """Create or update the sticky plan comment on a PR.
-
-    Searches for an existing comment with ``PLAN_MARKER``; if found, updates
-    it via PATCH. Otherwise creates a new comment via POST.
-
-    Args:
-        client: Authenticated GitHubClient.
-        repo: Repository full name (owner/repo).
-        pr_number: PR number to comment on.
-        body: Markdown body for the comment.
-
-    Returns:
-        Response JSON from the GitHub API.
-    """
-    existing = find_plan_comment(client, repo, pr_number)
-
-    if existing:
-        comment_id = existing["id"]
-        resp = client.patch(
-            f"/repos/{repo}/issues/comments/{comment_id}",
-            json={"body": body},
-        )
-        logger.info(
-            "plan_comment_updated",
-            repo=repo,
-            pr_number=pr_number,
-            comment_id=comment_id,
-        )
-        return resp.json()
-
-    resp = client.post(
-        f"/repos/{repo}/issues/{pr_number}/comments",
-        json={"body": body},
-    )
-    logger.info(
-        "plan_comment_created",
-        repo=repo,
-        pr_number=pr_number,
-    )
-    return resp.json()
