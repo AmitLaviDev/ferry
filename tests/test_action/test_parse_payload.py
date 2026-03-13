@@ -16,6 +16,8 @@ def _make_payload(
     trigger_sha: str = "abc1234def5678",
     deployment_tag: str = "pr-42",
     resource_type: str = "lambda",
+    mode: str | None = None,
+    environment: str | None = None,
 ) -> str:
     """Build a valid dispatch payload JSON string."""
     if resources is None:
@@ -37,13 +39,17 @@ def _make_payload(
                 "runtime": "python3.14",
             },
         ]
-    payload = {
+    payload: dict = {
         "v": 1,
         "resource_type": resource_type,
         "resources": resources,
         "trigger_sha": trigger_sha,
         "deployment_tag": deployment_tag,
     }
+    if mode is not None:
+        payload["mode"] = mode
+    if environment is not None:
+        payload["environment"] = environment
     return json.dumps(payload)
 
 
@@ -54,6 +60,8 @@ def _make_batched_payload(
     api_gateways: list[dict] | None = None,
     trigger_sha: str = "abc1234def5678",
     deployment_tag: str = "pr-42",
+    mode: str | None = None,
+    environment: str | None = None,
 ) -> str:
     """Build a valid v2 batched dispatch payload JSON string."""
     payload: dict = {
@@ -67,6 +75,10 @@ def _make_batched_payload(
         payload["step_functions"] = step_functions
     if api_gateways is not None:
         payload["api_gateways"] = api_gateways
+    if mode is not None:
+        payload["mode"] = mode
+    if environment is not None:
+        payload["environment"] = environment
     return json.dumps(payload)
 
 
@@ -436,6 +448,20 @@ class TestParsePayloadV2:
         assert result.ag_matrix["include"] == []
         assert result.resource_types == ""
 
+    def test_v2_parse_mode_defaults(self) -> None:
+        """V2 payload without mode/environment returns defaults."""
+        result = parse_payload(_make_batched_payload(lambdas=[_LAMBDA_A]))
+        assert result.mode == "deploy"
+        assert result.environment == ""
+
+    def test_v2_parse_mode_explicit(self) -> None:
+        """V2 payload with explicit mode/environment returns those values."""
+        result = parse_payload(
+            _make_batched_payload(lambdas=[_LAMBDA_A], mode="deploy", environment="staging")
+        )
+        assert result.mode == "deploy"
+        assert result.environment == "staging"
+
     def test_v2_propagates_trigger_sha_and_tag(self) -> None:
         """V2 trigger_sha and deployment_tag appear in every matrix entry."""
         result = parse_payload(
@@ -491,6 +517,18 @@ class TestParsePayloadV1Compat:
         assert result.sf_matrix["include"] == []
         assert result.ag_matrix["include"] == []
 
+    def test_v1_parse_mode_defaults(self) -> None:
+        """V1 payload without mode/environment returns defaults."""
+        result = parse_payload(_make_payload())
+        assert result.mode == "deploy"
+        assert result.environment == ""
+
+    def test_v1_parse_mode_explicit(self) -> None:
+        """V1 payload with explicit mode/environment returns those values."""
+        result = parse_payload(_make_payload(mode="deploy", environment="production"))
+        assert result.mode == "deploy"
+        assert result.environment == "production"
+
 
 class TestMain:
     """Tests for the main() CLI entrypoint."""
@@ -529,7 +567,7 @@ class TestMain:
 
         content = output_file.read_text()
         lines = content.strip().split("\n")
-        assert len(lines) == 7
+        assert len(lines) == 9
 
         outputs = {}
         for line in lines:
@@ -550,6 +588,8 @@ class TestMain:
         assert ag_matrix["include"] == []
 
         assert outputs["resource_types"] == "lambda"
+        assert outputs["mode"] == "deploy"
+        assert outputs["environment"] == ""
 
     def test_valid_v2_payload_writes_output(
         self,
@@ -570,7 +610,7 @@ class TestMain:
 
         content = output_file.read_text()
         lines = content.strip().split("\n")
-        assert len(lines) == 7
+        assert len(lines) == 9
 
         outputs = {}
         for line in lines:
@@ -591,3 +631,46 @@ class TestMain:
         assert ag_matrix["include"] == []
 
         assert outputs["resource_types"] == "lambda,step_function"
+        assert outputs["mode"] == "deploy"
+        assert outputs["environment"] == ""
+
+    def test_main_v1_explicit_mode_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """V1 payload with explicit mode/environment outputs those values."""
+        output_file = tmp_path / "github_output"
+        output_file.touch()
+        monkeypatch.setenv("INPUT_PAYLOAD", _make_payload(mode="deploy", environment="production"))
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        main()
+        content = output_file.read_text()
+        outputs = {}
+        for line in content.strip().split("\n"):
+            key, _, value = line.partition("=")
+            outputs[key] = value
+        assert outputs["mode"] == "deploy"
+        assert outputs["environment"] == "production"
+
+    def test_main_v2_explicit_mode_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """V2 payload with explicit mode/environment outputs those values."""
+        output_file = tmp_path / "github_output"
+        output_file.touch()
+        monkeypatch.setenv(
+            "INPUT_PAYLOAD",
+            _make_batched_payload(lambdas=[_LAMBDA_A], mode="deploy", environment="staging"),
+        )
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        main()
+        content = output_file.read_text()
+        outputs = {}
+        for line in content.strip().split("\n"):
+            key, _, value = line.partition("=")
+            outputs[key] = value
+        assert outputs["mode"] == "deploy"
+        assert outputs["environment"] == "staging"

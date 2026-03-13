@@ -574,6 +574,175 @@ class TestBatchedDispatchPayload:
         assert "resource_types" in data
         assert data["resource_types"] == "lambda"
 
+    def test_batched_payload_new_fields_defaults(self):
+        """New v2 fields default to safe values."""
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+        )
+        assert payload.mode == "deploy"
+        assert payload.environment == ""
+        assert payload.head_ref == ""
+        assert payload.base_ref == ""
+
+    def test_batched_payload_new_fields_explicit(self):
+        """New v2 fields can be set explicitly."""
+        payload = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+            mode="plan",
+            environment="staging",
+            head_ref="feature/foo",
+            base_ref="main",
+        )
+        assert payload.mode == "plan"
+        assert payload.environment == "staging"
+        assert payload.head_ref == "feature/foo"
+        assert payload.base_ref == "main"
+
+    def test_batched_payload_v2_backward_compat(self):
+        """Old v2 payload dict (no mode/environment/head_ref/base_ref) still works."""
+        old_v2_dict = {
+            "v": 2,
+            "lambdas": [
+                {
+                    "resource_type": "lambda",
+                    "name": "fn-a",
+                    "source": "services/fn-a",
+                    "ecr": "fn-a-repo",
+                    "function_name": "fn-a",
+                    "runtime": "python3.14",
+                },
+            ],
+            "step_functions": [],
+            "api_gateways": [],
+            "trigger_sha": "abc123",
+            "deployment_tag": "v2.0.0",
+            "pr_number": "",
+        }
+        payload = BatchedDispatchPayload.model_validate(old_v2_dict)
+        assert payload.mode == "deploy"
+        assert payload.environment == ""
+        assert payload.head_ref == ""
+        assert payload.base_ref == ""
+        assert len(payload.lambdas) == 1
+
+    def test_batched_payload_round_trip_with_new_fields(self):
+        """New fields survive JSON round-trip."""
+        original = BatchedDispatchPayload(
+            trigger_sha="abc123",
+            deployment_tag="v2.0.0",
+            mode="plan",
+            environment="staging",
+            head_ref="feature/bar",
+            base_ref="develop",
+        )
+        json_str = original.model_dump_json()
+        restored = BatchedDispatchPayload.model_validate_json(json_str)
+        assert restored.mode == "plan"
+        assert restored.environment == "staging"
+        assert restored.head_ref == "feature/bar"
+        assert restored.base_ref == "develop"
+
+    def test_v1_payload_still_unchanged(self):
+        """DispatchPayload (v1) has mode/environment defaults but no head_ref/base_ref."""
+        payload = DispatchPayload(
+            resource_type="lambdas",
+            resources=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123def456",
+            deployment_tag="v1.0.0-abc123d",
+        )
+        assert payload.v == 1
+        assert payload.v == SCHEMA_VERSION
+        assert payload.resource_type == "lambdas"
+        assert len(payload.resources) == 1
+        assert payload.trigger_sha == "abc123def456"
+        assert payload.pr_number == ""
+        assert payload.mode == "deploy"
+        assert payload.environment == ""
+        assert not hasattr(payload, "head_ref")
+        assert not hasattr(payload, "base_ref")
+
+    def test_v1_payload_mode_defaults(self):
+        """DispatchPayload defaults mode='deploy' and environment='' when not specified."""
+        payload = DispatchPayload(
+            resource_type="lambdas",
+            resources=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v1.0.0",
+        )
+        assert payload.mode == "deploy"
+        assert payload.environment == ""
+
+    def test_v1_payload_mode_explicit(self):
+        """DispatchPayload accepts explicit mode and environment values."""
+        payload = DispatchPayload(
+            resource_type="lambdas",
+            resources=[
+                LambdaResource(
+                    name="fn-a",
+                    source="services/fn-a",
+                    ecr="fn-a-repo",
+                    function_name="fn-a",
+                    runtime="python3.14",
+                ),
+            ],
+            trigger_sha="abc123",
+            deployment_tag="v1.0.0",
+            mode="deploy",
+            environment="staging",
+        )
+        assert payload.mode == "deploy"
+        assert payload.environment == "staging"
+
+    def test_v1_payload_mode_from_json(self):
+        """DispatchPayload parses mode/environment from JSON, defaults when absent."""
+        # With fields
+        with_fields = json.dumps(
+            {
+                "v": 1,
+                "resource_type": "lambda",
+                "resources": [],
+                "trigger_sha": "abc",
+                "deployment_tag": "t",
+                "mode": "deploy",
+                "environment": "production",
+            }
+        )
+        p1 = DispatchPayload.model_validate_json(with_fields)
+        assert p1.mode == "deploy"
+        assert p1.environment == "production"
+
+        # Without fields (backward compat)
+        without_fields = json.dumps(
+            {
+                "v": 1,
+                "resource_type": "lambda",
+                "resources": [],
+                "trigger_sha": "abc",
+                "deployment_tag": "t",
+            }
+        )
+        p2 = DispatchPayload.model_validate_json(without_fields)
+        assert p2.mode == "deploy"
+        assert p2.environment == ""
+
     def test_v1_payload_unchanged(self):
         """Guard rail: DispatchPayload (v1) still works exactly as before."""
         payload = DispatchPayload(
