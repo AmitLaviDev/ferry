@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: PR Integration
-status: completed
-stopped_at: Phase 31 complete -- issue comment handler and deploy dispatch
-last_updated: "2026-03-13T12:03:47.740Z"
-last_activity: 2026-03-13 -- Phase 31 executed
+status: in-progress
+stopped_at: Phase 33 plan 01 complete -- action v3 parsing and outputs
+last_updated: "2026-03-13T14:57:12Z"
+last_activity: 2026-03-13 -- Phase 33-01 executed
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 2
+  completed_phases: 4
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v2.0 PR Integration -- Phase 31 complete
+**Current focus:** v2.0 PR Integration -- Phase 33 plan 01 complete
 
 ## Current Position
 
 Milestone: v2.0 PR Integration
-Phase: 31 of 35 (Issue Comment Handler / /ferry apply) -- COMPLETE
-Plan: 31-01 (Command parser, handlers, dedup, tests) -- DONE
-Status: Phase 31 complete
-Last activity: 2026-03-13 -- Phase 31 executed
+Phase: 33 of 35 (Action v3 Parsing and Outputs) -- Plan 01 COMPLETE
+Plan: 33-01 (mode/environment fields, ParseResult, outputs) -- DONE
+Status: Phase 33 plan 01 complete
+Last activity: 2026-03-13 -- Phase 33-01 executed
 
 ```
-v2.0 Progress: [████░░░░░░] 43%
+v2.0 Progress: [██████░░░░] 57%
 ```
 
 ## Shipped Milestones
@@ -71,9 +71,11 @@ v2.0 Progress: [████░░░░░░] 43%
 - SHA-specific apply markers: `<!-- ferry:apply:{sha} -->` for targeted status updates
 - Rocket reaction posted before any processing (even on closed PRs)
 - Fresh head SHA always fetched from GET /pulls/{number} for /ferry apply
+- v1 DispatchPayload now has mode/environment with defaults (backward compatible)
+- ParseResult and GHA outputs extended with mode and environment
 
 ## Session Continuity
 
 Last session: 2026-03-13
-Stopped at: Phase 31 complete -- issue comment handler and deploy dispatch
-Next step: Plan and execute phase 32 (Push Path Environment Resolution)
+Stopped at: Phase 33 plan 01 complete -- action v3 parsing and outputs
+Next step: Continue with remaining phase 33 plans or proceed to phase 34
