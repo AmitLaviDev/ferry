@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from ferry_backend.config.schema import (
     ApiGatewayConfig,
+    EnvironmentMapping,
     FerryConfig,
     LambdaConfig,
     StepFunctionConfig,
@@ -141,6 +142,40 @@ class TestApiGatewayConfig:
             )  # type: ignore[call-arg]
 
 
+class TestEnvironmentMapping:
+    """Tests for EnvironmentMapping model."""
+
+    def test_environment_mapping_required_fields(self) -> None:
+        """name + branch -> valid EnvironmentMapping."""
+        env = EnvironmentMapping(name="staging", branch="develop")
+        assert env.name == "staging"
+        assert env.branch == "develop"
+
+    def test_environment_mapping_auto_deploy_default(self) -> None:
+        """auto_deploy defaults to True."""
+        env = EnvironmentMapping(name="staging", branch="develop")
+        assert env.auto_deploy is True
+
+    def test_environment_mapping_auto_deploy_false(self) -> None:
+        """Explicit auto_deploy=False works."""
+        env = EnvironmentMapping(name="staging", branch="develop", auto_deploy=False)
+        assert env.auto_deploy is False
+
+    def test_environment_mapping_extra_field_rejected(self) -> None:
+        """extra=forbid enforced on EnvironmentMapping."""
+        with pytest.raises(ValidationError, match="extra"):
+            EnvironmentMapping(
+                name="staging",
+                branch="develop",
+                unknown="z",  # type: ignore[call-arg]
+            )
+
+    def test_environment_mapping_missing_branch_fails(self) -> None:
+        """branch is required."""
+        with pytest.raises(ValidationError, match="branch"):
+            EnvironmentMapping(name="staging")  # type: ignore[call-arg]
+
+
 class TestFerryConfig:
     """Tests for FerryConfig model."""
 
@@ -196,6 +231,51 @@ class TestFerryConfig:
         with pytest.raises(ValidationError, match="extra"):
             FerryConfig(unknown_section="bad")  # type: ignore[call-arg]
 
+    def test_ferry_config_with_environments(self) -> None:
+        """Dict-keyed environments in raw dict -> list of EnvironmentMapping."""
+        raw = {
+            "lambdas": [
+                {"name": "proc", "source_dir": "src/proc", "ecr_repo": "ferry/proc"},
+            ],
+            "environments": {
+                "staging": {"branch": "develop", "auto_deploy": True},
+                "production": {"branch": "main", "auto_deploy": False},
+            },
+        }
+        cfg = FerryConfig.model_validate(raw)
+        assert len(cfg.environments) == 2
+        assert isinstance(cfg.environments[0], EnvironmentMapping)
+        assert cfg.environments[0].name == "staging"
+        assert cfg.environments[0].branch == "develop"
+        assert cfg.environments[0].auto_deploy is True
+        assert cfg.environments[1].name == "production"
+        assert cfg.environments[1].branch == "main"
+        assert cfg.environments[1].auto_deploy is False
+
+    def test_ferry_config_environments_empty_dict(self) -> None:
+        """environments: {} -> empty list."""
+        raw = {"environments": {}}
+        cfg = FerryConfig.model_validate(raw)
+        assert cfg.environments == []
+
+    def test_ferry_config_no_environments(self) -> None:
+        """Omitting environments entirely -> empty list (backward compat)."""
+        cfg = FerryConfig()
+        assert cfg.environments == []
+
+    def test_ferry_config_environments_preserves_order(self) -> None:
+        """Two environments, ordering preserved."""
+        raw = {
+            "environments": {
+                "alpha": {"branch": "alpha"},
+                "beta": {"branch": "beta"},
+            },
+        }
+        cfg = FerryConfig.model_validate(raw)
+        assert len(cfg.environments) == 2
+        assert cfg.environments[0].name == "alpha"
+        assert cfg.environments[1].name == "beta"
+
 
 class TestValidateConfig:
     """Tests for validate_config wrapper."""
@@ -210,6 +290,23 @@ class TestValidateConfig:
         result = validate_config(raw)
         assert isinstance(result, FerryConfig)
         assert result.lambdas[0].name == "proc"
+
+    def test_validate_config_with_environments(self) -> None:
+        """Raw dict with environments section parses via validate_config()."""
+        raw = {
+            "lambdas": [
+                {"name": "proc", "source_dir": "src/proc", "ecr_repo": "ferry/proc"},
+            ],
+            "environments": {
+                "staging": {"branch": "develop"},
+            },
+        }
+        result = validate_config(raw)
+        assert isinstance(result, FerryConfig)
+        assert len(result.environments) == 1
+        assert result.environments[0].name == "staging"
+        assert result.environments[0].branch == "develop"
+        assert result.environments[0].auto_deploy is True
 
     def test_validate_config_invalid(self) -> None:
         """Bad dict -> raises ConfigError (not raw ValidationError)."""

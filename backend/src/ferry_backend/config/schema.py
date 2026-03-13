@@ -7,6 +7,8 @@ frozen with extra=forbid per project convention.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from ferry_utils.errors import ConfigError
@@ -54,6 +56,16 @@ class ApiGatewayConfig(BaseModel):
     spec_file: str
 
 
+class EnvironmentMapping(BaseModel):
+    """Environment-to-branch mapping from ferry.yaml."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    branch: str
+    auto_deploy: bool = True
+
+
 class FerryConfig(BaseModel):
     """Top-level ferry.yaml configuration model.
 
@@ -66,6 +78,20 @@ class FerryConfig(BaseModel):
     lambdas: list[LambdaConfig] = []
     step_functions: list[StepFunctionConfig] = []
     api_gateways: list[ApiGatewayConfig] = []
+    environments: list[EnvironmentMapping] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def expand_environments_dict(cls, data: Any) -> Any:
+        """Convert dict-keyed environments YAML to list of EnvironmentMapping dicts."""
+        if isinstance(data, dict) and "environments" in data:
+            envs = data["environments"]
+            if isinstance(envs, dict):
+                data = {
+                    **data,
+                    "environments": [{"name": name, **cfg} for name, cfg in envs.items()],
+                }
+        return data
 
 
 def validate_config(raw: dict) -> FerryConfig:

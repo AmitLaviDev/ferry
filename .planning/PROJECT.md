@@ -211,5 +211,11 @@ Currently Ferry only handles `push` events on the default branch. v2.0 adds `pul
 - GitHub Environment support: workflow jobs use `environment:` for native secrets/vars injection
 - Mid-way deployments: deploy to staging/preview from PRs before merge
 
+### Future: Selective Deploy Flags (post-v2.0 milestone)
+`/ferry apply` gains resource-type and resource-level flags so developers can deploy a subset of the plan. Examples:
+- `/ferry apply --lambdas` — deploy only Lambda resources from the plan
+- `/ferry apply --lambda order-processor` — deploy a single named resource
+- Applies to any combination of types and names. Useful when a plan shows changes across multiple types but the developer wants incremental rollout.
+
 ---
-*Last updated: 2026-03-12 after starting v2.0 PR Integration milestone*
+*Last updated: 2026-03-13 after phase 31 discussion*

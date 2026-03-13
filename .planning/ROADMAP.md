@@ -162,7 +162,9 @@ Plans:
   1. Setup action outputs `mode` and `environment` when receiving a v3 payload
   2. Setup action outputs `mode="deploy"` and `environment=""` when receiving a v2 payload (backward compatibility)
   3. All existing v1.5 outputs (has_lambdas, has_step_functions, etc.) continue to work unchanged
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 33-01-PLAN.md -- Add mode/environment to DispatchPayload, ParseResult, parsers, main(), and action.yml
 
 ### Phase 34: Workflow Template and GitHub Environments
 **Goal**: Users have a working ferry.yml template that surfaces environment secrets and enforces mode guards on deploy jobs
@@ -216,6 +218,6 @@ Plans:
 | 30. PR Event Handler and Plan Comment | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 32. Push Path Environment Resolution | v2.0 | Complete    | 2026-03-13 | 2026-03-13 |
-| 33. Action v3 Parsing and Outputs | v2.0 | 0/? | Not started | - |
+| 33. Action v3 Parsing and Outputs | v2.0 | 0/1 | Planned | - |
 | 34. Workflow Template and GitHub Environments | v2.0 | 0/? | Not started | - |
 | 35. E2E Validation | v2.0 | 0/? | Not started | - |
