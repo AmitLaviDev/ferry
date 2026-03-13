@@ -96,7 +96,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 - [x] **Phase 29: Shared Models and Schema Extension** (1/1 plan) - v3 payload model, environment mapping config, ferry.yaml schema update
 - [x] **Phase 30: PR Event Handler and Plan Comment** (1/1 plan) - Backend handles pull_request events, posts plan preview comment, creates check run
 - [x] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** (1/1 plan) - PR comment commands, deploy dispatch, workflow_run status updates
-- [ ] **Phase 32: Push Path Environment Resolution** - Existing push handler gains environment awareness for auto-deploy on merge
+- [ ] **Phase 32: Push Path Environment Resolution** (1/1 plan) - Existing push handler gains environment awareness for auto-deploy on merge
 - [ ] **Phase 33: Action v3 Parsing and Outputs** - Setup action parses v3 payload, outputs mode and environment with backward compatibility
 - [ ] **Phase 34: Workflow Template and GitHub Environments** - Updated ferry.yml template with environment: key, mode guard, and docs
 - [ ] **Phase 35: E2E Validation** - Full PR lifecycle proven in test repo: plan comment, /ferry apply, merge deploy, environment secrets
@@ -149,8 +149,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Merging a PR to a branch with an environment mapping triggers deploy with the correct environment name in the payload
   2. Ferry resolves the environment by matching the push ref against `ferry.yaml` environment branch mappings
-  3. When no environment matches (or no environments configured), deploy proceeds without an environment name (v1.x behavior preserved)
-**Plans**: TBD
+  3. When no environment matches (or no environments configured), pushes produce no Ferry activity (breaking change from v1.x, per CONTEXT.md decision)
+**Plans**: 1 plan
+Plans:
+- [ ] 32-01-PLAN.md -- Environment-gated push dispatch, tests, ENV-03 update
 
 ### Phase 33: Action v3 Parsing and Outputs
 **Goal**: The ferry setup action exposes mode and environment as workflow outputs so downstream jobs can consume them
@@ -213,7 +215,7 @@ Plans:
 | 29. Shared Models and Schema Extension | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 30. PR Event Handler and Plan Comment | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 1/1 | Complete | 2026-03-13 |
-| 32. Push Path Environment Resolution | v2.0 | 0/? | Not started | - |
+| 32. Push Path Environment Resolution | v2.0 | 0/1 | Not started | - |
 | 33. Action v3 Parsing and Outputs | v2.0 | 0/? | Not started | - |
 | 34. Workflow Template and GitHub Environments | v2.0 | 0/? | Not started | - |
 | 35. E2E Validation | v2.0 | 0/? | Not started | - |
