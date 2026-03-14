@@ -214,7 +214,7 @@ def format_apply_comment(
         f"**Tag:** `{tag}`",
         "",
         "| Type | Resource | Status |",
-        "|------|----------|--------|",
+        "|------|----------|:------:|",
     ]
 
     for resource in sorted(affected, key=lambda r: _TYPE_ORDER.get(r.resource_type, 99)):
