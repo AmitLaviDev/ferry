@@ -45,6 +45,7 @@ def get_installation_token(
                     "contents": "read",
                     "checks": "write",
                     "actions": "write",
+                    "issues": "write",
                 }
             },
         )
