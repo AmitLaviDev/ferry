@@ -1,6 +1,6 @@
-"""Integration tests for workflow_run event handling (apply status updates).
+"""Integration tests for workflow_run event handling (deploy status updates).
 
-Tests the complete workflow_run pipeline: auth -> fetch run -> find apply comment -> update.
+Tests the complete workflow_run pipeline: auth -> fetch run -> find deploy comment -> update.
 Uses pytest-httpx to mock ALL GitHub API calls and moto for DynamoDB.
 """
 
@@ -14,7 +14,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from ferry_backend.checks.plan import APPLY_MARKER_TEMPLATE
+from ferry_backend.checks.plan import DEPLOY_MARKER_TEMPLATE, SHA_MARKER_TEMPLATE
 
 TABLE_NAME = "ferry-state"
 WEBHOOK_SECRET = "test-webhook-secret"
@@ -145,29 +145,32 @@ def _mock_fetch_run(httpx_mock, run_id=12345, trigger_sha="abc123", pr_number="4
     )
 
 
-def _mock_find_apply_comment(httpx_mock, pr_number=42, trigger_sha="abc123", comment_id=300):
-    """Mock paginated GET for comments returning a comment with apply marker."""
-    marker = APPLY_MARKER_TEMPLATE.format(sha=trigger_sha)
-    apply_body = (
-        f"{marker}\n## \U0001f6a2 Ferry: Deploy Triggered\n\n"
-        f"Deploying **1 resource(s)** to **default** at `{trigger_sha[:7]}`...\n\n"
-        "_Waiting for workflow to complete..._"
+def _mock_find_deploy_comment(httpx_mock, pr_number=42, trigger_sha="abc123", comment_id=300):
+    """Mock paginated GET returning a comment with deploy+sha markers."""
+    deploy_marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
+    sha_marker = SHA_MARKER_TEMPLATE.format(sha=trigger_sha)
+    deploy_body = (
+        f"{deploy_marker}\n{sha_marker}\n"
+        f"## \U0001f6a2 Ferry: Deploying \u2192 **default** at `{trigger_sha[:7]}`\n\n"
+        "| Resource | Type | Status |\n"
+        "|----------|------|--------|\n"
+        "| **order** | Lambda | \u23f3 |"
     )
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments?per_page=100&page=1",
-        json=[{"id": comment_id, "body": apply_body}],
+        json=[{"id": comment_id, "body": deploy_body}],
     )
 
 
-def _mock_find_no_apply_comment(httpx_mock, pr_number=42):
-    """Mock paginated GET returning no apply comment."""
+def _mock_find_no_deploy_comment(httpx_mock, pr_number=42):
+    """Mock paginated GET returning no deploy comment."""
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments?per_page=100&page=1",
         json=[],
     )
 
 
-def _mock_update_apply_comment(httpx_mock, comment_id=300):
+def _mock_update_deploy_comment(httpx_mock, comment_id=300):
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/comments/{comment_id}",
         json={"id": comment_id, "body": "updated"},
@@ -175,15 +178,15 @@ def _mock_update_apply_comment(httpx_mock, comment_id=300):
 
 
 class TestWorkflowRun:
-    def test_completed_success_updates_apply_comment(self, dynamodb_env, httpx_mock):
+    def test_completed_success_updates_deploy_comment(self, dynamodb_env, httpx_mock):
         """workflow_run completed success -> fetches inputs, finds comment, PATCHes."""
         trigger_sha = "abc123"
         event = _make_workflow_run_event(conclusion="success")
 
         _mock_installation_token(httpx_mock)
         _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
-        _mock_find_apply_comment(httpx_mock, trigger_sha=trigger_sha)
-        _mock_update_apply_comment(httpx_mock)
+        _mock_find_deploy_comment(httpx_mock, trigger_sha=trigger_sha)
+        _mock_update_deploy_comment(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -193,23 +196,25 @@ class TestWorkflowRun:
         assert body["status"] == "processed"
         assert body["conclusion"] == "success"
 
-        # Verify PATCH to update apply comment
+        # Verify PATCH to update deploy comment
         requests = httpx_mock.get_requests()
         patch_reqs = [r for r in requests if r.method == "PATCH"]
         assert len(patch_reqs) == 1
         patched_body = json.loads(patch_reqs[0].content)["body"]
+        assert "Deployed \u2192" in patched_body
         assert "\u2705" in patched_body
         assert "`success`" in patched_body
+        assert "View run" in patched_body
 
-    def test_completed_failure_updates_apply_comment(self, dynamodb_env, httpx_mock):
+    def test_completed_failure_updates_deploy_comment(self, dynamodb_env, httpx_mock):
         """workflow_run completed failure -> PATCHes with failure status."""
         trigger_sha = "def456"
         event = _make_workflow_run_event(conclusion="failure", delivery_id="delivery-wr-002")
 
         _mock_installation_token(httpx_mock)
         _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
-        _mock_find_apply_comment(httpx_mock, trigger_sha=trigger_sha)
-        _mock_update_apply_comment(httpx_mock)
+        _mock_find_deploy_comment(httpx_mock, trigger_sha=trigger_sha)
+        _mock_update_deploy_comment(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
 
@@ -221,6 +226,7 @@ class TestWorkflowRun:
         patch_reqs = [r for r in requests if r.method == "PATCH"]
         assert len(patch_reqs) == 1
         patched_body = json.loads(patch_reqs[0].content)["body"]
+        assert "Deploy Failed \u2192" in patched_body
         assert "\u274c" in patched_body
         assert "`failure`" in patched_body
 
@@ -277,14 +283,35 @@ class TestWorkflowRun:
         assert body["status"] == "ignored"
         assert "no correlation" in body["reason"]
 
-    def test_apply_comment_not_found_logs_warning(self, dynamodb_env, httpx_mock):
-        """workflow_run where no apply comment exists -> processes without error."""
+    def test_deploy_comment_not_found_logs_warning(self, dynamodb_env, httpx_mock):
+        """workflow_run where no deploy comment exists -> processes without error."""
         trigger_sha = "ghi789"
         event = _make_workflow_run_event(delivery_id="delivery-wr-007")
 
         _mock_installation_token(httpx_mock)
         _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
-        _mock_find_no_apply_comment(httpx_mock)
+        _mock_find_no_deploy_comment(httpx_mock)
+
+        from ferry_backend.webhook.handler import handler
+
+        result = handler(event, None)
+        body = json.loads(result["body"])
+        assert body["status"] == "processed"
+
+        # No PATCH should have been made
+        requests = httpx_mock.get_requests()
+        patch_reqs = [r for r in requests if r.method == "PATCH"]
+        assert len(patch_reqs) == 0
+
+    def test_sha_mismatch_skips_update(self, dynamodb_env, httpx_mock):
+        """workflow_run where deploy comment has different SHA -> no update."""
+        trigger_sha = "abc123"
+        event = _make_workflow_run_event(delivery_id="delivery-wr-008")
+
+        _mock_installation_token(httpx_mock)
+        _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
+        # Deploy comment has a DIFFERENT sha (newer /ferry apply ran)
+        _mock_find_deploy_comment(httpx_mock, trigger_sha="def456def456789")
 
         from ferry_backend.webhook.handler import handler
 

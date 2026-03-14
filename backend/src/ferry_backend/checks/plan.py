@@ -4,7 +4,8 @@ Provides:
 - format_plan_comment / format_no_changes_comment -- branded plan previews
 - parse_ferry_command -- parse /ferry plan|apply from comment body
 - format_apply_comment / format_apply_status_update -- apply comment lifecycle
-- find_apply_comment -- paginated search for SHA-specific apply marker
+- find_deploy_comment -- paginated search for PR-level deploy marker
+- extract_sha_from_comment -- extract trigger SHA from deploy comment
 - resolve_environment -- match branch to environment mapping
 """
 
@@ -24,12 +25,52 @@ logger = structlog.get_logger()
 
 # Display names for resource type section headers
 _TYPE_DISPLAY_NAMES: dict[str, str] = {
-    "lambda": "Lambdas",
-    "step_function": "Step Functions",
-    "api_gateway": "API Gateways",
+    "lambda": "Lambda",
+    "step_function": "Step Function",
+    "api_gateway": "API Gateway",
 }
 
+# Stable sort order for resource types in tables
+_TYPE_ORDER: dict[str, int] = {"lambda": 0, "step_function": 1, "api_gateway": 2}
+
 FERRY_EMOJI = "\U0001f6a2"
+
+
+def _resource_detail(
+    name: str,
+    resource_type: str,
+    config: FerryConfig | None,
+) -> str:
+    """Look up type-specific detail string for a resource.
+
+    Args:
+        name: Resource name from AffectedResource.
+        resource_type: One of "lambda", "step_function", "api_gateway".
+        config: FerryConfig for field lookup. None returns empty string.
+
+    Returns:
+        Detail string: e.g. "`func-name` / `ecr-repo`" for lambdas.
+    """
+    if config is None:
+        return ""
+
+    if resource_type == "lambda":
+        for lam in config.lambdas:
+            if lam.name == name:
+                return f"`{lam.function_name}` / `{lam.ecr_repo}`"
+
+    elif resource_type == "step_function":
+        for sf in config.step_functions:
+            if sf.name == name:
+                return f"`{sf.state_machine_name}`"
+
+    elif resource_type == "api_gateway":
+        for ag in config.api_gateways:
+            if ag.name == name:
+                return f"`{ag.rest_api_id}` / stage `{ag.stage_name}`"
+
+    return ""
+
 
 # ---------------------------------------------------------------------------
 # Command parsing
@@ -92,12 +133,14 @@ def resolve_environment(
 def format_plan_comment(
     affected: list[AffectedResource],
     environment: EnvironmentMapping | None = None,
+    config: FerryConfig | None = None,
 ) -> str:
     """Format a branded plan comment for a PR.
 
     Args:
         affected: List of AffectedResource from change detection.
         environment: Optional environment mapping for the target branch.
+        config: Optional FerryConfig for resource detail lookup.
 
     Returns:
         Markdown body for the PR comment.
@@ -112,38 +155,28 @@ def format_plan_comment(
 
     parts.append("")
 
-    # Group by resource type
-    grouped: dict[str, list[AffectedResource]] = {}
-    for resource in affected:
-        grouped.setdefault(resource.resource_type, []).append(resource)
+    # Resource table
+    parts.append("| Resource | Type | Details |")
+    parts.append("|----------|------|---------|")
 
-    # Iterate in stable order
-    for rtype in ("lambda", "step_function", "api_gateway"):
-        resources = grouped.get(rtype)
-        if not resources:
-            continue
+    for resource in sorted(affected, key=lambda r: _TYPE_ORDER.get(r.resource_type, 99)):
+        display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
+        detail = _resource_detail(resource.name, resource.resource_type, config)
+        detail_cell = detail if detail else f"_({resource.change_kind})_"
+        parts.append(f"| **{resource.name}** | {display_type} | {detail_cell} |")
 
-        display_name = _TYPE_DISPLAY_NAMES[rtype]
-        parts.append(f"#### {display_name}")
-        parts.append("")
-
-        for resource in resources:
-            parts.append(f"- **{resource.name}** _({resource.change_kind})_")
-
-        parts.append("")
+    parts.append("")
 
     # CTA footer
     if environment and not environment.auto_deploy:
-        parts.append(
-            "_These resources will be queued for manual deployment "
-            f"to **{environment.name}** when this PR is merged._"
-        )
+        env = environment.name
+        parts.append(f"_Deploy with `/ferry apply`. Manual deployment to **{env}** after merge._")
     elif environment:
         parts.append(
-            f"_These resources will be deployed to **{environment.name}** when this PR is merged._"
+            f"_Deploy with `/ferry apply` or merge to auto-deploy to **{environment.name}**._"
         )
     else:
-        parts.append("_These resources will be deployed when this PR is merged._")
+        parts.append("_Deploy with `/ferry apply` or merge._")
 
     return "\n".join(parts)
 
@@ -166,34 +199,54 @@ def format_no_changes_comment() -> str:
 # Apply comment formatting
 # ---------------------------------------------------------------------------
 
-APPLY_MARKER_TEMPLATE = "<!-- ferry:apply:{sha} -->"
+DEPLOY_MARKER_TEMPLATE = "<!-- ferry:deploy:{pr_number} -->"
+SHA_MARKER_TEMPLATE = "<!-- ferry:sha:{sha} -->"
 
 
 def format_apply_comment(
     affected: list[AffectedResource],
     environment: EnvironmentMapping | None,
     head_sha: str,
+    pr_number: int,
+    config: FerryConfig | None = None,
 ) -> str:
     """Format a deploy-triggered comment for a PR.
+
+    Creates a sticky deploy comment with a resource status table.
+    The comment uses a PR-level marker for upsert and an embedded SHA
+    marker for workflow_run correlation.
 
     Args:
         affected: List of AffectedResource being deployed.
         environment: Optional environment mapping (for display name).
-        head_sha: Commit SHA being deployed (used in marker and display).
+        head_sha: Commit SHA being deployed (used in SHA marker and display).
+        pr_number: PR number (used in deploy marker).
+        config: Optional FerryConfig for resource detail lookup.
 
     Returns:
-        Markdown body for the apply comment.
+        Markdown body for the deploy comment.
     """
-    marker = APPLY_MARKER_TEMPLATE.format(sha=head_sha)
+    deploy_marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
+    sha_marker = SHA_MARKER_TEMPLATE.format(sha=head_sha)
     env_name = environment.name if environment else "default"
+
     parts = [
-        marker,
-        f"## {FERRY_EMOJI} Ferry: Deploy Triggered",
+        deploy_marker,
+        sha_marker,
+        f"## {FERRY_EMOJI} Ferry: Deploying \u2192 **{env_name}** at `{head_sha[:7]}`",
         "",
-        f"Deploying **{len(affected)} resource(s)** to **{env_name}** at `{head_sha[:7]}`...",
-        "",
-        "_Waiting for workflow to complete..._",
+        "| Resource | Type | Status |",
+        "|----------|------|--------|",
     ]
+
+    for resource in sorted(affected, key=lambda r: _TYPE_ORDER.get(r.resource_type, 99)):
+        display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
+        detail = _resource_detail(resource.name, resource.resource_type, config)
+        name_cell = f"**{resource.name}**"
+        if detail:
+            name_cell += f" ({detail})"
+        parts.append(f"| {name_cell} | {display_type} | \u23f3 |")
+
     return "\n".join(parts)
 
 
@@ -202,10 +255,14 @@ def format_apply_status_update(
     conclusion: str,
     run_url: str,
 ) -> str:
-    """Replace the waiting line in an apply comment with the final status.
+    """Update a deploy comment with final workflow conclusion.
+
+    Updates the header (Deploying -> Deployed/Failed), replaces all
+    hourglass status emojis in the resource table, and appends a result
+    line with emoji + conclusion + run link.
 
     Args:
-        original_body: The existing apply comment body.
+        original_body: The existing deploy comment body.
         conclusion: Workflow run conclusion (success, failure, cancelled, etc.).
         run_url: URL to the GitHub Actions workflow run.
 
@@ -214,39 +271,49 @@ def format_apply_status_update(
     """
     status_emoji = {"success": "\u2705", "failure": "\u274c", "cancelled": "\u26a0\ufe0f"}
     emoji = status_emoji.get(conclusion, "\u2753")
-    status_line = f"**Result:** {emoji} `{conclusion}` -- [View run]({run_url})"
-    return original_body.replace(
-        "_Waiting for workflow to complete..._",
-        status_line,
-    )
+
+    # Update header: "Deploying" -> "Deployed" (or "Deploy Failed")
+    if conclusion == "success":
+        updated = original_body.replace("Deploying \u2192", "Deployed \u2192")
+    elif conclusion == "failure":
+        updated = original_body.replace("Deploying \u2192", "Deploy Failed \u2192")
+    else:
+        updated = original_body.replace("Deploying \u2192", f"Deploy {conclusion} \u2192")
+
+    # Replace all hourglass in table rows with the conclusion emoji
+    updated = updated.replace("| \u23f3 |", f"| {emoji} |")
+
+    # Append result line
+    result_line = f"\n\n{emoji} `{conclusion}` \u2014 [View run]({run_url})"
+    updated += result_line
+
+    return updated
 
 
 # ---------------------------------------------------------------------------
-# Find apply comment (paginated)
+# Find deploy comment (paginated)
 # ---------------------------------------------------------------------------
 
 
-def find_apply_comment(
+def find_deploy_comment(
     client: GitHubClient,
     repo: str,
     pr_number: int,
-    trigger_sha: str,
 ) -> dict | None:
-    """Find an existing apply comment on a PR by the SHA-specific marker.
+    """Find the sticky deploy comment on a PR by the PR-level marker.
 
-    Paginates through issue comments looking for the apply marker with the
-    given trigger SHA.
+    Paginates through issue comments looking for the deploy marker keyed
+    on PR number (not SHA).
 
     Args:
         client: Authenticated GitHubClient.
         repo: Repository full name (owner/repo).
         pr_number: PR number to search comments on.
-        trigger_sha: The SHA used in the apply marker.
 
     Returns:
         The comment dict if found, or None.
     """
-    marker = APPLY_MARKER_TEMPLATE.format(sha=trigger_sha)
+    marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
     page = 1
     per_page = 100
     while True:
@@ -256,7 +323,7 @@ def find_apply_comment(
         )
         if resp.status_code != 200:
             logger.warning(
-                "apply_comment_search_failed",
+                "deploy_comment_search_failed",
                 status_code=resp.status_code,
                 repo=repo,
                 pr_number=pr_number,
@@ -276,3 +343,23 @@ def find_apply_comment(
             return None
 
         page += 1
+
+
+# ---------------------------------------------------------------------------
+# Extract SHA from deploy comment
+# ---------------------------------------------------------------------------
+
+_SHA_MARKER_RE = re.compile(r"<!-- ferry:sha:([a-f0-9]+) -->")
+
+
+def extract_sha_from_comment(body: str) -> str | None:
+    """Extract the trigger SHA from a deploy comment body.
+
+    Args:
+        body: Comment body text.
+
+    Returns:
+        The SHA string, or None if not found.
+    """
+    match = _SHA_MARKER_RE.search(body)
+    return match.group(1) if match else None

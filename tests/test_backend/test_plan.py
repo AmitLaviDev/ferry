@@ -1,20 +1,23 @@
-"""Tests for PR plan comment formatting, command parsing, and apply comment functions.
+"""Tests for PR plan comment formatting, command parsing, and deploy comment functions.
 
 Tests cover:
-- format_plan_comment: single lambda, multiple types, with/without env, no file paths, header
+- format_plan_comment: table format with resource details, with/without config/env
 - format_no_changes_comment: output shape
 - resolve_environment: match, no match, empty, first match
 - parse_ferry_command: plan, apply, case-insensitive, trailing text, invalid inputs
-- format_apply_comment: marker, resource count, environment, waiting line
-- format_apply_status_update: success/failure/cancelled replace waiting line
-- find_apply_comment: found, not found, empty, pagination
+- format_apply_comment: deploy+sha markers, resource table, environment, status
+- format_apply_status_update: header update, status emoji replacement, result line
+- find_deploy_comment: found, not found, empty, pagination
+- extract_sha_from_comment: SHA extraction from comment body
 """
 
 from __future__ import annotations
 
 from ferry_backend.checks.plan import (
-    APPLY_MARKER_TEMPLATE,
-    find_apply_comment,
+    DEPLOY_MARKER_TEMPLATE,
+    SHA_MARKER_TEMPLATE,
+    extract_sha_from_comment,
+    find_deploy_comment,
     format_apply_comment,
     format_apply_status_update,
     format_no_changes_comment,
@@ -22,9 +25,47 @@ from ferry_backend.checks.plan import (
     parse_ferry_command,
     resolve_environment,
 )
-from ferry_backend.config.schema import EnvironmentMapping, FerryConfig
+from ferry_backend.config.schema import (
+    ApiGatewayConfig,
+    EnvironmentMapping,
+    FerryConfig,
+    LambdaConfig,
+    StepFunctionConfig,
+)
 from ferry_backend.detect.changes import AffectedResource
 from ferry_backend.github.client import GitHubClient
+
+
+def _test_config() -> FerryConfig:
+    """Minimal FerryConfig for formatter tests."""
+    return FerryConfig(
+        lambdas=[
+            LambdaConfig(
+                name="order-processor",
+                source_dir="services/order-processor",
+                ecr_repo="ferry/order-processor",
+                function_name="order-fn",
+            ),
+        ],
+        step_functions=[
+            StepFunctionConfig(
+                name="checkout-flow",
+                source_dir="workflows/checkout",
+                state_machine_name="checkout-sm",
+                definition_file="definition.json",
+            ),
+        ],
+        api_gateways=[
+            ApiGatewayConfig(
+                name="public-api",
+                source_dir="api",
+                rest_api_id="abc123",
+                stage_name="prod",
+                spec_file="openapi.yaml",
+            ),
+        ],
+    )
+
 
 # ---------------------------------------------------------------------------
 # format_plan_comment
@@ -32,8 +73,27 @@ from ferry_backend.github.client import GitHubClient
 
 
 class TestFormatPlanComment:
-    def test_single_lambda(self):
-        """Single modified lambda shows header + resource + footer."""
+    def test_single_lambda_with_config(self):
+        """Single modified lambda shows table with resource details."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        body = format_plan_comment(affected, config=_test_config())
+        assert body.startswith("## ")
+        assert "## \U0001f6a2 Ferry: Deployment Plan" in body
+        assert "| Resource | Type | Details |" in body
+        assert "| **order-processor** | Lambda |" in body
+        assert "`order-fn`" in body
+        assert "`ferry/order-processor`" in body
+        assert "Deploy with `/ferry apply` or merge." in body
+
+    def test_single_lambda_without_config(self):
+        """Without config, shows change_kind as fallback detail."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -43,14 +103,10 @@ class TestFormatPlanComment:
             ),
         ]
         body = format_plan_comment(affected)
-        assert body.startswith("## ")
-        assert "## \U0001f6a2 Ferry: Deployment Plan" in body
-        assert "#### Lambdas" in body
-        assert "- **order-processor** _(modified)_" in body
-        assert "will be deployed when this PR is merged" in body
+        assert "| **order-processor** | Lambda | _(modified)_ |" in body
 
     def test_multiple_types(self):
-        """Multiple resource types grouped with correct section headers."""
+        """Multiple resource types in table with correct type ordering."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -71,13 +127,16 @@ class TestFormatPlanComment:
                 changed_files=("api/openapi.yaml",),
             ),
         ]
-        body = format_plan_comment(affected)
-        assert "#### Lambdas" in body
-        assert "#### Step Functions" in body
-        assert "#### API Gateways" in body
+        body = format_plan_comment(affected, config=_test_config())
+        assert "| **order-processor** | Lambda |" in body
+        assert "| **checkout-flow** | Step Function |" in body
+        assert "| **public-api** | API Gateway |" in body
         # Stable ordering: lambda < step_function < api_gateway
-        assert body.index("#### Lambdas") < body.index("#### Step Functions")
-        assert body.index("#### Step Functions") < body.index("#### API Gateways")
+        assert body.index("Lambda") < body.index("Step Function")
+        assert body.index("Step Function") < body.index("API Gateway")
+        # Verify detail strings
+        assert "`checkout-sm`" in body
+        assert "`abc123` / stage `prod`" in body
 
     def test_with_environment(self):
         """Environment mapping shown in header and footer."""
@@ -92,7 +151,7 @@ class TestFormatPlanComment:
         env = EnvironmentMapping(name="staging", branch="develop", auto_deploy=True)
         body = format_plan_comment(affected, environment=env)
         assert "\u2192 **staging**" in body
-        assert "deployed to **staging**" in body
+        assert "auto-deploy to **staging**" in body
 
     def test_with_environment_no_auto_deploy(self):
         """Environment with auto_deploy=False shows manual deploy CTA."""
@@ -106,7 +165,7 @@ class TestFormatPlanComment:
         ]
         env = EnvironmentMapping(name="production", branch="main", auto_deploy=False)
         body = format_plan_comment(affected, environment=env)
-        assert "queued for manual deployment" in body
+        assert "Manual deployment to **production** after merge." in body
         assert "**production**" in body
 
     def test_without_environment(self):
@@ -122,7 +181,7 @@ class TestFormatPlanComment:
         body = format_plan_comment(affected, environment=None)
         assert "## \U0001f6a2 Ferry: Deployment Plan" in body
         assert "\u2192" not in body
-        assert "will be deployed when this PR is merged" in body
+        assert "Deploy with `/ferry apply` or merge." in body
 
     def test_no_file_paths_in_comment(self):
         """Plan comment does NOT include individual file paths."""
@@ -262,8 +321,8 @@ class TestParseCommand:
 
 
 class TestFormatApplyComment:
-    def test_marker_present(self):
-        """Apply comment includes SHA-specific marker."""
+    def test_deploy_marker_present(self):
+        """Apply comment includes PR-level deploy marker."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -273,12 +332,27 @@ class TestFormatApplyComment:
             ),
         ]
         env = EnvironmentMapping(name="staging", branch="develop")
-        body = format_apply_comment(affected, env, "abc123def456789")
-        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123def456789")
+        body = format_apply_comment(affected, env, "abc123def456789", pr_number=42)
+        marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=42)
         assert marker in body
 
-    def test_resource_count(self):
-        """Apply comment shows resource count."""
+    def test_sha_marker_present(self):
+        """Apply comment includes SHA marker for workflow_run correlation."""
+        affected = [
+            AffectedResource(
+                name="order-processor",
+                resource_type="lambda",
+                change_kind="modified",
+                changed_files=("services/order-processor/main.py",),
+            ),
+        ]
+        env = EnvironmentMapping(name="staging", branch="develop")
+        body = format_apply_comment(affected, env, "abc123def456789", pr_number=42)
+        sha_marker = SHA_MARKER_TEMPLATE.format(sha="abc123def456789")
+        assert sha_marker in body
+
+    def test_resource_table(self):
+        """Apply comment shows resource table with hourglass status."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -294,8 +368,11 @@ class TestFormatApplyComment:
             ),
         ]
         env = EnvironmentMapping(name="staging", branch="develop")
-        body = format_apply_comment(affected, env, "abc123")
-        assert "2 resource(s)" in body
+        body = format_apply_comment(affected, env, "abc123", pr_number=42)
+        assert "| Resource | Type | Status |" in body
+        assert "| **order-processor**" in body
+        assert "| **checkout-flow**" in body
+        assert "\u23f3" in body  # hourglass
 
     def test_environment_name(self):
         """Apply comment shows environment name."""
@@ -308,7 +385,7 @@ class TestFormatApplyComment:
             ),
         ]
         env = EnvironmentMapping(name="production", branch="main")
-        body = format_apply_comment(affected, env, "abc123")
+        body = format_apply_comment(affected, env, "abc123", pr_number=42)
         assert "**production**" in body
 
     def test_no_environment_shows_default(self):
@@ -321,21 +398,8 @@ class TestFormatApplyComment:
                 changed_files=("services/order-processor/main.py",),
             ),
         ]
-        body = format_apply_comment(affected, None, "abc123")
+        body = format_apply_comment(affected, None, "abc123", pr_number=42)
         assert "**default**" in body
-
-    def test_waiting_line(self):
-        """Apply comment includes waiting line."""
-        affected = [
-            AffectedResource(
-                name="order-processor",
-                resource_type="lambda",
-                change_kind="modified",
-                changed_files=("services/order-processor/main.py",),
-            ),
-        ]
-        body = format_apply_comment(affected, None, "abc123")
-        assert "_Waiting for workflow to complete..._" in body
 
     def test_sha_truncation(self):
         """Apply comment shows truncated SHA."""
@@ -347,11 +411,11 @@ class TestFormatApplyComment:
                 changed_files=("services/order-processor/main.py",),
             ),
         ]
-        body = format_apply_comment(affected, None, "abc123def456789")
+        body = format_apply_comment(affected, None, "abc123def456789", pr_number=42)
         assert "`abc123d`" in body
 
-    def test_header(self):
-        """Apply comment has deploy triggered header."""
+    def test_deploying_header(self):
+        """Apply comment has deploying header."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -360,8 +424,8 @@ class TestFormatApplyComment:
                 changed_files=("services/order-processor/main.py",),
             ),
         ]
-        body = format_apply_comment(affected, None, "abc123")
-        assert "## \U0001f6a2 Ferry: Deploy Triggered" in body
+        body = format_apply_comment(affected, None, "abc123", pr_number=42)
+        assert "Deploying \u2192" in body
 
 
 # ---------------------------------------------------------------------------
@@ -372,27 +436,31 @@ class TestFormatApplyComment:
 class TestFormatApplyStatusUpdate:
     def _base_body(self) -> str:
         return (
-            "<!-- ferry:apply:abc123 -->\n"
-            "## \U0001f6a2 Ferry: Deploy Triggered\n\n"
-            "Deploying **1 resource(s)** to **staging** at `abc123d`...\n\n"
-            "_Waiting for workflow to complete..._"
+            "<!-- ferry:deploy:42 -->\n"
+            "<!-- ferry:sha:abc123 -->\n"
+            "## \U0001f6a2 Ferry: Deploying \u2192 **staging** at `abc123d`\n\n"
+            "| Resource | Type | Status |\n"
+            "|----------|------|--------|\n"
+            "| **order** | Lambda | \u23f3 |"
         )
 
     def test_success(self):
-        """Success conclusion replaces waiting line with checkmark."""
+        """Success conclusion updates header and replaces hourglass."""
         updated = format_apply_status_update(
             self._base_body(), "success", "https://github.com/runs/123"
         )
-        assert "_Waiting for workflow to complete..._" not in updated
+        assert "\u23f3" not in updated
+        assert "Deployed \u2192" in updated
         assert "\u2705" in updated
         assert "`success`" in updated
         assert "https://github.com/runs/123" in updated
 
     def test_failure(self):
-        """Failure conclusion shows red X."""
+        """Failure conclusion shows red X and Deploy Failed header."""
         updated = format_apply_status_update(
             self._base_body(), "failure", "https://github.com/runs/456"
         )
+        assert "Deploy Failed \u2192" in updated
         assert "\u274c" in updated
         assert "`failure`" in updated
 
@@ -421,17 +489,17 @@ class TestFormatApplyStatusUpdate:
 
 
 # ---------------------------------------------------------------------------
-# find_apply_comment
+# find_deploy_comment
 # ---------------------------------------------------------------------------
 
 
-class TestFindApplyComment:
+class TestFindDeployComment:
     _BASE_URL = "https://api.github.com/repos/owner/repo/issues/42/comments"
     _PAGE1_URL = f"{_BASE_URL}?per_page=100&page=1"
 
     def test_found(self, httpx_mock):
-        """Returns comment dict when apply marker is found."""
-        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123")
+        """Returns comment dict when deploy marker is found."""
+        marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=42)
         httpx_mock.add_response(
             url=self._PAGE1_URL,
             json=[
@@ -440,12 +508,12 @@ class TestFindApplyComment:
             ],
         )
         client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        result = find_deploy_comment(client, "owner/repo", 42)
         assert result is not None
         assert result["id"] == 2
 
     def test_not_found(self, httpx_mock):
-        """Returns None when no comment has the apply marker."""
+        """Returns None when no comment has the deploy marker."""
         httpx_mock.add_response(
             url=self._PAGE1_URL,
             json=[
@@ -454,7 +522,7 @@ class TestFindApplyComment:
             ],
         )
         client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        result = find_deploy_comment(client, "owner/repo", 42)
         assert result is None
 
     def test_empty(self, httpx_mock):
@@ -464,7 +532,7 @@ class TestFindApplyComment:
             json=[],
         )
         client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        result = find_deploy_comment(client, "owner/repo", 42)
         assert result is None
 
     def test_api_error(self, httpx_mock):
@@ -475,16 +543,16 @@ class TestFindApplyComment:
             status_code=500,
         )
         client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        result = find_deploy_comment(client, "owner/repo", 42)
         assert result is None
 
     def test_pagination(self, httpx_mock):
         """Finds comment on the second page of results."""
         page2_url = f"{self._BASE_URL}?per_page=100&page=2"
-        marker = APPLY_MARKER_TEMPLATE.format(sha="abc123")
+        marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=42)
         # Page 1: 100 unrelated comments (full page -> triggers next page)
         page1 = [{"id": i, "body": f"comment {i}"} for i in range(100)]
-        # Page 2: contains the apply comment
+        # Page 2: contains the deploy comment
         page2 = [{"id": 200, "body": f"{marker}\nDeploy here"}]
 
         httpx_mock.add_response(
@@ -497,19 +565,27 @@ class TestFindApplyComment:
         )
 
         client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
+        result = find_deploy_comment(client, "owner/repo", 42)
         assert result is not None
         assert result["id"] == 200
 
-    def test_different_sha_not_matched(self, httpx_mock):
-        """A comment with a different SHA marker is not matched."""
-        marker_other = APPLY_MARKER_TEMPLATE.format(sha="other_sha")
-        httpx_mock.add_response(
-            url=self._PAGE1_URL,
-            json=[
-                {"id": 1, "body": f"{marker_other}\n## Deploy"},
-            ],
-        )
-        client = GitHubClient()
-        result = find_apply_comment(client, "owner/repo", 42, "abc123")
-        assert result is None
+
+# ---------------------------------------------------------------------------
+# extract_sha_from_comment
+# ---------------------------------------------------------------------------
+
+
+class TestExtractShaFromComment:
+    def test_extracts_sha(self):
+        """Extracts SHA from deploy comment body."""
+        body = "<!-- ferry:deploy:42 -->\n<!-- ferry:sha:abc123def456 -->\n..."
+        assert extract_sha_from_comment(body) == "abc123def456"
+
+    def test_no_marker_returns_none(self):
+        """Returns None when no SHA marker present."""
+        body = "<!-- ferry:deploy:42 -->\nno sha marker"
+        assert extract_sha_from_comment(body) is None
+
+    def test_empty_body(self):
+        """Returns None for empty body."""
+        assert extract_sha_from_comment("") is None

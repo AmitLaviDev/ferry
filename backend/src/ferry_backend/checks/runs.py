@@ -242,3 +242,43 @@ def post_pr_comment(
         )
 
     return resp.json()
+
+
+def update_pr_comment(
+    client: GitHubClient,
+    repo: str,
+    comment_id: int,
+    body: str,
+) -> dict:
+    """Update an existing PR comment.
+
+    Args:
+        client: Authenticated GitHubClient with installation token.
+        repo: Repository full name (owner/repo).
+        comment_id: ID of the comment to update.
+        body: New markdown body for the comment.
+
+    Returns:
+        Response JSON from the Issues Comments API.
+    """
+    resp = client.patch(
+        f"/repos/{repo}/issues/comments/{comment_id}",
+        json={"body": body},
+    )
+
+    if resp.status_code == 200:
+        logger.info(
+            "pr_comment_updated",
+            repo=repo,
+            comment_id=comment_id,
+        )
+    else:
+        logger.error(
+            "pr_comment_update_failed",
+            repo=repo,
+            comment_id=comment_id,
+            status_code=resp.status_code,
+            response=resp.text[:200],
+        )
+
+    return resp.json()

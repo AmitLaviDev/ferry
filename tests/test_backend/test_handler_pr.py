@@ -390,7 +390,7 @@ class TestHandlerPR:
         assert len(comment_posts) == 1
         comment_body = json.loads(comment_posts[0].content)["body"]
         assert "production" in comment_body
-        assert "manual deployment" in comment_body  # auto_deploy=False
+        assert "Manual deployment" in comment_body  # auto_deploy=False
 
     def test_pr_unsupported_action_ignored(
         self,

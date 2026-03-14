@@ -17,7 +17,8 @@ import structlog
 from ferry_backend.auth.jwt import generate_app_jwt
 from ferry_backend.auth.tokens import get_installation_token
 from ferry_backend.checks.plan import (
-    find_apply_comment,
+    extract_sha_from_comment,
+    find_deploy_comment,
     format_apply_comment,
     format_apply_status_update,
     format_no_changes_comment,
@@ -30,6 +31,7 @@ from ferry_backend.checks.runs import (
     find_merged_pr,
     find_open_prs,
     post_pr_comment,
+    update_pr_comment,
 )
 from ferry_backend.config.loader import fetch_ferry_config, parse_config
 from ferry_backend.config.schema import validate_config
@@ -254,6 +256,18 @@ def handler(event: dict, context: object) -> dict:
                 environment=environment.name,
             )
 
+            # Post deploy comment on merged PR (if this is a merge push)
+            merged_pr = find_merged_pr(github_client, repo, after_sha)
+            if merged_pr:
+                deploy_body = format_apply_comment(
+                    affected, environment, after_sha, merged_pr["number"], config
+                )
+                existing_deploy = find_deploy_comment(github_client, repo, merged_pr["number"])
+                if existing_deploy:
+                    update_pr_comment(github_client, repo, existing_deploy["id"], deploy_body)
+                else:
+                    post_pr_comment(github_client, repo, merged_pr["number"], deploy_body)
+
         # Check Run (always for auto_deploy matched branches, even with no changes)
         create_check_run(github_client, repo, after_sha, affected)
 
@@ -384,7 +398,7 @@ def _handle_pull_request(payload: dict, repo: str) -> dict:
         # Plan comment (new comment per event, not sticky)
         environment = resolve_environment(config, base_branch)
         if affected:
-            comment_body = format_plan_comment(affected, environment)
+            comment_body = format_plan_comment(affected, environment, config)
         else:
             comment_body = format_no_changes_comment()
         post_pr_comment(github_client, repo, pr_number, comment_body)
@@ -545,6 +559,7 @@ def _handle_issue_comment(payload: dict, repo: str) -> dict:
                 head_sha,
                 affected,
                 environment,
+                config,
             )
         # command == "apply"
         return _handle_apply_command(
@@ -582,6 +597,7 @@ def _handle_plan_command(
     head_sha: str,
     affected: list,
     environment: object,
+    config: object,
 ) -> dict:
     """Execute /ferry plan: post plan comment + check run.
 
@@ -591,12 +607,15 @@ def _handle_plan_command(
         head_sha: Current PR head SHA.
         affected: Detected affected resources.
         environment: Resolved environment mapping (or None).
+        config: Validated FerryConfig.
 
     Returns:
         Lambda Function URL response dict.
     """
     comment_body = (
-        format_plan_comment(affected, environment) if affected else format_no_changes_comment()
+        format_plan_comment(affected, environment, config)
+        if affected
+        else format_no_changes_comment()
     )
     post_pr_comment(github_client, repo, pr_number, comment_body)
     create_check_run(github_client, repo, head_sha, affected, no_change_conclusion="neutral")
@@ -651,8 +670,12 @@ def _handle_apply_command(
         head_ref=head_sha,
         base_ref=base_branch,
     )
-    body = format_apply_comment(affected, environment, head_sha)
-    post_pr_comment(github_client, repo, pr_number, body)
+    body = format_apply_comment(affected, environment, head_sha, pr_number, config)
+    existing = find_deploy_comment(github_client, repo, pr_number)
+    if existing:
+        update_pr_comment(github_client, repo, existing["id"], body)
+    else:
+        post_pr_comment(github_client, repo, pr_number, body)
     create_check_run(github_client, repo, head_sha, affected)
     log.info("apply_dispatched", affected_count=len(affected))
     return _response(
@@ -736,22 +759,30 @@ def _handle_workflow_run(payload: dict, repo: str) -> dict:
 
         pr_number = int(pr_number_str)
 
-        # Find and update apply comment
-        existing = find_apply_comment(github_client, repo, pr_number, trigger_sha)
+        # Find and update deploy comment
+        existing = find_deploy_comment(github_client, repo, pr_number)
         if existing:
+            # Verify trigger_sha matches to avoid race with newer /ferry apply
+            comment_sha = extract_sha_from_comment(existing["body"])
+            if comment_sha and comment_sha != trigger_sha:
+                log.info(
+                    "deploy_comment_sha_mismatch",
+                    comment_sha=comment_sha[:7],
+                    trigger_sha=trigger_sha[:7],
+                    pr_number=pr_number,
+                )
+                return _response(200, {"status": "processed", "conclusion": conclusion})
+
             updated_body = format_apply_status_update(existing["body"], conclusion, run_url)
-            github_client.patch(
-                f"/repos/{repo}/issues/comments/{existing['id']}",
-                json={"body": updated_body},
-            )
+            update_pr_comment(github_client, repo, existing["id"], updated_body)
             log.info(
-                "apply_comment_updated",
+                "deploy_comment_updated",
                 pr_number=pr_number,
                 conclusion=conclusion,
             )
         else:
             log.warning(
-                "apply_comment_not_found",
+                "deploy_comment_not_found",
                 pr_number=pr_number,
                 trigger_sha=trigger_sha[:7],
             )

@@ -275,6 +275,8 @@ class TestPushEnvironment:
         )
         _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_dispatch(httpx_mock)
+        # find_merged_pr also calls commits/{sha}/pulls (second call)
+        _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -335,6 +337,8 @@ class TestPushEnvironment:
         )
         _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_dispatch(httpx_mock)
+        # find_merged_pr also calls commits/{sha}/pulls (second call)
+        _mock_prs_for_commit(httpx_mock, after, prs=[])
         _mock_check_run(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
