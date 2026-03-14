@@ -242,5 +242,5 @@ Plans:
 | 33. Action v3 Parsing and Outputs | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
-| 36. PR Comment UX Polish | v2.0 | 2/2 | Complete | 2026-03-14 |
+| 36. PR Comment UX Polish | v2.0 | Complete    | 2026-03-14 | 2026-03-14 |
 | 37. Schema Simplification | v2.1 | 0/0 | Planned | - |

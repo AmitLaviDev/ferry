@@ -33,6 +33,14 @@ Requirements for PR Integration milestone. Each maps to roadmap phases.
 - [ ] **GHENV-01**: Workflow deploy jobs use `environment:` with the resolved environment name
 - [ ] **GHENV-02**: GHA natively injects environment-level secrets and vars into deploy jobs
 
+### PR Comment UX
+
+- [x] **UX-01**: Plan comment shows resource table with Type and Resource columns (collapsible for many resources)
+- [x] **UX-02**: Plan comment footer mentions `/ferry apply` as deploy option alongside merge
+- [x] **UX-03**: `/ferry apply` creates deploy comment with resource table and per-resource status emoji
+- [x] **UX-04**: `workflow_run` completion updates deploy comment status (⏳ → ✅/❌)
+- [x] **UX-05**: Merge deploy posts deploy comment on the merged PR with visibility
+
 ### Payload & Compatibility
 
 - [ ] **COMPAT-01**: Dispatch payload v3 includes `mode`, `environment`, `head_ref`, and `base_ref` fields
@@ -88,9 +96,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPAT-02 | Phase 33 | Pending |
 | COMPAT-03 | Phase 34 | Pending |
 
+| UX-01 | Phase 36 | Complete |
+| UX-02 | Phase 36 | Complete |
+| UX-03 | Phase 36 | Complete |
+| UX-04 | Phase 36 | Complete |
+| UX-05 | Phase 36 | Complete |
+
 **Coverage:**
-- v2.0 requirements: 17 total
-- Mapped to phases: 17
+- v2.0 requirements: 22 total
+- Mapped to phases: 22
 - Unmapped: 0
 
 ---
