@@ -8,7 +8,7 @@
 - v1.3 Full-Chain E2E -- Phases 18-21 (shipped 2026-03-10)
 - v1.4 Unified Workflow -- Phases 22-24 (shipped 2026-03-10)
 - v1.5 Batched Dispatch -- Phases 25-28 (shipped 2026-03-11)
-- v2.0 PR Integration -- Phases 29-35 (in progress)
+- v2.0 PR Integration -- Phases 29-36 (in progress)
 
 ## Phases
 
@@ -97,9 +97,10 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 - [x] **Phase 30: PR Event Handler and Plan Comment** (1/1 plan) - Backend handles pull_request events, posts plan preview comment, creates check run
 - [x] **Phase 31: Issue Comment Handler (/ferry plan + /ferry apply)** (1/1 plan) - PR comment commands, deploy dispatch, workflow_run status updates
 - [x] **Phase 32: Push Path Environment Resolution** (1/1 plan) - Existing push handler gains environment awareness for auto-deploy on merge
-- [ ] **Phase 33: Action v3 Parsing and Outputs** - Setup action parses v3 payload, outputs mode and environment with backward compatibility
+- [x] **Phase 33: Action v3 Parsing and Outputs** (1/1 plan) - Setup action parses v3 payload, outputs mode and environment with backward compatibility
 - [x] **Phase 34: Workflow Template and GitHub Environments** (1/1 plan) - Updated ferry.yml template with environment: key, mode guard, and docs
-- [ ] **Phase 35: E2E Validation** - Full PR lifecycle proven in test repo: plan comment, /ferry apply, merge deploy, environment secrets
+- [x] **Phase 35: E2E Validation** (1/1 plan) - Full PR lifecycle proven: plan comment, /ferry apply, merge deploy, environment secrets, negative test
+- [ ] **Phase 36: PR Comment UX Polish** - Sticky deploy comment with per-resource status table, boat emoji, explicit resource details in plan/apply comments, fix footer text
 
 ## Phase Details
 
@@ -220,6 +221,7 @@ Plans:
 | 30. PR Event Handler and Plan Comment | v2.0 | 1/1 | Complete | 2026-03-12 |
 | 31. Issue Comment Handler and Deploy Dispatch | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 32. Push Path Environment Resolution | v2.0 | Complete    | 2026-03-13 | 2026-03-13 |
-| 33. Action v3 Parsing and Outputs | v2.0 | 0/1 | Planned | - |
+| 33. Action v3 Parsing and Outputs | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
-| 35. E2E Validation | v2.0 | 0/? | Not started | - |
+| 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
+| 36. PR Comment UX Polish | v2.0 | 0/? | Not started | - |

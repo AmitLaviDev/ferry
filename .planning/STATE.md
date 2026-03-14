@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: PR Integration
-status: completed
-stopped_at: Phase 33 complete -- action v3 parsing and outputs
-last_updated: "2026-03-13T15:00:00Z"
-last_activity: 2026-03-13 -- Phase 33 executed
+status: in_progress
+stopped_at: Phase 35 complete -- E2E validation passed, UX polish remaining
+last_updated: "2026-03-14T12:00:00Z"
+last_activity: 2026-03-14 -- Phase 35 E2E validation executed
 progress:
-  total_phases: 7
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v2.0 PR Integration -- Phase 33 complete
+**Current focus:** v2.0 PR Integration -- Phase 35 E2E complete, Phase 36 UX Polish remaining
 
 ## Current Position
 
 Milestone: v2.0 PR Integration
-Phase: 33 of 35 (Action v3 Parsing and Outputs) -- COMPLETE
-Plan: 33-01 (mode/environment fields, ParseResult, outputs) -- DONE
-Status: Phase 33 complete
-Last activity: 2026-03-13 -- Phase 33 executed
+Phase: 35 of 36 (E2E Validation) -- COMPLETE
+Next: Phase 36 (PR Comment UX Polish)
+Status: E2E validation passed, UX improvements identified
+Last activity: 2026-03-14 -- Phase 35 E2E validation
 
 ```
-v2.0 Progress: [███████░░░] 71%
+v2.0 Progress: [█████████░] 88%
 ```
 
 ## Shipped Milestones
@@ -55,12 +55,6 @@ v2.0 Progress: [███████░░░] 71%
 - v: Literal[2] enforces version at type level for discriminated union parsing
 - No feature flag -- v2 batched dispatch is the only path, v1 exists solely as >65KB fallback
 
-### Carry-forward Concerns
-
-- Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
-- `pr_lookup_failed` (403) on push events -- relevant for v2.0
-- GitHub App webhook subscriptions for `pull_request`, `issue_comment`, and `workflow_run` are manual steps
-
 ### Key Decisions (v2.0)
 
 - Non-sticky plan comments: each PR event or /ferry plan creates a new comment (simpler, no race conditions)
@@ -73,9 +67,22 @@ v2.0 Progress: [███████░░░] 71%
 - Fresh head SHA always fetched from GET /pulls/{number} for /ferry apply
 - v1 DispatchPayload now has mode/environment with defaults (backward compatible)
 - ParseResult and GHA outputs extended with mode and environment
+- /ferry apply dispatches against PR head branch (not default branch) for correct checkout
+- GitHub App needs pull_requests:write to comment on PRs via Issues API
+
+### Carry-forward Concerns
+
+- Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
+
+### Phase 35 Bugs Fixed
+
+1. Token missing issues:write and pull_requests:write for PR comments
+2. Dispatch ref was always main (not PR branch) for /ferry apply
+3. pr_comment_posted logged success on 403
+4. Test mocks missing head.ref
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Phase 33 complete -- action v3 parsing and outputs
-Next step: Plan and execute phase 34 (Workflow Template v2)
+Last session: 2026-03-14
+Stopped at: Phase 35 complete -- E2E validation passed
+Next step: Plan and execute Phase 36 (PR Comment UX Polish)
