@@ -259,7 +259,7 @@ def handler(event: dict, context: object) -> dict:
             merged_pr = find_merged_pr(github_client, repo, after_sha)
             if merged_pr:
                 deploy_body = format_apply_comment(
-                    affected, environment, after_sha, merged_pr["number"]
+                    affected, environment, after_sha, merged_pr["number"], deployment_tag=tag
                 )
                 post_pr_comment(github_client, repo, merged_pr["number"], deploy_body)
 
@@ -663,7 +663,10 @@ def _handle_apply_command(
         head_ref=head_sha,
         base_ref=base_branch,
     )
-    body = format_apply_comment(affected, environment, head_sha, pr_number)
+    display_tag = f"{head_branch}-{head_sha[:4]}"
+    body = format_apply_comment(
+        affected, environment, head_sha, pr_number, deployment_tag=display_tag
+    )
     post_pr_comment(github_client, repo, pr_number, body)
     create_check_run(github_client, repo, head_sha, affected)
     log.info("apply_dispatched", affected_count=len(affected))

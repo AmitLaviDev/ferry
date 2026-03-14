@@ -183,18 +183,20 @@ def format_apply_comment(
     environment: EnvironmentMapping | None,
     head_sha: str,
     pr_number: int,
+    deployment_tag: str = "",
 ) -> str:
     """Format a deploy-triggered comment for a PR.
 
-    Creates a sticky deploy comment with a resource status table.
-    The comment uses a PR-level marker for upsert and an embedded SHA
-    marker for workflow_run correlation.
+    Creates a deploy comment with a resource status table.
+    Each /ferry apply creates a new comment; the SHA marker ties it
+    to a specific workflow run for status updates.
 
     Args:
         affected: List of AffectedResource being deployed.
         environment: Optional environment mapping (for display name).
-        head_sha: Commit SHA being deployed (used in SHA marker and display).
+        head_sha: Commit SHA being deployed (used in SHA marker).
         pr_number: PR number (used in deploy marker).
+        deployment_tag: Human-readable tag (e.g., "pr-42" or "feature-abc1").
 
     Returns:
         Markdown body for the deploy comment.
@@ -202,11 +204,14 @@ def format_apply_comment(
     deploy_marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
     sha_marker = SHA_MARKER_TEMPLATE.format(sha=head_sha)
     env_name = environment.name if environment else "default"
+    tag = deployment_tag or head_sha[:7]
 
     parts = [
         deploy_marker,
         sha_marker,
-        f"## {FERRY_EMOJI} Ferry: Deploying \u2192 **{env_name}** at `{head_sha[:7]}`",
+        f"## {FERRY_EMOJI} Ferry: Deploying \u2192 **{env_name}**",
+        "",
+        f"**Tag:** `{tag}`",
         "",
         "| Type | Resource | Status |",
         "|------|----------|--------|",
