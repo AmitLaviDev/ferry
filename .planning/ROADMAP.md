@@ -210,7 +210,7 @@ Plans:
   6. All existing tests updated, ferry-test-app ferry.yaml migrated
 **Plans:** 2 plans
 Plans:
-- [ ] 37-01-PLAN.md -- Schema models, dispatch models, trigger builder, backend/utils tests
+- [x] 37-01-PLAN.md -- Schema models, dispatch models, trigger builder, backend/utils tests
 - [ ] 37-02-PLAN.md -- Action parse/deploy, composite actions, docs, action tests, ferry-test-app migration
 
 ## Progress
@@ -246,4 +246,4 @@ Plans:
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
 | 36. PR Comment UX Polish | v2.0 | Complete    | 2026-03-14 | 2026-03-14 |
-| 37. Schema Simplification | v2.1 | 0/2 | Planned | - |
+| 37. Schema Simplification | v2.1 | 1/2 | In Progress | - |

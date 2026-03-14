@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: PR Integration
-status: unknown
-stopped_at: v2.0 milestone complete
-last_updated: "2026-03-14T16:58:41.110Z"
-last_activity: 2026-03-14 -- v2.0 shipped
+milestone: v2.1
+milestone_name: Schema Simplification
+status: in_progress
+stopped_at: Completed 37-01-PLAN.md (Schema models and dispatch simplification)
+last_updated: "2026-03-14T20:45:56Z"
+last_activity: 2026-03-14 -- Phase 37 Plan 01 executed
 progress:
-  total_phases: 8
-  completed_phases: 5
-  total_plans: 7
-  completed_plans: 5
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v2.0 PR Integration -- SHIPPED
+**Current focus:** v2.1 Schema Simplification
 
 ## Current Position
 
-Milestone: v2.0 PR Integration -- COMPLETE
-Phase: 36 of 36 (PR Comment UX Polish) -- COMPLETE
-Plan 01: COMPLETE (code changes deployed)
-Plan 02: COMPLETE (E2E validation passed -- all 6 UX changes validated on PR #4)
-Last activity: 2026-03-14 -- v2.0 shipped
+Milestone: v2.1 Schema Simplification
+Phase: 37 (Schema Simplification)
+Plan 01: COMPLETE (schema models, dispatch models, trigger builder, tests)
+Plan 02: Pending (action deploy code, composite actions, docs, ferry-test-app)
+Last activity: 2026-03-14 -- Phase 37 Plan 01 executed
 
 ```
-v2.0 Progress: [██████████] 100%
+v2.1 Progress: [#####-----] 1/2 plans
 ```
 
 ## Shipped Milestones
@@ -82,6 +82,14 @@ v2.0 Progress: [██████████] 100%
 - Dedup key for workflow_run includes action (requested vs completed are distinct events)
 - find_merged_pr falls back to state=closed when merged_at not yet propagated (GitHub API race condition)
 
+### Key Decisions (v2.1 Schema Simplification)
+
+- LambdaConfig.name IS the AWS function name -- no separate function_name field
+- StepFunctionConfig.name IS the AWS state machine name -- no separate state_machine_name field
+- mode="before" backward-compat validators silently strip deprecated fields before extra="forbid" sees them
+- StepFunctionConfig: when name and state_machine_name both present and differ, state_machine_name wins (it is the AWS name)
+- Matrix output still emits function_name/state_machine_name keys (set to name) for composite action compat until Plan 02
+
 ### Carry-forward Concerns
 
 - Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
@@ -104,9 +112,9 @@ v2.0 Progress: [██████████] 100%
 ## Session Continuity
 
 Last session: 2026-03-14
-Stopped at: v2.0 milestone complete
+Stopped at: Completed 37-01-PLAN.md (Schema models and dispatch simplification)
 
 ### What to do next
 
-1. **Phase 37**: Schema Simplification (v2.1) -- `name` becomes the AWS resource name
+1. **Phase 37 Plan 02**: Action deploy code, composite actions, docs, ferry-test-app migration
 2. **Multi-tenant / other orgs** (v2+)
