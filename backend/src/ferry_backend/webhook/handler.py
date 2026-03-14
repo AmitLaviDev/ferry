@@ -738,24 +738,26 @@ def _handle_workflow_run(payload: dict, repo: str) -> dict:
         )
         github_client.installation_auth(inst_token)
 
-        # Fetch run details to get dispatch inputs
-        run_resp = github_client.get(f"/repos/{repo}/actions/runs/{run_id}")
-        run_data = run_resp.json()
-        inputs = run_data.get("inputs") or {}
-        payload_json = inputs.get("payload", "{}")
-        dispatch_data = json.loads(payload_json)
-        trigger_sha = dispatch_data.get("trigger_sha", "")
-        pr_number_str = dispatch_data.get("pr_number", "")
+        # Correlate run → PR via head_sha → commit/pulls API
+        trigger_sha = wf_run.get("head_sha", "")
+        if not trigger_sha:
+            log.info("workflow_run_no_head_sha")
+            return _response(200, {"status": "ignored", "reason": "no head_sha"})
 
-        if not trigger_sha or not pr_number_str:
+        prs_resp = github_client.get(f"/repos/{repo}/commits/{trigger_sha}/pulls")
+        pr_number = None
+        if prs_resp.status_code == 200:
+            for pr in prs_resp.json():
+                pr_number = pr["number"]
+                if pr.get("state") == "open":
+                    break  # prefer open PR
+
+        if pr_number is None:
             log.info(
                 "workflow_run_no_correlation",
-                trigger_sha=trigger_sha,
-                pr_number=pr_number_str,
+                trigger_sha=trigger_sha[:7],
             )
             return _response(200, {"status": "ignored", "reason": "no correlation data"})
-
-        pr_number = int(pr_number_str)
 
         # Find and update deploy comment
         existing = find_deploy_comment(github_client, repo, pr_number)

@@ -79,6 +79,7 @@ def _make_workflow_run_event(
     path: str = ".github/workflows/ferry.yml",
     action: str = "completed",
     delivery_id: str = "delivery-wr-001",
+    head_sha: str = "abc123",
 ) -> dict:
     """Build a Lambda Function URL event dict for a workflow_run webhook."""
     payload = {
@@ -88,6 +89,7 @@ def _make_workflow_run_event(
             "conclusion": conclusion,
             "event": event,
             "path": path,
+            "head_sha": head_sha,
             "html_url": f"https://github.com/owner/repo/actions/runs/{run_id}",
         },
         "repository": {
@@ -117,31 +119,25 @@ def _mock_installation_token(httpx_mock):
     )
 
 
-def _mock_fetch_run(httpx_mock, run_id=12345, trigger_sha="abc123", pr_number="42"):
-    """Mock GET /actions/runs/{run_id} returning dispatch inputs."""
-    from ferry_utils.models.dispatch import BatchedDispatchPayload, LambdaResource
-
-    payload = BatchedDispatchPayload(
-        lambdas=[
-            LambdaResource(
-                name="order",
-                source="services/order",
-                ecr="ferry/order",
-                function_name="order",
-                runtime="python3.14",
-            ),
-        ],
-        trigger_sha=trigger_sha,
-        deployment_tag=f"pr-{pr_number}",
-        pr_number=pr_number,
-        mode="deploy",
-    )
+def _mock_commits_pulls(httpx_mock, trigger_sha="abc123", pr_number=42, state="open"):
+    """Mock GET /repos/{repo}/commits/{sha}/pulls returning associated PRs."""
     httpx_mock.add_response(
-        url=f"https://api.github.com/repos/owner/repo/actions/runs/{run_id}",
-        json={
-            "id": run_id,
-            "inputs": {"payload": payload.model_dump_json()},
-        },
+        url=f"https://api.github.com/repos/owner/repo/commits/{trigger_sha}/pulls",
+        json=[
+            {
+                "number": pr_number,
+                "state": state,
+                "merged_at": None if state == "open" else "2026-01-01T00:00:00Z",
+            }
+        ],
+    )
+
+
+def _mock_commits_pulls_empty(httpx_mock, trigger_sha="abc123"):
+    """Mock GET /repos/{repo}/commits/{sha}/pulls returning no PRs."""
+    httpx_mock.add_response(
+        url=f"https://api.github.com/repos/owner/repo/commits/{trigger_sha}/pulls",
+        json=[],
     )
 
 
@@ -179,12 +175,12 @@ def _mock_update_deploy_comment(httpx_mock, comment_id=300):
 
 class TestWorkflowRun:
     def test_completed_success_updates_deploy_comment(self, dynamodb_env, httpx_mock):
-        """workflow_run completed success -> fetches inputs, finds comment, PATCHes."""
+        """workflow_run completed success -> finds PR via commit, finds comment, PATCHes."""
         trigger_sha = "abc123"
-        event = _make_workflow_run_event(conclusion="success")
+        event = _make_workflow_run_event(conclusion="success", head_sha=trigger_sha)
 
         _mock_installation_token(httpx_mock)
-        _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
+        _mock_commits_pulls(httpx_mock, trigger_sha=trigger_sha)
         _mock_find_deploy_comment(httpx_mock, trigger_sha=trigger_sha)
         _mock_update_deploy_comment(httpx_mock)
 
@@ -209,10 +205,12 @@ class TestWorkflowRun:
     def test_completed_failure_updates_deploy_comment(self, dynamodb_env, httpx_mock):
         """workflow_run completed failure -> PATCHes with failure status."""
         trigger_sha = "def456"
-        event = _make_workflow_run_event(conclusion="failure", delivery_id="delivery-wr-002")
+        event = _make_workflow_run_event(
+            conclusion="failure", delivery_id="delivery-wr-002", head_sha=trigger_sha
+        )
 
         _mock_installation_token(httpx_mock)
-        _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
+        _mock_commits_pulls(httpx_mock, trigger_sha=trigger_sha)
         _mock_find_deploy_comment(httpx_mock, trigger_sha=trigger_sha)
         _mock_update_deploy_comment(httpx_mock)
 
@@ -266,15 +264,12 @@ class TestWorkflowRun:
         assert "not completed" in body["reason"]
 
     def test_no_correlation_data_ignored(self, dynamodb_env, httpx_mock):
-        """workflow_run where inputs.payload has no trigger_sha -> ignored."""
-        event = _make_workflow_run_event(delivery_id="delivery-wr-006")
+        """workflow_run where commit has no associated PRs -> ignored."""
+        trigger_sha = "orphan123"
+        event = _make_workflow_run_event(delivery_id="delivery-wr-006", head_sha=trigger_sha)
 
         _mock_installation_token(httpx_mock)
-        # Return run with empty inputs
-        httpx_mock.add_response(
-            url="https://api.github.com/repos/owner/repo/actions/runs/12345",
-            json={"id": 12345, "inputs": {"payload": "{}"}},
-        )
+        _mock_commits_pulls_empty(httpx_mock, trigger_sha=trigger_sha)
 
         from ferry_backend.webhook.handler import handler
 
@@ -286,10 +281,10 @@ class TestWorkflowRun:
     def test_deploy_comment_not_found_logs_warning(self, dynamodb_env, httpx_mock):
         """workflow_run where no deploy comment exists -> processes without error."""
         trigger_sha = "ghi789"
-        event = _make_workflow_run_event(delivery_id="delivery-wr-007")
+        event = _make_workflow_run_event(delivery_id="delivery-wr-007", head_sha=trigger_sha)
 
         _mock_installation_token(httpx_mock)
-        _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
+        _mock_commits_pulls(httpx_mock, trigger_sha=trigger_sha)
         _mock_find_no_deploy_comment(httpx_mock)
 
         from ferry_backend.webhook.handler import handler
@@ -306,10 +301,10 @@ class TestWorkflowRun:
     def test_sha_mismatch_skips_update(self, dynamodb_env, httpx_mock):
         """workflow_run where deploy comment has different SHA -> no update."""
         trigger_sha = "abc123"
-        event = _make_workflow_run_event(delivery_id="delivery-wr-008")
+        event = _make_workflow_run_event(delivery_id="delivery-wr-008", head_sha=trigger_sha)
 
         _mock_installation_token(httpx_mock)
-        _mock_fetch_run(httpx_mock, trigger_sha=trigger_sha)
+        _mock_commits_pulls(httpx_mock, trigger_sha=trigger_sha)
         # Deploy comment has a DIFFERENT sha (newer /ferry apply ran)
         _mock_find_deploy_comment(httpx_mock, trigger_sha="def456def456789")
 
