@@ -46,6 +46,7 @@ def get_installation_token(
                     "checks": "write",
                     "actions": "write",
                     "issues": "write",
+                    "pull_requests": "write",
                 }
             },
         )
