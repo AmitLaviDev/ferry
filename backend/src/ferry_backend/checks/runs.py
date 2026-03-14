@@ -176,9 +176,10 @@ def find_merged_pr(
 ) -> dict | None:
     """Find the merged PR associated with a commit SHA.
 
-    Uses the same endpoint as find_open_prs but filters by merged_at
-    instead of state=="open". This handles the case where a PR is already
-    merged/closed (e.g., config error on default branch push).
+    Uses the same endpoint as find_open_prs but filters for merged/closed
+    PRs instead of state=="open". Accepts PRs with ``merged_at`` set OR
+    ``state=="closed"`` to handle the GitHub API race condition where
+    ``merged_at`` may not be populated within seconds of a merge.
 
     Args:
         client: Authenticated GitHubClient with installation token.
@@ -186,7 +187,7 @@ def find_merged_pr(
         sha: Commit SHA to find the merged PR for.
 
     Returns:
-        The first merged PR dict, or None if no merged PR found.
+        The first merged/closed PR dict, or None if no merged PR found.
     """
     resp = client.get(f"/repos/{repo}/commits/{sha}/pulls")
     if resp.status_code != 200:
@@ -198,10 +199,15 @@ def find_merged_pr(
         )
         return None
     prs = resp.json()
+    # Prefer PR with merged_at set; fall back to state=="closed"
+    # (handles race where merged_at not yet propagated)
+    closed_fallback = None
     for pr in prs:
         if pr.get("merged_at") is not None:
             return pr
-    return None
+        if pr.get("state") == "closed" and closed_fallback is None:
+            closed_fallback = pr
+    return closed_fallback
 
 
 def post_pr_comment(

@@ -242,12 +242,26 @@ class TestFindMergedPr:
         assert result is not None
         assert result["number"] == 42
 
-    def test_find_merged_pr_returns_none_when_no_merged(self, httpx_mock):
-        """Returns None when no PRs have merged_at set."""
+    def test_find_merged_pr_falls_back_to_closed(self, httpx_mock):
+        """Falls back to state=closed PR when merged_at not yet set (race condition)."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
             json=[
                 {"number": 10, "state": "closed", "merged_at": None},
+                {"number": 11, "state": "open", "merged_at": None},
+            ],
+        )
+
+        client = GitHubClient()
+        result = find_merged_pr(client, "owner/repo", "sha123")
+        assert result is not None
+        assert result["number"] == 10
+
+    def test_find_merged_pr_returns_none_when_only_open(self, httpx_mock):
+        """Returns None when all PRs are open (no merged/closed)."""
+        httpx_mock.add_response(
+            url=("https://api.github.com/repos/owner/repo/commits/sha123/pulls"),
+            json=[
                 {"number": 11, "state": "open", "merged_at": None},
             ],
         )
