@@ -152,9 +152,9 @@ def _mock_find_deploy_comment(httpx_mock, pr_number=42, trigger_sha="abc123", co
     deploy_body = (
         f"{deploy_marker}\n{sha_marker}\n"
         f"## \U0001f6a2 Ferry: Deploying \u2192 **default** at `{trigger_sha[:7]}`\n\n"
-        "| Resource | Type | Status |\n"
-        "|----------|------|--------|\n"
-        "| **order** | Lambda | \u23f3 |"
+        "| Type | Resource | Status |\n"
+        "|------|----------|--------|\n"
+        "| Lambda | **order** | \u23f3 |"
     )
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/{pr_number}/comments?per_page=100&page=1",

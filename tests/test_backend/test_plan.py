@@ -1,7 +1,7 @@
 """Tests for PR plan comment formatting, command parsing, and deploy comment functions.
 
 Tests cover:
-- format_plan_comment: table format with resource details, with/without config/env
+- format_plan_comment: table format (Type | Resource), with/without env
 - format_no_changes_comment: output shape
 - resolve_environment: match, no match, empty, first match
 - parse_ferry_command: plan, apply, case-insensitive, trailing text, invalid inputs
@@ -25,47 +25,9 @@ from ferry_backend.checks.plan import (
     parse_ferry_command,
     resolve_environment,
 )
-from ferry_backend.config.schema import (
-    ApiGatewayConfig,
-    EnvironmentMapping,
-    FerryConfig,
-    LambdaConfig,
-    StepFunctionConfig,
-)
+from ferry_backend.config.schema import EnvironmentMapping, FerryConfig
 from ferry_backend.detect.changes import AffectedResource
 from ferry_backend.github.client import GitHubClient
-
-
-def _test_config() -> FerryConfig:
-    """Minimal FerryConfig for formatter tests."""
-    return FerryConfig(
-        lambdas=[
-            LambdaConfig(
-                name="order-processor",
-                source_dir="services/order-processor",
-                ecr_repo="ferry/order-processor",
-                function_name="order-fn",
-            ),
-        ],
-        step_functions=[
-            StepFunctionConfig(
-                name="checkout-flow",
-                source_dir="workflows/checkout",
-                state_machine_name="checkout-sm",
-                definition_file="definition.json",
-            ),
-        ],
-        api_gateways=[
-            ApiGatewayConfig(
-                name="public-api",
-                source_dir="api",
-                rest_api_id="abc123",
-                stage_name="prod",
-                spec_file="openapi.yaml",
-            ),
-        ],
-    )
-
 
 # ---------------------------------------------------------------------------
 # format_plan_comment
@@ -73,27 +35,8 @@ def _test_config() -> FerryConfig:
 
 
 class TestFormatPlanComment:
-    def test_single_lambda_with_config(self):
-        """Single modified lambda shows table with resource details."""
-        affected = [
-            AffectedResource(
-                name="order-processor",
-                resource_type="lambda",
-                change_kind="modified",
-                changed_files=("services/order-processor/main.py",),
-            ),
-        ]
-        body = format_plan_comment(affected, config=_test_config())
-        assert body.startswith("## ")
-        assert "## \U0001f6a2 Ferry: Deployment Plan" in body
-        assert "| Resource | Type | Details |" in body
-        assert "| **order-processor** | Lambda |" in body
-        assert "`order-fn`" in body
-        assert "`ferry/order-processor`" in body
-        assert "Deploy with `/ferry apply` or merge." in body
-
-    def test_single_lambda_without_config(self):
-        """Without config, shows change_kind as fallback detail."""
+    def test_single_lambda(self):
+        """Single modified lambda shows in table with Type first."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -103,7 +46,11 @@ class TestFormatPlanComment:
             ),
         ]
         body = format_plan_comment(affected)
-        assert "| **order-processor** | Lambda | _(modified)_ |" in body
+        assert body.startswith("## ")
+        assert "## \U0001f6a2 Ferry: Deployment Plan" in body
+        assert "| Type | Resource |" in body
+        assert "| Lambda | **order-processor** |" in body
+        assert "Deploy with `/ferry apply` or merge." in body
 
     def test_multiple_types(self):
         """Multiple resource types in table with correct type ordering."""
@@ -127,16 +74,13 @@ class TestFormatPlanComment:
                 changed_files=("api/openapi.yaml",),
             ),
         ]
-        body = format_plan_comment(affected, config=_test_config())
-        assert "| **order-processor** | Lambda |" in body
-        assert "| **checkout-flow** | Step Function |" in body
-        assert "| **public-api** | API Gateway |" in body
+        body = format_plan_comment(affected)
+        assert "| Lambda | **order-processor** |" in body
+        assert "| Step Function | **checkout-flow** |" in body
+        assert "| API Gateway | **public-api** |" in body
         # Stable ordering: lambda < step_function < api_gateway
         assert body.index("Lambda") < body.index("Step Function")
         assert body.index("Step Function") < body.index("API Gateway")
-        # Verify detail strings
-        assert "`checkout-sm`" in body
-        assert "`abc123` / stage `prod`" in body
 
     def test_with_environment(self):
         """Environment mapping shown in header and footer."""
@@ -369,9 +313,9 @@ class TestFormatApplyComment:
         ]
         env = EnvironmentMapping(name="staging", branch="develop")
         body = format_apply_comment(affected, env, "abc123", pr_number=42)
-        assert "| Resource | Type | Status |" in body
-        assert "| **order-processor**" in body
-        assert "| **checkout-flow**" in body
+        assert "| Type | Resource | Status |" in body
+        assert "| Lambda | **order-processor** |" in body
+        assert "| Step Function | **checkout-flow** |" in body
         assert "\u23f3" in body  # hourglass
 
     def test_environment_name(self):
@@ -439,9 +383,9 @@ class TestFormatApplyStatusUpdate:
             "<!-- ferry:deploy:42 -->\n"
             "<!-- ferry:sha:abc123 -->\n"
             "## \U0001f6a2 Ferry: Deploying \u2192 **staging** at `abc123d`\n\n"
-            "| Resource | Type | Status |\n"
-            "|----------|------|--------|\n"
-            "| **order** | Lambda | \u23f3 |"
+            "| Type | Resource | Status |\n"
+            "|------|----------|--------|\n"
+            "| Lambda | **order** | \u23f3 |"
         )
 
     def test_success(self):

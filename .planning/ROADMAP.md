@@ -9,6 +9,7 @@
 - v1.4 Unified Workflow -- Phases 22-24 (shipped 2026-03-10)
 - v1.5 Batched Dispatch -- Phases 25-28 (shipped 2026-03-11)
 - v2.0 PR Integration -- Phases 29-36 (in progress)
+- v2.1 Schema Simplification -- Phase 37 (planned)
 
 ## Phases
 
@@ -100,7 +101,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 - [x] **Phase 33: Action v3 Parsing and Outputs** (1/1 plan) - Setup action parses v3 payload, outputs mode and environment with backward compatibility
 - [x] **Phase 34: Workflow Template and GitHub Environments** (1/1 plan) - Updated ferry.yml template with environment: key, mode guard, and docs
 - [x] **Phase 35: E2E Validation** (1/1 plan) - Full PR lifecycle proven: plan comment, /ferry apply, merge deploy, environment secrets, negative test
-- [ ] **Phase 36: PR Comment UX Polish** - Sticky deploy comment with per-resource status table, boat emoji, explicit resource details in plan/apply comments, fix footer text
+- [ ] **Phase 36: PR Comment UX Polish** (2/2 plans) - Sticky deploy comment with per-resource status table, explicit resource details in plan/apply comments, fix footer text
 
 ## Phase Details
 
@@ -192,6 +193,23 @@ Plans:
   5. Existing push-to-deploy behavior (no environments configured) still works with the v2.0 codebase
 **Plans**: TBD
 
+### v2.1 Schema Simplification (Phase 37)
+
+**Milestone Goal:** Eliminate redundant field duplication in ferry.yaml -- `name` becomes the AWS resource name, removing `function_name`, `state_machine_name`, and similar fields.
+
+### Phase 37: Schema Simplification
+**Goal**: `name` in ferry.yaml IS the AWS resource name -- no separate `function_name` / `state_machine_name` fields
+**Depends on**: Phase 36
+**Requirements**: SCHEMA-01
+**Success Criteria** (what must be TRUE):
+  1. `LambdaConfig.name` is used as the AWS Lambda function name (no `function_name` field)
+  2. `StepFunctionConfig.name` is used as the state machine name (no `state_machine_name` field)
+  3. `ApiGatewayConfig` keeps `rest_api_id` and `stage_name` (these are AWS IDs, not names)
+  4. ferry-action deploy code uses `.name` instead of `.function_name` / `.state_machine_name`
+  5. ferry.yaml parsing handles backward compatibility (accept old field names as aliases during migration)
+  6. All existing tests updated, ferry-test-app ferry.yaml migrated
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -224,4 +242,5 @@ Plans:
 | 33. Action v3 Parsing and Outputs | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
-| 36. PR Comment UX Polish | v2.0 | 0/? | Not started | - |
+| 36. PR Comment UX Polish | v2.0 | 0/2 | Not started | - |
+| 37. Schema Simplification | v2.1 | 0/0 | Planned | - |

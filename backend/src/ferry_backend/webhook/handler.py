@@ -260,7 +260,7 @@ def handler(event: dict, context: object) -> dict:
             merged_pr = find_merged_pr(github_client, repo, after_sha)
             if merged_pr:
                 deploy_body = format_apply_comment(
-                    affected, environment, after_sha, merged_pr["number"], config
+                    affected, environment, after_sha, merged_pr["number"]
                 )
                 existing_deploy = find_deploy_comment(github_client, repo, merged_pr["number"])
                 if existing_deploy:
@@ -398,7 +398,7 @@ def _handle_pull_request(payload: dict, repo: str) -> dict:
         # Plan comment (new comment per event, not sticky)
         environment = resolve_environment(config, base_branch)
         if affected:
-            comment_body = format_plan_comment(affected, environment, config)
+            comment_body = format_plan_comment(affected, environment)
         else:
             comment_body = format_no_changes_comment()
         post_pr_comment(github_client, repo, pr_number, comment_body)
@@ -613,9 +613,7 @@ def _handle_plan_command(
         Lambda Function URL response dict.
     """
     comment_body = (
-        format_plan_comment(affected, environment, config)
-        if affected
-        else format_no_changes_comment()
+        format_plan_comment(affected, environment) if affected else format_no_changes_comment()
     )
     post_pr_comment(github_client, repo, pr_number, comment_body)
     create_check_run(github_client, repo, head_sha, affected, no_change_conclusion="neutral")
@@ -670,7 +668,7 @@ def _handle_apply_command(
         head_ref=head_sha,
         base_ref=base_branch,
     )
-    body = format_apply_comment(affected, environment, head_sha, pr_number, config)
+    body = format_apply_comment(affected, environment, head_sha, pr_number)
     existing = find_deploy_comment(github_client, repo, pr_number)
     if existing:
         update_pr_comment(github_client, repo, existing["id"], body)

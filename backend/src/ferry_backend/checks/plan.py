@@ -36,42 +36,6 @@ _TYPE_ORDER: dict[str, int] = {"lambda": 0, "step_function": 1, "api_gateway": 2
 FERRY_EMOJI = "\U0001f6a2"
 
 
-def _resource_detail(
-    name: str,
-    resource_type: str,
-    config: FerryConfig | None,
-) -> str:
-    """Look up type-specific detail string for a resource.
-
-    Args:
-        name: Resource name from AffectedResource.
-        resource_type: One of "lambda", "step_function", "api_gateway".
-        config: FerryConfig for field lookup. None returns empty string.
-
-    Returns:
-        Detail string: e.g. "`func-name` / `ecr-repo`" for lambdas.
-    """
-    if config is None:
-        return ""
-
-    if resource_type == "lambda":
-        for lam in config.lambdas:
-            if lam.name == name:
-                return f"`{lam.function_name}` / `{lam.ecr_repo}`"
-
-    elif resource_type == "step_function":
-        for sf in config.step_functions:
-            if sf.name == name:
-                return f"`{sf.state_machine_name}`"
-
-    elif resource_type == "api_gateway":
-        for ag in config.api_gateways:
-            if ag.name == name:
-                return f"`{ag.rest_api_id}` / stage `{ag.stage_name}`"
-
-    return ""
-
-
 # ---------------------------------------------------------------------------
 # Command parsing
 # ---------------------------------------------------------------------------
@@ -133,14 +97,12 @@ def resolve_environment(
 def format_plan_comment(
     affected: list[AffectedResource],
     environment: EnvironmentMapping | None = None,
-    config: FerryConfig | None = None,
 ) -> str:
     """Format a branded plan comment for a PR.
 
     Args:
         affected: List of AffectedResource from change detection.
         environment: Optional environment mapping for the target branch.
-        config: Optional FerryConfig for resource detail lookup.
 
     Returns:
         Markdown body for the PR comment.
@@ -156,14 +118,12 @@ def format_plan_comment(
     parts.append("")
 
     # Resource table
-    parts.append("| Resource | Type | Details |")
-    parts.append("|----------|------|---------|")
+    parts.append("| Type | Resource |")
+    parts.append("|------|----------|")
 
     for resource in sorted(affected, key=lambda r: _TYPE_ORDER.get(r.resource_type, 99)):
         display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
-        detail = _resource_detail(resource.name, resource.resource_type, config)
-        detail_cell = detail if detail else f"_({resource.change_kind})_"
-        parts.append(f"| **{resource.name}** | {display_type} | {detail_cell} |")
+        parts.append(f"| {display_type} | **{resource.name}** |")
 
     parts.append("")
 
@@ -208,7 +168,6 @@ def format_apply_comment(
     environment: EnvironmentMapping | None,
     head_sha: str,
     pr_number: int,
-    config: FerryConfig | None = None,
 ) -> str:
     """Format a deploy-triggered comment for a PR.
 
@@ -221,7 +180,6 @@ def format_apply_comment(
         environment: Optional environment mapping (for display name).
         head_sha: Commit SHA being deployed (used in SHA marker and display).
         pr_number: PR number (used in deploy marker).
-        config: Optional FerryConfig for resource detail lookup.
 
     Returns:
         Markdown body for the deploy comment.
@@ -235,17 +193,13 @@ def format_apply_comment(
         sha_marker,
         f"## {FERRY_EMOJI} Ferry: Deploying \u2192 **{env_name}** at `{head_sha[:7]}`",
         "",
-        "| Resource | Type | Status |",
-        "|----------|------|--------|",
+        "| Type | Resource | Status |",
+        "|------|----------|--------|",
     ]
 
     for resource in sorted(affected, key=lambda r: _TYPE_ORDER.get(r.resource_type, 99)):
         display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
-        detail = _resource_detail(resource.name, resource.resource_type, config)
-        name_cell = f"**{resource.name}**"
-        if detail:
-            name_cell += f" ({detail})"
-        parts.append(f"| {name_cell} | {display_type} | \u23f3 |")
+        parts.append(f"| {display_type} | **{resource.name}** | \u23f3 |")
 
     return "\n".join(parts)
 
