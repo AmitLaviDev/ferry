@@ -220,8 +220,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-sfn")
-        monkeypatch.setenv("INPUT_STATE_MACHINE_NAME", STATE_MACHINE_NAME)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", STATE_MACHINE_NAME)
         monkeypatch.setenv("INPUT_DEFINITION_FILE", "definition.asl.json")
         monkeypatch.setenv("INPUT_SOURCE_DIR", str(source_dir))
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -261,8 +260,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-sfn")
-        monkeypatch.setenv("INPUT_STATE_MACHINE_NAME", STATE_MACHINE_NAME)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", STATE_MACHINE_NAME)
         monkeypatch.setenv("INPUT_DEFINITION_FILE", "definition.asl.json")
         monkeypatch.setenv("INPUT_SOURCE_DIR", str(source_dir))
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -305,8 +303,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-sfn")
-        monkeypatch.setenv("INPUT_STATE_MACHINE_NAME", STATE_MACHINE_NAME)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", STATE_MACHINE_NAME)
         monkeypatch.setenv("INPUT_DEFINITION_FILE", "definition.asl.json")
         monkeypatch.setenv("INPUT_SOURCE_DIR", str(source_dir))
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -353,8 +350,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-sfn")
-        monkeypatch.setenv("INPUT_STATE_MACHINE_NAME", STATE_MACHINE_NAME)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", STATE_MACHINE_NAME)
         monkeypatch.setenv("INPUT_DEFINITION_FILE", "definition.asl.json")
         monkeypatch.setenv("INPUT_SOURCE_DIR", str(source_dir))
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -394,8 +390,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-sfn")
-        monkeypatch.setenv("INPUT_STATE_MACHINE_NAME", "nonexistent-machine")
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "nonexistent-machine")
         monkeypatch.setenv("INPUT_DEFINITION_FILE", "definition.asl.json")
         monkeypatch.setenv("INPUT_SOURCE_DIR", str(source_dir))
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")

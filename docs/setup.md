@@ -35,11 +35,10 @@ environments:
 
 # Lambda functions: build container images and deploy to AWS Lambda
 lambdas:
-  - name: order-processor            # Logical name (used for logging and display)
+  - name: order-processor            # AWS Lambda function name (used for display and deploy)
     source_dir: services/order        # Path to source code, relative to repo root
     ecr_repo: myorg/order-processor   # Pre-existing ECR repository name
     runtime: python3.14               # Optional: Python runtime version (default: python3.14)
-    function_name: order-processor    # Optional: AWS Lambda function name (defaults to name)
 
   - name: notification-sender
     source_dir: services/notify
@@ -47,9 +46,8 @@ lambdas:
 
 # Step Functions state machines: deploy ASL definitions with variable substitution
 step_functions:
-  - name: order-workflow              # Logical name
+  - name: OrderWorkflow              # AWS state machine name
     source_dir: workflows/order       # Directory containing the definition file
-    state_machine_name: OrderWorkflow # AWS state machine name
     definition_file: definition.asl.json  # ASL definition file, relative to source_dir
 
 # API Gateway REST APIs: deploy OpenAPI specs
@@ -60,6 +58,8 @@ api_gateways:
     stage_name: prod                  # Deployment stage name
     spec_file: openapi.yaml           # OpenAPI spec file, relative to source_dir
 ```
+
+`name` is used as the AWS resource name. For Lambdas, it is the Lambda function name. For Step Functions, it is the state machine name. For API Gateways, it is a logical identifier (the REST API ID and stage are separate fields).
 
 ### Environments
 
@@ -151,7 +151,6 @@ jobs:
         uses: AmitLaviDev/ferry/action/deploy@main
         with:
           resource-name: ${{ matrix.name }}
-          function-name: ${{ matrix.function_name }}
           image-uri: ${{ steps.build.outputs.image-uri }}
           image-digest: ${{ steps.build.outputs.image-digest }}
           deployment-tag: ${{ matrix.deployment_tag }}
@@ -178,7 +177,6 @@ jobs:
         uses: AmitLaviDev/ferry/action/deploy-stepfunctions@main
         with:
           resource-name: ${{ matrix.name }}
-          state-machine-name: ${{ matrix.state_machine_name }}
           definition-file: ${{ matrix.definition_file }}
           source-dir: ${{ matrix.source }}
           trigger-sha: ${{ matrix.trigger_sha }}
@@ -224,6 +222,8 @@ If you previously used Ferry v1.5 (batched dispatch without environments), updat
 - **Deploy guards**: Each deploy job's `if:` now includes `&& needs.setup.outputs.mode == 'deploy'`
 - **Environment injection**: Each deploy job has `environment: ${{ needs.setup.outputs.environment }}`
 - **Run name**: Now shows the target environment (e.g., "Ferry Deploy: lambda → staging")
+
+- **Schema simplification**: `function_name` (Lambdas) and `state_machine_name` (Step Functions) are removed from ferry.yaml. `name` is now the AWS resource name directly. Old ferry.yaml files with these fields still parse (backward compatible), but you should update them.
 
 The setup action is backward compatible -- v1.5 payloads (without mode/environment) still work with defaults (`mode="deploy"`, `environment=""`). An empty environment string is a no-op in GHA; the job runs normally without Environment-level secrets.
 

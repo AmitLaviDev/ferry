@@ -118,16 +118,16 @@ class TestBuildMatrix:
         assert first["name"] == "order-processor"
         assert first["source"] == "services/order-processor"
         assert first["ecr"] == "ferry/order-processor"
-        assert first["function_name"] == "order-processor"
         assert first["trigger_sha"] == "abc1234def5678"
         assert first["deployment_tag"] == "pr-42"
         assert first["runtime"] == "python3.14"
+        assert "function_name" not in first
 
         second = result["include"][1]
         assert second["name"] == "email-sender"
         assert second["source"] == "services/email-sender"
         assert second["ecr"] == "ferry/email-sender"
-        assert second["function_name"] == "email-sender"
+        assert "function_name" not in second
 
     def test_parse_single_resource(self) -> None:
         """Single Lambda resource produces matrix with one include entry."""
@@ -226,18 +226,17 @@ class TestBuildMatrix:
             assert entry["trigger_sha"] == "deadbeef12345678"
             assert entry["deployment_tag"] == "pr-99"
 
-    def test_lambda_matrix_includes_function_name(self) -> None:
-        """function_name key appears in lambda matrix output, equal to name."""
+    def test_lambda_matrix_no_function_name_key(self) -> None:
+        """function_name key is NOT in lambda matrix output; name IS the function name."""
         payload_str = _make_payload()
         result = build_matrix(payload_str)
 
         first = result["include"][0]
-        assert "function_name" in first
-        assert first["function_name"] == "order-processor"
-        assert first["function_name"] == first["name"]
+        assert "function_name" not in first
+        assert first["name"] == "order-processor"
 
     def test_lambda_matrix_name_is_aws_function_name(self) -> None:
-        """name IS the AWS function name; function_name matrix key mirrors it."""
+        """name IS the AWS function name directly."""
         resources = [
             {
                 "resource_type": "lambda",
@@ -252,7 +251,7 @@ class TestBuildMatrix:
 
         entry = result["include"][0]
         assert entry["name"] == "order-processor-prod"
-        assert entry["function_name"] == "order-processor-prod"
+        assert "function_name" not in entry
 
     def test_step_function_matrix(self) -> None:
         """Step Function resources produce correct matrix entries."""
@@ -274,10 +273,11 @@ class TestBuildMatrix:
         entry = result["include"][0]
         assert entry["name"] == "checkout-sm"
         assert entry["source"] == "workflows/checkout"
-        assert entry["state_machine_name"] == "checkout-sm"
         assert entry["definition_file"] == "stepfunction.json"
         assert entry["trigger_sha"] == "abc1234def5678"
         assert entry["deployment_tag"] == "pr-42"
+        # No state_machine_name key; name IS the state machine name
+        assert "state_machine_name" not in entry
         # Lambda-specific fields must NOT be present
         assert "ecr" not in entry
         assert "runtime" not in entry
@@ -378,10 +378,10 @@ class TestParsePayloadV2:
         assert entry["name"] == "order-processor"
         assert entry["source"] == "services/order-processor"
         assert entry["ecr"] == "ferry/order-processor"
-        assert entry["function_name"] == "order-processor"
         assert entry["trigger_sha"] == "abc1234def5678"
         assert entry["deployment_tag"] == "pr-42"
         assert entry["runtime"] == "python3.14"
+        assert "function_name" not in entry
 
     def test_v2_sf_matrix_fields(self) -> None:
         """V2 step function matrix entry has correct fields, no lambda fields."""
@@ -389,10 +389,10 @@ class TestParsePayloadV2:
         entry = result.sf_matrix["include"][0]
         assert entry["name"] == "checkout-sm"
         assert entry["source"] == "workflows/checkout"
-        assert entry["state_machine_name"] == "checkout-sm"
         assert entry["definition_file"] == "stepfunction.json"
         assert entry["trigger_sha"] == "abc1234def5678"
         assert entry["deployment_tag"] == "pr-42"
+        assert "state_machine_name" not in entry
         assert "ecr" not in entry
         assert "runtime" not in entry
 

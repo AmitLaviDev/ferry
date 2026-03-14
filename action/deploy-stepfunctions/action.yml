@@ -3,10 +3,7 @@ description: "Deploy Step Functions state machine definition"
 
 inputs:
   resource-name:
-    description: "Name of the Step Functions resource"
-    required: true
-  state-machine-name:
-    description: "State machine name in AWS"
+    description: "Step Functions resource name (= AWS state machine name)"
     required: true
   definition-file:
     description: "Definition file name relative to source-dir"
@@ -66,7 +63,6 @@ runs:
       shell: bash
       env:
         INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
-        INPUT_STATE_MACHINE_NAME: ${{ inputs.state-machine-name }}
         INPUT_DEFINITION_FILE: ${{ inputs.definition-file }}
         INPUT_SOURCE_DIR: ${{ inputs.source-dir }}
         INPUT_TRIGGER_SHA: ${{ inputs.trigger-sha }}

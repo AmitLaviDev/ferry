@@ -236,8 +236,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", lambda_function)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", lambda_function)
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", current_digest)
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -265,8 +264,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", lambda_function)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", lambda_function)
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:completely-different-digest")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-43")
@@ -300,8 +298,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", lambda_function)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", lambda_function)
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:completely-different-digest")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-43")
@@ -313,59 +310,9 @@ class TestMain:
             main()
 
         summary = summary_file.read_text()
-        assert "my-service" in summary
+        assert lambda_function in summary
         assert "Deployed" in summary or "deployed" in summary
         assert "pr-43" in summary
-
-    def test_missing_function_name_exits(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        moto_aws: None,
-        tmp_path: pytest.TempPathFactory,
-    ) -> None:
-        """Missing INPUT_FUNCTION_NAME causes sys.exit(1) with clear message."""
-        from ferry_action.deploy import main
-
-        output_file = tmp_path / "github_output"
-        output_file.touch()
-        summary_file = tmp_path / "github_summary"
-        summary_file.touch()
-
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.delenv("INPUT_FUNCTION_NAME", raising=False)
-        monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI)
-        monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:abc123")
-        monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
-
-        with pytest.raises(SystemExit, match="1"):
-            main()
-
-    def test_empty_function_name_exits(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        moto_aws: None,
-        tmp_path: pytest.TempPathFactory,
-    ) -> None:
-        """Empty INPUT_FUNCTION_NAME causes sys.exit(1) with clear message."""
-        from ferry_action.deploy import main
-
-        output_file = tmp_path / "github_output"
-        output_file.touch()
-        summary_file = tmp_path / "github_summary"
-        summary_file.touch()
-
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", "")
-        monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI)
-        monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:abc123")
-        monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
-
-        with pytest.raises(SystemExit, match="1"):
-            main()
 
     def test_resource_not_found_error_message(
         self,
@@ -383,8 +330,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", "nonexistent-function")
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "nonexistent-function")
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:different")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -397,7 +343,7 @@ class TestMain:
                 main()
 
         captured = capsys.readouterr()
-        assert "Check ferry.yaml function_name" in captured.out
+        assert "Check ferry.yaml name field" in captured.out
 
     def test_resource_not_found_hint_unchanged(
         self,
@@ -406,7 +352,7 @@ class TestMain:
         tmp_path: pytest.TempPathFactory,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """ResourceNotFoundException hint still mentions ferry.yaml."""
+        """ResourceNotFoundException hint mentions ferry.yaml name field."""
         from botocore.exceptions import ClientError
 
         from ferry_action.deploy import main
@@ -416,8 +362,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", "my-func")
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-func")
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:different")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")
@@ -440,7 +385,7 @@ class TestMain:
                 main()
 
         captured = capsys.readouterr()
-        assert "Check ferry.yaml function_name" in captured.out
+        assert "Check ferry.yaml name field" in captured.out
 
     def test_no_unnecessary_masking(
         self,
@@ -457,8 +402,7 @@ class TestMain:
         summary_file = tmp_path / "github_summary"
         summary_file.touch()
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", lambda_function)
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", lambda_function)
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:completely-different-digest")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-43")
@@ -492,8 +436,7 @@ class TestErrorMapping:
         summary_file = tmp_path / "github_summary"  # type: ignore[operator]
         summary_file.write_text("")
 
-        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-service")
-        monkeypatch.setenv("INPUT_FUNCTION_NAME", "my-func")
+        monkeypatch.setenv("INPUT_RESOURCE_NAME", "my-func")
         monkeypatch.setenv("INPUT_IMAGE_URI", IMAGE_URI_V2)
         monkeypatch.setenv("INPUT_IMAGE_DIGEST", "sha256:different")
         monkeypatch.setenv("INPUT_DEPLOYMENT_TAG", "pr-42")

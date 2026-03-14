@@ -3,10 +3,7 @@ description: "Deploy Lambda function from ECR image"
 
 inputs:
   resource-name:
-    description: "Name of the Lambda resource"
-    required: true
-  function-name:
-    description: "Lambda function name in AWS"
+    description: "Lambda resource name (= AWS function name)"
     required: true
   image-uri:
     description: "Full ECR image URI with tag"
@@ -67,7 +64,6 @@ runs:
       shell: bash
       env:
         INPUT_RESOURCE_NAME: ${{ inputs.resource-name }}
-        INPUT_FUNCTION_NAME: ${{ inputs.function-name }}
         INPUT_IMAGE_URI: ${{ inputs.image-uri }}
         INPUT_IMAGE_DIGEST: ${{ inputs.image-digest }}
         INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment-tag }}
