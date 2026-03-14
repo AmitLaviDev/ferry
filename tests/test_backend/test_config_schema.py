@@ -27,20 +27,29 @@ class TestLambdaConfig:
         assert cfg.ecr_repo == "ferry/proc"
 
     def test_lambda_config_defaults(self) -> None:
-        """function_name defaults to name, runtime defaults to python3.14."""
+        """runtime defaults to python3.14."""
         cfg = LambdaConfig(name="proc", source_dir="src/proc", ecr_repo="ferry/proc")
-        assert cfg.function_name == "proc"
         assert cfg.runtime == "python3.14"
 
-    def test_lambda_config_explicit_function_name(self) -> None:
-        """Explicit function_name overrides default."""
-        cfg = LambdaConfig(
-            name="proc",
-            source_dir="src/proc",
-            ecr_repo="ferry/proc",
-            function_name="my-custom-fn",
+    def test_lambda_config_function_name_alias(self) -> None:
+        """Backward-compat: function_name in dict is silently stripped when name present."""
+        cfg = LambdaConfig.model_validate(
+            {
+                "name": "proc",
+                "source_dir": "src/proc",
+                "ecr_repo": "ferry/proc",
+                "function_name": "proc",
+            }
         )
-        assert cfg.function_name == "my-custom-fn"
+        assert cfg.name == "proc"
+        assert not hasattr(cfg, "function_name") or "function_name" not in cfg.model_fields
+
+    def test_lambda_config_function_name_without_name(self) -> None:
+        """Backward-compat: function_name used as name when name is absent."""
+        cfg = LambdaConfig.model_validate(
+            {"function_name": "fn", "source_dir": "s", "ecr_repo": "e"}
+        )
+        assert cfg.name == "fn"
 
     def test_lambda_config_missing_ecr_repo(self) -> None:
         """Missing ecr_repo raises ValidationError."""
@@ -64,24 +73,27 @@ class TestStepFunctionConfig:
     def test_step_function_config_valid(self) -> None:
         """All required fields -> valid model."""
         cfg = StepFunctionConfig(
-            name="workflow",
+            name="my-state-machine",
             source_dir="src/workflow",
-            state_machine_name="my-state-machine",
             definition_file="stepfunction.json",
         )
-        assert cfg.name == "workflow"
+        assert cfg.name == "my-state-machine"
         assert cfg.source_dir == "src/workflow"
-        assert cfg.state_machine_name == "my-state-machine"
         assert cfg.definition_file == "stepfunction.json"
 
-    def test_step_function_config_missing_state_machine_name(self) -> None:
-        """Missing state_machine_name raises ValidationError."""
-        with pytest.raises(ValidationError, match="state_machine_name"):
-            StepFunctionConfig(
-                name="workflow",
-                source_dir="src/workflow",
-                definition_file="stepfunction.json",
-            )  # type: ignore[call-arg]
+    def test_step_function_config_state_machine_name_alias(self) -> None:
+        """Backward-compat: state_machine_name wins over name when both present and differ."""
+        cfg = StepFunctionConfig.model_validate(
+            {"name": "x", "source_dir": "s", "state_machine_name": "y", "definition_file": "d.json"}
+        )
+        assert cfg.name == "y"
+
+    def test_step_function_config_state_machine_name_without_name(self) -> None:
+        """Backward-compat: state_machine_name used as name when name absent."""
+        cfg = StepFunctionConfig.model_validate(
+            {"state_machine_name": "sm", "source_dir": "s", "definition_file": "d.json"}
+        )
+        assert cfg.name == "sm"
 
     def test_step_function_config_missing_definition_file(self) -> None:
         """Missing definition_file raises ValidationError."""
@@ -89,7 +101,6 @@ class TestStepFunctionConfig:
             StepFunctionConfig(
                 name="workflow",
                 source_dir="src/workflow",
-                state_machine_name="my-sm",
             )  # type: ignore[call-arg]
 
 
@@ -187,9 +198,8 @@ class TestFerryConfig:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="b",
+                    name="sm-b",
                     source_dir="s/b",
-                    state_machine_name="sm-b",
                     definition_file="def.json",
                 ),
             ],

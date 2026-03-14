@@ -143,9 +143,8 @@ class TestMatchResources:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout-flow",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="definition.json",
                 )
             ],
@@ -340,9 +339,8 @@ class TestDetectConfigChanges:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout-flow",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="definition.json",
                 )
             ],
@@ -351,7 +349,7 @@ class TestDetectConfigChanges:
         assert len(result) == 2
         assert all(r.change_kind == "new" for r in result)
         names = {r.name for r in result}
-        assert names == {"order-processor", "checkout-flow"}
+        assert names == {"order-processor", "checkout-sm"}
 
     def test_config_change_multiple_types(self):
         """Changes across lambdas and step_functions are both detected."""
@@ -366,9 +364,8 @@ class TestDetectConfigChanges:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout-flow",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="definition.json",
                 )
             ],
@@ -384,9 +381,8 @@ class TestDetectConfigChanges:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout-flow",
+                    name="checkout-sm",
                     source_dir="workflows/checkout-v2",
-                    state_machine_name="checkout-sm",
                     definition_file="definition.json",
                 )
             ],

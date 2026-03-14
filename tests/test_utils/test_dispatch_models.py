@@ -21,14 +21,12 @@ class TestLambdaResource:
             name="my-function",
             source="services/my-function",
             ecr="my-function-repo",
-            function_name="my-function",
             runtime="python3.14",
         )
         assert resource.resource_type == "lambda"
         assert resource.name == "my-function"
         assert resource.source == "services/my-function"
         assert resource.ecr == "my-function-repo"
-        assert resource.function_name == "my-function"
         assert resource.runtime == "python3.14"
 
     def test_lambda_resource_default_type(self):
@@ -36,33 +34,29 @@ class TestLambdaResource:
             name="fn",
             source="src/fn",
             ecr="fn-repo",
-            function_name="fn",
             runtime="python3.14",
         )
         assert resource.resource_type == "lambda"
 
-    def test_lambda_resource_function_name_differs_from_name(self):
-        """function_name can be explicitly different from name (override case)."""
+    def test_lambda_resource_name_is_aws_function_name(self):
+        """name IS the AWS Lambda function name (no separate function_name field)."""
         resource = LambdaResource(
-            name="order",
+            name="order-processor-prod",
             source="services/order",
             ecr="ferry/order",
-            function_name="order-processor-prod",
             runtime="python3.14",
         )
-        assert resource.name == "order"
-        assert resource.function_name == "order-processor-prod"
-        # Verify serialization round-trip preserves distinct values
+        assert resource.name == "order-processor-prod"
         data = resource.model_dump()
-        assert data["name"] == "order"
-        assert data["function_name"] == "order-processor-prod"
+        assert data["name"] == "order-processor-prod"
+        assert "function_name" not in data
         restored = LambdaResource.model_validate(data)
-        assert restored.function_name == "order-processor-prod"
+        assert restored.name == "order-processor-prod"
 
     def test_lambda_resource_missing_runtime_fails(self):
         """Missing runtime raises ValidationError (required field)."""
         with pytest.raises(ValidationError, match="runtime"):
-            LambdaResource(name="fn", source="src/fn", ecr="fn-repo", function_name="fn")  # type: ignore[call-arg]
+            LambdaResource(name="fn", source="src/fn", ecr="fn-repo")  # type: ignore[call-arg]
 
     def test_lambda_resource_custom_runtime(self):
         """Runtime can be any string value (e.g. different Python version)."""
@@ -70,7 +64,6 @@ class TestLambdaResource:
             name="fn",
             source="src/fn",
             ecr="fn-repo",
-            function_name="fn",
             runtime="python3.12",
         )
         assert resource.runtime == "python3.12"
@@ -79,15 +72,13 @@ class TestLambdaResource:
 class TestStepFunctionResource:
     def test_valid_step_function_resource(self):
         resource = StepFunctionResource(
-            name="my-workflow",
+            name="my-sm",
             source="workflows/my-workflow",
-            state_machine_name="my-sm",
             definition_file="stepfunction.json",
         )
         assert resource.resource_type == "step_function"
-        assert resource.name == "my-workflow"
+        assert resource.name == "my-sm"
         assert resource.source == "workflows/my-workflow"
-        assert resource.state_machine_name == "my-sm"
         assert resource.definition_file == "stepfunction.json"
 
 
@@ -116,14 +107,12 @@ class TestDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
                 LambdaResource(
                     name="fn-b",
                     source="services/fn-b",
                     ecr="fn-b-repo",
-                    function_name="fn-b",
                     runtime="python3.14",
                 ),
             ],
@@ -154,7 +143,6 @@ class TestDispatchPayload:
                     name="fn",
                     source="src/fn",
                     ecr="fn-repo",
-                    function_name="fn",
                     runtime="python3.14",
                 ),
             ],
@@ -172,7 +160,6 @@ class TestDispatchPayload:
                     name="fn",
                     source="src/fn",
                     ecr="fn-repo",
-                    function_name="fn",
                     runtime="python3.14",
                 ),
             ],
@@ -189,7 +176,6 @@ class TestDispatchPayload:
                     name="fn",
                     source="src/fn",
                     ecr="fn-repo",
-                    function_name="fn",
                     runtime="python3.14",
                 ),
             ],
@@ -207,7 +193,6 @@ class TestDispatchPayload:
                     name="fn",
                     source="src/fn",
                     ecr="fn-repo",
-                    function_name="fn",
                     runtime="python3.14",
                 ),
             ],
@@ -218,9 +203,7 @@ class TestDispatchPayload:
             payload.trigger_sha = "new-sha"
 
     def test_frozen_resource_rejects_mutation(self):
-        resource = LambdaResource(
-            name="fn", source="src/fn", ecr="fn-repo", function_name="fn", runtime="python3.14"
-        )
+        resource = LambdaResource(name="fn", source="src/fn", ecr="fn-repo", runtime="python3.14")
         with pytest.raises(ValidationError):
             resource.name = "new-name"
 
@@ -231,7 +214,6 @@ class TestDispatchPayload:
                 StepFunctionResource(
                     name="wf-a",
                     source="workflows/wf-a",
-                    state_machine_name="sm-a",
                     definition_file="def.json",
                 ),
             ],
@@ -271,13 +253,11 @@ class TestDispatchPayload:
                     name="fn",
                     source="src/fn",
                     ecr="fn-repo",
-                    function_name="fn",
                     runtime="python3.14",
                 ),
                 StepFunctionResource(
                     name="wf",
                     source="workflows/wf",
-                    state_machine_name="sm",
                     definition_file="def.json",
                 ),
             ],
@@ -289,11 +269,7 @@ class TestDispatchPayload:
 
     def test_lambda_resource_missing_ecr_fails(self):
         with pytest.raises(ValidationError, match="ecr"):
-            LambdaResource(name="fn", source="src/fn", function_name="fn", runtime="python3.14")  # type: ignore[call-arg]
-
-    def test_lambda_resource_missing_function_name_fails(self):
-        with pytest.raises(ValidationError, match="function_name"):
-            LambdaResource(name="fn", source="src/fn", ecr="fn-repo", runtime="python3.14")  # type: ignore[call-arg]
+            LambdaResource(name="fn", source="src/fn", runtime="python3.14")  # type: ignore[call-arg]
 
 
 class TestBatchedDispatchPayload:
@@ -306,7 +282,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -314,7 +289,6 @@ class TestBatchedDispatchPayload:
                 StepFunctionResource(
                     name="wf-a",
                     source="workflows/wf-a",
-                    state_machine_name="sm-a",
                     definition_file="def.json",
                 ),
             ],
@@ -347,7 +321,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -398,7 +371,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -406,7 +378,6 @@ class TestBatchedDispatchPayload:
                 StepFunctionResource(
                     name="wf-a",
                     source="workflows/wf-a",
-                    state_machine_name="sm-a",
                     definition_file="def.json",
                 ),
             ],
@@ -432,7 +403,7 @@ class TestBatchedDispatchPayload:
         assert len(restored.lambdas) == 1
         assert restored.lambdas[0].name == "fn-a"
         assert len(restored.step_functions) == 1
-        assert restored.step_functions[0].state_machine_name == "sm-a"
+        assert restored.step_functions[0].name == "wf-a"
         assert len(restored.api_gateways) == 1
         assert restored.api_gateways[0].rest_api_id == "id123"
 
@@ -443,7 +414,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -481,7 +451,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -489,7 +458,6 @@ class TestBatchedDispatchPayload:
                 StepFunctionResource(
                     name="wf-a",
                     source="workflows/wf-a",
-                    state_machine_name="sm-a",
                     definition_file="def.json",
                 ),
             ],
@@ -514,7 +482,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -537,7 +504,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -545,7 +511,6 @@ class TestBatchedDispatchPayload:
                 StepFunctionResource(
                     name="wf-a",
                     source="workflows/wf-a",
-                    state_machine_name="sm-a",
                     definition_file="def.json",
                 ),
             ],
@@ -563,7 +528,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -610,7 +574,6 @@ class TestBatchedDispatchPayload:
                     "name": "fn-a",
                     "source": "services/fn-a",
                     "ecr": "fn-a-repo",
-                    "function_name": "fn-a",
                     "runtime": "python3.14",
                 },
             ],
@@ -653,7 +616,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -680,7 +642,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -699,7 +660,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],
@@ -752,7 +712,6 @@ class TestBatchedDispatchPayload:
                     name="fn-a",
                     source="services/fn-a",
                     ecr="fn-a-repo",
-                    function_name="fn-a",
                     runtime="python3.14",
                 ),
             ],

@@ -143,9 +143,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -156,7 +155,7 @@ class TestTriggerDispatches:
                 changed_files=("services/order/main.py",),
             ),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -244,11 +243,11 @@ class TestTriggerDispatches:
         assert payload.lambdas[0].name == "order"
         assert payload.lambdas[0].source == "services/order"
         assert payload.lambdas[0].ecr == "ferry/order"
-        # function_name defaults to name when not set explicitly
-        assert payload.lambdas[0].function_name == "order"
+        # name IS the AWS function name
+        assert payload.lambdas[0].name == "order"
 
-    def test_trigger_dispatches_includes_explicit_function_name(self, httpx_mock):
-        """function_name that differs from name flows through batched payload."""
+    def test_trigger_dispatches_name_is_aws_name(self, httpx_mock):
+        """name in config flows as name in dispatch payload (no separate function_name)."""
         httpx_mock.add_response(
             url=("https://api.github.com/repos/owner/repo/actions/workflows/ferry.yml/dispatches"),
             status_code=204,
@@ -257,16 +256,15 @@ class TestTriggerDispatches:
         config = self._make_config(
             lambdas=[
                 LambdaConfig(
-                    name="order",
+                    name="order-processor-prod",
                     source_dir="services/order",
                     ecr_repo="ferry/order",
-                    function_name="order-processor-prod",
                 ),
             ],
         )
         affected = [
             self._make_affected(
-                "order",
+                "order-processor-prod",
                 changed_files=("services/order/main.py",),
             ),
         ]
@@ -285,8 +283,7 @@ class TestTriggerDispatches:
         request = httpx_mock.get_requests()[0]
         body = json.loads(request.content)
         payload = BatchedDispatchPayload.model_validate_json(body["inputs"]["payload"])
-        assert payload.lambdas[0].name == "order"
-        assert payload.lambdas[0].function_name == "order-processor-prod"
+        assert payload.lambdas[0].name == "order-processor-prod"
 
     def test_trigger_dispatches_uses_correct_workflow_file(self, httpx_mock):
         """All resource types dispatch to ferry.yml in a single batched call."""
@@ -305,9 +302,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -318,7 +314,7 @@ class TestTriggerDispatches:
                 changed_files=("services/order/main.py",),
             ),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -400,9 +396,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -413,7 +408,7 @@ class TestTriggerDispatches:
                 changed_files=("services/order/main.py",),
             ),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -537,7 +532,7 @@ class TestTriggerDispatches:
         assert lam.name == "order"
         assert lam.source == "services/order"
         assert lam.ecr == "ferry/order"
-        assert lam.function_name == "order"
+        assert lam.name == "order"
 
     def test_trigger_dispatches_all_three_types(self, httpx_mock):
         """3 types -> 1 API call, 3 result entries, payload has all 3 lists populated."""
@@ -556,9 +551,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -575,7 +569,7 @@ class TestTriggerDispatches:
         affected = [
             self._make_affected("order", changed_files=("services/order/main.py",)),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -629,9 +623,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -639,7 +632,7 @@ class TestTriggerDispatches:
         affected = [
             self._make_affected("order", changed_files=("services/order/main.py",)),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -749,9 +742,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -759,7 +751,7 @@ class TestTriggerDispatches:
         affected = [
             self._make_affected("order", changed_files=("services/order/main.py",)),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -803,9 +795,8 @@ class TestTriggerDispatches:
             ],
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
@@ -813,7 +804,7 @@ class TestTriggerDispatches:
         affected = [
             self._make_affected("order", changed_files=("services/order/main.py",)),
             self._make_affected(
-                "checkout",
+                "checkout-sm",
                 resource_type="step_function",
                 changed_files=("workflows/checkout/def.json",),
             ),
@@ -852,17 +843,15 @@ class TestBuildResource:
         config = FerryConfig(
             step_functions=[
                 StepFunctionConfig(
-                    name="checkout",
+                    name="checkout-sm",
                     source_dir="workflows/checkout",
-                    state_machine_name="checkout-sm",
                     definition_file="stepfunction.json",
                 ),
             ],
         )
-        resource = _build_resource("step_function", "checkout", config)
-        assert resource.name == "checkout"
+        resource = _build_resource("step_function", "checkout-sm", config)
+        assert resource.name == "checkout-sm"
         assert resource.source == "workflows/checkout"
-        assert resource.state_machine_name == "checkout-sm"
         assert resource.definition_file == "stepfunction.json"
 
     def test_build_resource_api_gateway_fields(self) -> None:
@@ -900,26 +889,22 @@ class TestBuildResource:
         assert resource.name == "order"
         assert resource.source == "services/order"
         assert resource.ecr == "ferry/order"
-        # function_name defaults to name when not set
-        assert resource.function_name == "order"
         # runtime defaults to python3.14 (from LambdaConfig)
         assert resource.runtime == "python3.14"
 
-    def test_build_resource_lambda_explicit_function_name(self) -> None:
-        """Lambda config with explicit function_name carries through."""
+    def test_build_resource_lambda_name_is_aws_name(self) -> None:
+        """Lambda config name IS the AWS function name -- flows to dispatch resource."""
         config = FerryConfig(
             lambdas=[
                 LambdaConfig(
-                    name="order",
+                    name="order-processor-prod",
                     source_dir="services/order",
                     ecr_repo="ferry/order",
-                    function_name="order-processor-prod",
                 ),
             ],
         )
-        resource = _build_resource("lambda", "order", config)
-        assert resource.name == "order"
-        assert resource.function_name == "order-processor-prod"
+        resource = _build_resource("lambda", "order-processor-prod", config)
+        assert resource.name == "order-processor-prod"
 
     def test_build_resource_lambda_runtime_override(self) -> None:
         """Explicit runtime in config flows through to dispatch resource."""

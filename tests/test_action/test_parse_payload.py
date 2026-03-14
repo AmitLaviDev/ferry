@@ -27,7 +27,6 @@ def _make_payload(
                 "name": "order-processor",
                 "source": "services/order-processor",
                 "ecr": "ferry/order-processor",
-                "function_name": "order-processor",
                 "runtime": "python3.14",
             },
             {
@@ -35,7 +34,6 @@ def _make_payload(
                 "name": "email-sender",
                 "source": "services/email-sender",
                 "ecr": "ferry/email-sender",
-                "function_name": "email-sender",
                 "runtime": "python3.14",
             },
         ]
@@ -87,14 +85,12 @@ _LAMBDA_A = {
     "name": "order-processor",
     "source": "services/order-processor",
     "ecr": "ferry/order-processor",
-    "function_name": "order-processor",
     "runtime": "python3.14",
 }
 _SF_A = {
     "resource_type": "step_function",
-    "name": "checkout-flow",
+    "name": "checkout-sm",
     "source": "workflows/checkout",
-    "state_machine_name": "checkout-sm",
     "definition_file": "stepfunction.json",
 }
 _AG_A = {
@@ -141,7 +137,6 @@ class TestBuildMatrix:
                 "name": "my-func",
                 "source": "src/my-func",
                 "ecr": "ferry/my-func",
-                "function_name": "my-func",
                 "runtime": "python3.14",
             },
         ]
@@ -180,14 +175,12 @@ class TestBuildMatrix:
                 "name": "my-lambda",
                 "source": "src/lambda",
                 "ecr": "ferry/lambda",
-                "function_name": "my-lambda",
                 "runtime": "python3.14",
             },
             {
                 "resource_type": "step_function",
-                "name": "my-sfn",
+                "name": "my-sm",
                 "source": "src/sfn",
-                "state_machine_name": "my-sm",
                 "definition_file": "def.json",
             },
         ]
@@ -212,7 +205,6 @@ class TestBuildMatrix:
                 "name": "a",
                 "source": "src/a",
                 "ecr": "ferry/a",
-                "function_name": "a",
                 "runtime": "python3.14",
             },
             {
@@ -220,7 +212,6 @@ class TestBuildMatrix:
                 "name": "b",
                 "source": "src/b",
                 "ecr": "ferry/b",
-                "function_name": "b",
                 "runtime": "python3.14",
             },
         ]
@@ -236,23 +227,23 @@ class TestBuildMatrix:
             assert entry["deployment_tag"] == "pr-99"
 
     def test_lambda_matrix_includes_function_name(self) -> None:
-        """function_name appears in lambda matrix output."""
+        """function_name key appears in lambda matrix output, equal to name."""
         payload_str = _make_payload()
         result = build_matrix(payload_str)
 
         first = result["include"][0]
         assert "function_name" in first
         assert first["function_name"] == "order-processor"
+        assert first["function_name"] == first["name"]
 
-    def test_lambda_matrix_explicit_function_name_override(self) -> None:
-        """function_name different from name flows through to matrix."""
+    def test_lambda_matrix_name_is_aws_function_name(self) -> None:
+        """name IS the AWS function name; function_name matrix key mirrors it."""
         resources = [
             {
                 "resource_type": "lambda",
-                "name": "order",
+                "name": "order-processor-prod",
                 "source": "services/order",
                 "ecr": "ferry/order",
-                "function_name": "order-processor-prod",
                 "runtime": "python3.14",
             },
         ]
@@ -260,7 +251,7 @@ class TestBuildMatrix:
         result = build_matrix(payload_str)
 
         entry = result["include"][0]
-        assert entry["name"] == "order"
+        assert entry["name"] == "order-processor-prod"
         assert entry["function_name"] == "order-processor-prod"
 
     def test_step_function_matrix(self) -> None:
@@ -268,9 +259,8 @@ class TestBuildMatrix:
         resources = [
             {
                 "resource_type": "step_function",
-                "name": "checkout-flow",
+                "name": "checkout-sm",
                 "source": "workflows/checkout",
-                "state_machine_name": "checkout-sm",
                 "definition_file": "stepfunction.json",
             },
         ]
@@ -282,7 +272,7 @@ class TestBuildMatrix:
 
         assert len(result["include"]) == 1
         entry = result["include"][0]
-        assert entry["name"] == "checkout-flow"
+        assert entry["name"] == "checkout-sm"
         assert entry["source"] == "workflows/checkout"
         assert entry["state_machine_name"] == "checkout-sm"
         assert entry["definition_file"] == "stepfunction.json"
@@ -328,16 +318,14 @@ class TestBuildMatrix:
         resources = [
             {
                 "resource_type": "step_function",
-                "name": "flow-a",
+                "name": "sm-a",
                 "source": "wf/a",
-                "state_machine_name": "sm-a",
                 "definition_file": "def-a.json",
             },
             {
                 "resource_type": "step_function",
-                "name": "flow-b",
+                "name": "sm-b",
                 "source": "wf/b",
-                "state_machine_name": "sm-b",
                 "definition_file": "def-b.json",
             },
         ]
@@ -349,7 +337,7 @@ class TestBuildMatrix:
 
         assert len(result["include"]) == 2
         names = {e["name"] for e in result["include"]}
-        assert names == {"flow-a", "flow-b"}
+        assert names == {"sm-a", "sm-b"}
 
 
 class TestParsePayloadV2:
@@ -399,7 +387,7 @@ class TestParsePayloadV2:
         """V2 step function matrix entry has correct fields, no lambda fields."""
         result = parse_payload(_make_batched_payload(step_functions=[_SF_A]))
         entry = result.sf_matrix["include"][0]
-        assert entry["name"] == "checkout-flow"
+        assert entry["name"] == "checkout-sm"
         assert entry["source"] == "workflows/checkout"
         assert entry["state_machine_name"] == "checkout-sm"
         assert entry["definition_file"] == "stepfunction.json"
@@ -429,7 +417,6 @@ class TestParsePayloadV2:
             "name": "email-sender",
             "source": "services/email-sender",
             "ecr": "ferry/email-sender",
-            "function_name": "email-sender",
             "runtime": "python3.14",
         }
         result = parse_payload(_make_batched_payload(lambdas=[_LAMBDA_A, lambda_b]))
