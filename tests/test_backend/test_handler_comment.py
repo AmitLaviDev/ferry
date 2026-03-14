@@ -201,12 +201,14 @@ def _mock_reaction(httpx_mock, comment_id=99):
     )
 
 
-def _mock_fetch_pr(httpx_mock, pr_number=42, head_sha="a" * 40, base_branch="main"):
+def _mock_fetch_pr(
+    httpx_mock, pr_number=42, head_sha="a" * 40, base_branch="main", head_branch="feature-branch"
+):
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/pulls/{pr_number}",
         json={
             "number": pr_number,
-            "head": {"sha": head_sha},
+            "head": {"sha": head_sha, "ref": head_branch},
             "base": {"ref": base_branch},
             "state": "open",
         },
