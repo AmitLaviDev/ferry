@@ -109,7 +109,7 @@ def main() -> None:
     Writes outputs to ``GITHUB_OUTPUT`` and a summary to ``GITHUB_STEP_SUMMARY``.
     """
     resource_name = os.environ["INPUT_RESOURCE_NAME"]
-    state_machine_name = os.environ["INPUT_STATE_MACHINE_NAME"]
+    state_machine_name = resource_name  # name IS the AWS state machine name
     definition_file = os.environ["INPUT_DEFINITION_FILE"]
     source_dir = os.environ["INPUT_SOURCE_DIR"]
     deployment_tag = os.environ["INPUT_DEPLOYMENT_TAG"]

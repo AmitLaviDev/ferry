@@ -50,7 +50,6 @@ def _build_lambda_matrix(payload: DispatchPayload) -> list[dict]:
             "name": r.name,
             "source": r.source,
             "ecr": r.ecr,
-            "function_name": r.name,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,
             "runtime": r.runtime,
@@ -68,7 +67,6 @@ def _build_step_function_matrix(
         {
             "name": r.name,
             "source": r.source,
-            "state_machine_name": r.name,
             "definition_file": r.definition_file,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,
@@ -114,8 +112,9 @@ def build_matrix(payload_str: str) -> dict:
         Dict with ``include`` key containing one entry per resource.
         Entry fields vary by resource type:
 
-        - **lambda**: name, source, ecr, function_name (=name), trigger_sha, deployment_tag, runtime
-        - **step_function**: name, source, state_machine_name (=name),
+        - **lambda**: name (= AWS function name), source, ecr,
+          trigger_sha, deployment_tag, runtime
+        - **step_function**: name (= AWS state machine name), source,
           definition_file, trigger_sha, deployment_tag
         - **api_gateway**: name, source, rest_api_id, stage_name,
           spec_file, trigger_sha, deployment_tag
@@ -178,7 +177,6 @@ def _parse_v2(payload_str: str) -> ParseResult:
             "name": r.name,
             "source": r.source,
             "ecr": r.ecr,
-            "function_name": r.name,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,
             "runtime": r.runtime,
@@ -189,7 +187,6 @@ def _parse_v2(payload_str: str) -> ParseResult:
         {
             "name": r.name,
             "source": r.source,
-            "state_machine_name": r.name,
             "definition_file": r.definition_file,
             "trigger_sha": payload.trigger_sha,
             "deployment_tag": payload.deployment_tag,

@@ -159,13 +159,7 @@ def main() -> None:
     Writes outputs to ``GITHUB_OUTPUT`` and a summary to ``GITHUB_STEP_SUMMARY``.
     """
     resource_name = os.environ["INPUT_RESOURCE_NAME"]
-    function_name = os.environ.get("INPUT_FUNCTION_NAME", "")
-    if not function_name:
-        gha.error(
-            "INPUT_FUNCTION_NAME is required but missing or empty. "
-            "Ensure ferry.yaml includes function_name for this Lambda resource."
-        )
-        sys.exit(1)
+    function_name = resource_name  # name IS the AWS Lambda function name
     image_uri = os.environ["INPUT_IMAGE_URI"]
     image_digest = os.environ["INPUT_IMAGE_DIGEST"]
     deployment_tag = os.environ["INPUT_DEPLOYMENT_TAG"]
@@ -252,7 +246,7 @@ def main() -> None:
         elif error_code == "ResourceNotFoundException":
             hint = (
                 f"Lambda function '{function_name}' not found. "
-                f"Check ferry.yaml function_name or verify the "
+                f"Check ferry.yaml name field or verify the "
                 f"Lambda exists in the target account."
             )
         else:
