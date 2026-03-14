@@ -226,10 +226,19 @@ def post_pr_comment(
         json={"body": body},
     )
 
-    logger.info(
-        "pr_comment_posted",
-        repo=repo,
-        pr_number=pr_number,
-    )
+    if resp.status_code == 201:
+        logger.info(
+            "pr_comment_posted",
+            repo=repo,
+            pr_number=pr_number,
+        )
+    else:
+        logger.error(
+            "pr_comment_failed",
+            repo=repo,
+            pr_number=pr_number,
+            status_code=resp.status_code,
+            response=resp.text[:200],
+        )
 
     return resp.json()
