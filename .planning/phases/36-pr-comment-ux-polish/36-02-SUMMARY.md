@@ -139,6 +139,14 @@ None - no external service configuration required.
 - v2.0 milestone ready to ship
 - Phase 37 (Schema Simplification) can proceed
 
+## Self-Check: PASSED
+
+- FOUND: backend/src/ferry_backend/checks/runs.py
+- FOUND: tests/test_backend/test_check_runs.py
+- FOUND: .planning/phases/36-pr-comment-ux-polish/36-02-SUMMARY.md
+- FOUND: commit edde601 (bug fix)
+- FOUND: commit 9e83851 (docs)
+
 ---
 *Phase: 36-pr-comment-ux-polish*
 *Completed: 2026-03-14*
