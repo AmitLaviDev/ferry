@@ -196,7 +196,7 @@ def _mock_installation_token(httpx_mock):
 def _mock_reaction(httpx_mock, comment_id=99):
     httpx_mock.add_response(
         url=f"https://api.github.com/repos/owner/repo/issues/comments/{comment_id}/reactions",
-        json={"id": 1, "content": "rocket"},
+        json={"id": 1, "content": "eyes"},
         status_code=201,
     )
 
@@ -308,7 +308,7 @@ class TestIssuePlan:
         reaction_reqs = [r for r in requests if "reactions" in str(r.url)]
         assert len(reaction_reqs) == 1
         reaction_body = json.loads(reaction_reqs[0].content)
-        assert reaction_body["content"] == "rocket"
+        assert reaction_body["content"] == "eyes"
 
         # Verify plan comment posted
         comment_posts = [

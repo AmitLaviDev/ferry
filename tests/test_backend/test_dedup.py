@@ -218,6 +218,14 @@ class TestIsDuplicateWorkflowRun:
         result = is_duplicate("delivery-wr-002", other, TABLE_NAME, dynamodb_client)
         assert result is False
 
+    def test_same_run_different_action_is_not_duplicate(self, dynamodb_client):
+        """requested and completed for the same run_id must not dedup each other."""
+        requested = {**WORKFLOW_RUN_PAYLOAD, "action": "requested"}
+        is_duplicate("delivery-wr-req", requested, TABLE_NAME, dynamodb_client)
+        completed = {**WORKFLOW_RUN_PAYLOAD, "action": "completed"}
+        result = is_duplicate("delivery-wr-comp", completed, TABLE_NAME, dynamodb_client)
+        assert result is False
+
 
 class TestIsDuplicateEventIsolation:
     """Cross-event-type dedup isolation tests."""

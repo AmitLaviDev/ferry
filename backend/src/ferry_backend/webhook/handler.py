@@ -502,10 +502,10 @@ def _handle_issue_comment(payload: dict, repo: str) -> dict:
         )
         github_client.installation_auth(inst_token)
 
-        # 5. Add rocket reaction (always, even for closed PR or no resources)
+        # 5. Add eyes reaction (always, even for closed PR or no resources)
         github_client.post(
             f"/repos/{repo}/issues/comments/{comment_id}/reactions",
-            json={"content": "rocket"},
+            json={"content": "eyes"},
         )
 
         # 6. Guard: PR must be open

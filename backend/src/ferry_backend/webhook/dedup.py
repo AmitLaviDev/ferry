@@ -107,12 +107,14 @@ def _build_event_key(payload: dict) -> str | None:
         return None
 
     # Check for workflow_run (workflow_run key is discriminator)
+    # Include action in key: same run_id fires for "requested" and "completed"
     workflow_run = payload.get("workflow_run")
     if workflow_run is not None:
         repo = payload.get("repository", {}).get("full_name")
         run_id = workflow_run.get("id")
+        action = payload.get("action", "")
         if repo and run_id is not None:
-            return f"EVENT#workflow_run#{repo}#{run_id}"
+            return f"EVENT#workflow_run#{repo}#{run_id}#{action}"
         return None
 
     # Check for pull_request FIRST among remaining (discriminator)
