@@ -233,7 +233,12 @@ def handler(event: dict, context: object) -> dict:
         # Match + auto_deploy: true -> dispatch + Check Run
         if affected:
             prs = find_open_prs(github_client, repo, after_sha)
-            pr_number = str(prs[0]["number"]) if prs else ""
+            merged_pr = None
+            if prs:
+                pr_number = str(prs[0]["number"])
+            else:
+                merged_pr = find_merged_pr(github_client, repo, after_sha)
+                pr_number = str(merged_pr["number"]) if merged_pr else ""
             tag = build_deployment_tag(pr_number, branch, after_sha)
             trigger_dispatches(
                 github_client,
@@ -255,8 +260,7 @@ def handler(event: dict, context: object) -> dict:
                 environment=environment.name,
             )
 
-            # Post deploy comment on merged PR (if this is a merge push)
-            merged_pr = find_merged_pr(github_client, repo, after_sha)
+            # Post deploy comment on merged PR (reuse lookup from above)
             if merged_pr:
                 deploy_body = format_apply_comment(
                     affected, environment, after_sha, merged_pr["number"], deployment_tag=tag
