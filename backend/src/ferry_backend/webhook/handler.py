@@ -506,6 +506,7 @@ def _handle_issue_comment(payload: dict, repo: str) -> dict:
         pr_resp = github_client.get(f"/repos/{repo}/pulls/{pr_number}")
         pr_data = pr_resp.json()
         head_sha = pr_data["head"]["sha"]
+        head_branch = pr_data["head"]["ref"]
         base_branch = pr_data["base"]["ref"]
         default_branch = payload["repository"]["default_branch"]
 
@@ -550,6 +551,7 @@ def _handle_issue_comment(payload: dict, repo: str) -> dict:
             repo,
             pr_number,
             head_sha,
+            head_branch,
             base_branch,
             default_branch,
             affected,
@@ -605,6 +607,7 @@ def _handle_apply_command(
     repo: str,
     pr_number: int,
     head_sha: str,
+    head_branch: str,
     base_branch: str,
     default_branch: str,
     affected: list,
@@ -617,6 +620,7 @@ def _handle_apply_command(
         repo: Repository full name.
         pr_number: PR number.
         head_sha: Current PR head SHA.
+        head_branch: PR head branch name (dispatch ref for checkout).
         base_branch: PR base branch name.
         default_branch: Repository default branch.
         affected: Detected affected resources.
@@ -641,7 +645,7 @@ def _handle_apply_command(
         head_sha,
         tag,
         str(pr_number),
-        default_branch=default_branch,
+        default_branch=head_branch,
         mode="deploy",
         environment=env_name,
         head_ref=head_sha,
