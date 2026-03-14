@@ -13,7 +13,10 @@ from ferry_utils.constants import BATCHED_SCHEMA_VERSION, SCHEMA_VERSION
 
 
 class LambdaResource(BaseModel):
-    """A Lambda function resource to build and deploy."""
+    """A Lambda function resource to build and deploy.
+
+    `name` is the AWS Lambda function name.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -21,19 +24,20 @@ class LambdaResource(BaseModel):
     name: str
     source: str
     ecr: str
-    function_name: str
     runtime: str
 
 
 class StepFunctionResource(BaseModel):
-    """A Step Functions state machine resource to deploy."""
+    """A Step Functions state machine resource to deploy.
+
+    `name` is the AWS Step Functions state machine name.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     resource_type: Literal["step_function"] = "step_function"
     name: str
     source: str
-    state_machine_name: str
     definition_file: str
 
 

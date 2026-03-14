@@ -15,7 +15,10 @@ from ferry_utils.errors import ConfigError
 
 
 class LambdaConfig(BaseModel):
-    """Lambda resource configuration from ferry.yaml."""
+    """Lambda resource configuration from ferry.yaml.
+
+    `name` is the AWS Lambda function name.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -23,25 +26,45 @@ class LambdaConfig(BaseModel):
     source_dir: str
     ecr_repo: str
     runtime: str = "python3.14"
-    function_name: str | None = None
 
-    @model_validator(mode="after")
-    def set_function_name_default(self) -> LambdaConfig:
-        """Default function_name to name if not explicitly set."""
-        if self.function_name is None:
-            object.__setattr__(self, "function_name", self.name)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def handle_deprecated_function_name(cls, data: Any) -> Any:
+        """Backward-compat: accept old `function_name` field silently."""
+        if isinstance(data, dict) and "function_name" in data:
+            if "name" not in data:
+                data["name"] = data.pop("function_name")
+            else:
+                data.pop("function_name")
+        return data
 
 
 class StepFunctionConfig(BaseModel):
-    """Step Function resource configuration from ferry.yaml."""
+    """Step Function resource configuration from ferry.yaml.
+
+    `name` is the AWS Step Functions state machine name.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str
     source_dir: str
-    state_machine_name: str
     definition_file: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_deprecated_state_machine_name(cls, data: Any) -> Any:
+        """Backward-compat: accept old `state_machine_name` field silently.
+
+        If both `name` and `state_machine_name` are present and differ,
+        `state_machine_name` wins (it is the AWS resource name).
+        """
+        if isinstance(data, dict) and "state_machine_name" in data:
+            if "name" not in data or data["name"] != data["state_machine_name"]:
+                data["name"] = data.pop("state_machine_name")
+            else:
+                data.pop("state_machine_name")
+        return data
 
 
 class ApiGatewayConfig(BaseModel):

@@ -64,11 +64,11 @@ def _build_resource(
     """Build a dispatch Resource model from an AffectedResource and FerryConfig.
 
     Looks up the resource in the config to get type-specific fields
-    (source_dir -> source, ecr_repo -> ecr, function_name, runtime for lambdas).
+    (source_dir -> source, ecr_repo -> ecr, runtime for lambdas).
 
     Args:
         resource_type: Resource type string ("lambda", "step_function", "api_gateway").
-        name: Resource name to look up in config.
+        name: Resource name (= AWS resource name) to look up in config.
         config: Parsed FerryConfig with full resource details.
 
     Returns:
@@ -81,7 +81,6 @@ def _build_resource(
                     name=name,
                     source=lam.source_dir,
                     ecr=lam.ecr_repo,
-                    function_name=lam.function_name,
                     runtime=lam.runtime,
                 )
     elif resource_type == "step_function":
@@ -90,7 +89,6 @@ def _build_resource(
                 return StepFunctionResource(
                     name=name,
                     source=sf.source_dir,
-                    state_machine_name=sf.state_machine_name,
                     definition_file=sf.definition_file,
                 )
     elif resource_type == "api_gateway":
