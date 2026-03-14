@@ -117,7 +117,20 @@ def format_plan_comment(
 
     parts.append("")
 
-    # Resource table
+    # Summary counts by type
+    type_counts: dict[str, int] = {}
+    for resource in affected:
+        display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
+        type_counts[display_type] = type_counts.get(display_type, 0) + 1
+    summary = " \u00b7 ".join(f"**{count}** {name}" for name, count in type_counts.items())
+    parts.append(summary)
+
+    parts.append("")
+
+    # Collapsible resource table
+    parts.append("<details>")
+    parts.append("<summary>View resources</summary>")
+    parts.append("")
     parts.append("| Type | Resource |")
     parts.append("|------|----------|")
 
@@ -125,6 +138,8 @@ def format_plan_comment(
         display_type = _TYPE_DISPLAY_NAMES[resource.resource_type]
         parts.append(f"| {display_type} | **{resource.name}** |")
 
+    parts.append("")
+    parts.append("</details>")
     parts.append("")
 
     # CTA footer

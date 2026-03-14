@@ -36,7 +36,7 @@ from ferry_backend.github.client import GitHubClient
 
 class TestFormatPlanComment:
     def test_single_lambda(self):
-        """Single modified lambda shows in table with Type first."""
+        """Single lambda shows summary count and collapsible table."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -48,12 +48,15 @@ class TestFormatPlanComment:
         body = format_plan_comment(affected)
         assert body.startswith("## ")
         assert "## \U0001f6a2 Ferry: Deployment Plan" in body
+        assert "**1** Lambda" in body
+        assert "<details>" in body
+        assert "View resources" in body
         assert "| Type | Resource |" in body
         assert "| Lambda | **order-processor** |" in body
         assert "Deploy with `/ferry apply` or merge." in body
 
     def test_multiple_types(self):
-        """Multiple resource types in table with correct type ordering."""
+        """Multiple resource types show summary counts and collapsible table."""
         affected = [
             AffectedResource(
                 name="order-processor",
@@ -75,12 +78,26 @@ class TestFormatPlanComment:
             ),
         ]
         body = format_plan_comment(affected)
+        # Summary counts
+        assert "**1** Lambda" in body
+        assert "**1** Step Function" in body
+        assert "**1** API Gateway" in body
+        assert "\u00b7" in body  # middle dot separator
+        # Table rows
         assert "| Lambda | **order-processor** |" in body
         assert "| Step Function | **checkout-flow** |" in body
         assert "| API Gateway | **public-api** |" in body
         # Stable ordering: lambda < step_function < api_gateway
-        assert body.index("Lambda") < body.index("Step Function")
-        assert body.index("Step Function") < body.index("API Gateway")
+        lines = body.split("\n")
+        table_lines = [
+            line
+            for line in lines
+            if line.startswith("| Lambda") or line.startswith("| Step") or line.startswith("| API")
+        ]
+        assert len(table_lines) == 3
+        assert "Lambda" in table_lines[0]
+        assert "Step Function" in table_lines[1]
+        assert "API Gateway" in table_lines[2]
 
     def test_with_environment(self):
         """Environment mapping shown in header and footer."""
