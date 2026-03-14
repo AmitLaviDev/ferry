@@ -147,9 +147,10 @@ def _mock_find_deploy_comment(httpx_mock, pr_number=42, trigger_sha="abc123", co
     sha_marker = SHA_MARKER_TEMPLATE.format(sha=trigger_sha)
     deploy_body = (
         f"{deploy_marker}\n{sha_marker}\n"
-        f"## \U0001f6a2 Ferry: Deploying \u2192 **default** at `{trigger_sha[:7]}`\n\n"
+        f"## \U0001f6a2 Ferry: Deploying \u2192 **default**\n\n"
+        f"**Tag:** `test-{trigger_sha[:4]}`\n\n"
         "| Type | Resource | Status |\n"
-        "|------|----------|--------|\n"
+        "|------|----------|:------:|\n"
         "| Lambda | **order** | \u23f3 |"
     )
     httpx_mock.add_response(
@@ -199,8 +200,7 @@ class TestWorkflowRun:
         patched_body = json.loads(patch_reqs[0].content)["body"]
         assert "Deployed \u2192" in patched_body
         assert "\u2705" in patched_body
-        assert "`success`" in patched_body
-        assert "View run" in patched_body
+        assert "View run \u2192" in patched_body
 
     def test_completed_failure_updates_deploy_comment(self, dynamodb_env, httpx_mock):
         """workflow_run completed failure -> PATCHes with failure status."""
@@ -226,7 +226,7 @@ class TestWorkflowRun:
         patched_body = json.loads(patch_reqs[0].content)["body"]
         assert "Deploy Failed \u2192" in patched_body
         assert "\u274c" in patched_body
-        assert "`failure`" in patched_body
+        assert "View run \u2192" in patched_body
 
     def test_non_dispatch_run_ignored(self, dynamodb_env, httpx_mock):
         """workflow_run with event=push -> ignored."""

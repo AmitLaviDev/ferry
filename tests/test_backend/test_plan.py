@@ -399,21 +399,21 @@ class TestFormatApplyStatusUpdate:
         return (
             "<!-- ferry:deploy:42 -->\n"
             "<!-- ferry:sha:abc123 -->\n"
-            "## \U0001f6a2 Ferry: Deploying \u2192 **staging** at `abc123d`\n\n"
+            "## \U0001f6a2 Ferry: Deploying \u2192 **staging**\n\n"
+            "**Tag:** `test-abc1`\n\n"
             "| Type | Resource | Status |\n"
-            "|------|----------|--------|\n"
+            "|------|----------|:------:|\n"
             "| Lambda | **order** | \u23f3 |"
         )
 
     def test_success(self):
-        """Success conclusion updates header and replaces hourglass."""
+        """Success conclusion updates header with emoji and replaces hourglass."""
         updated = format_apply_status_update(
             self._base_body(), "success", "https://github.com/runs/123"
         )
         assert "\u23f3" not in updated
         assert "Deployed \u2192" in updated
         assert "\u2705" in updated
-        assert "`success`" in updated
         assert "https://github.com/runs/123" in updated
 
     def test_failure(self):
@@ -423,7 +423,6 @@ class TestFormatApplyStatusUpdate:
         )
         assert "Deploy Failed \u2192" in updated
         assert "\u274c" in updated
-        assert "`failure`" in updated
 
     def test_cancelled(self):
         """Cancelled conclusion shows warning."""
@@ -431,7 +430,6 @@ class TestFormatApplyStatusUpdate:
             self._base_body(), "cancelled", "https://github.com/runs/789"
         )
         assert "\u26a0\ufe0f" in updated
-        assert "`cancelled`" in updated
 
     def test_unknown_conclusion(self):
         """Unknown conclusion shows question mark."""
@@ -439,14 +437,13 @@ class TestFormatApplyStatusUpdate:
             self._base_body(), "timed_out", "https://github.com/runs/000"
         )
         assert "\u2753" in updated
-        assert "`timed_out`" in updated
 
     def test_run_url_in_link(self):
-        """Run URL appears in [View run] link."""
+        """Run URL appears as clean link."""
         updated = format_apply_status_update(
             self._base_body(), "success", "https://github.com/runs/123"
         )
-        assert "[View run](https://github.com/runs/123)" in updated
+        assert "[View run \u2192](https://github.com/runs/123)" in updated
 
 
 # ---------------------------------------------------------------------------

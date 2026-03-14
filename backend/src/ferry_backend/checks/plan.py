@@ -246,20 +246,22 @@ def format_apply_status_update(
     status_emoji = {"success": "\u2705", "failure": "\u274c", "cancelled": "\u26a0\ufe0f"}
     emoji = status_emoji.get(conclusion, "\u2753")
 
-    # Update header: "Deploying" -> "Deployed" (or "Deploy Failed")
+    # Update header: "Deploying" -> "Deployed ✅" (or "Deploy Failed ❌")
     if conclusion == "success":
         updated = original_body.replace("Deploying \u2192", "Deployed \u2192")
+        updated = updated.replace("\n\n**Tag:", f" {emoji}\n\n**Tag:")
     elif conclusion == "failure":
         updated = original_body.replace("Deploying \u2192", "Deploy Failed \u2192")
+        updated = updated.replace("\n\n**Tag:", f" {emoji}\n\n**Tag:")
     else:
         updated = original_body.replace("Deploying \u2192", f"Deploy {conclusion} \u2192")
+        updated = updated.replace("\n\n**Tag:", f" {emoji}\n\n**Tag:")
 
     # Replace all hourglass in table rows with the conclusion emoji
     updated = updated.replace("| \u23f3 |", f"| {emoji} |")
 
-    # Append result line
-    result_line = f"\n\n{emoji} `{conclusion}` \u2014 [View run]({run_url})"
-    updated += result_line
+    # Append clean run link
+    updated += f"\n\n[View run \u2192]({run_url})"
 
     return updated
 
