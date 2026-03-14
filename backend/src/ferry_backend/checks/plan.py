@@ -268,21 +268,28 @@ def find_deploy_comment(
     client: GitHubClient,
     repo: str,
     pr_number: int,
+    sha: str = "",
 ) -> dict | None:
-    """Find the sticky deploy comment on a PR by the PR-level marker.
+    """Find a deploy comment on a PR by SHA marker.
 
-    Paginates through issue comments looking for the deploy marker keyed
-    on PR number (not SHA).
+    Paginates through issue comments looking for the SHA marker embedded
+    in the deploy comment. Each /ferry apply creates a new comment; the
+    SHA marker ties a specific comment to a specific workflow run.
 
     Args:
         client: Authenticated GitHubClient.
         repo: Repository full name (owner/repo).
         pr_number: PR number to search comments on.
+        sha: Trigger SHA to match (searches for ``<!-- ferry:sha:{sha} -->``).
 
     Returns:
         The comment dict if found, or None.
     """
-    marker = DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
+    marker = (
+        SHA_MARKER_TEMPLATE.format(sha=sha)
+        if sha
+        else DEPLOY_MARKER_TEMPLATE.format(pr_number=pr_number)
+    )
     page = 1
     per_page = 100
     while True:

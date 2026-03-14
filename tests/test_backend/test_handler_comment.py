@@ -446,7 +446,6 @@ class TestIssueApply:
         _mock_ferry_config(httpx_mock, head_sha)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
         _mock_dispatch(httpx_mock)
-        _mock_find_deploy_comment(httpx_mock, found=False)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -481,7 +480,6 @@ class TestIssueApply:
         _mock_ferry_config(httpx_mock, head_sha, yaml_b64=FERRY_YAML_WITH_ENVS_B64)
         _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
         _mock_dispatch(httpx_mock)
-        _mock_find_deploy_comment(httpx_mock, found=False)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -576,7 +574,6 @@ class TestIssueApply:
         _mock_ferry_config(httpx_mock, fresh_sha)
         _mock_compare(httpx_mock, "main", fresh_sha, ["services/order-processor/main.py"])
         _mock_dispatch(httpx_mock)
-        _mock_find_deploy_comment(httpx_mock, found=False)
         _mock_create_comment(httpx_mock)
         _mock_check_run(httpx_mock)
 
@@ -595,32 +592,3 @@ class TestIssueApply:
 
         payload = BatchedDispatchPayload.model_validate_json(dispatch_body["inputs"]["payload"])
         assert payload.trigger_sha == fresh_sha
-
-    def test_apply_updates_existing_deploy_comment(self, dynamodb_env, httpx_mock):
-        """/ferry apply with existing deploy comment -> PATCH instead of POST."""
-        head_sha = "d" * 40
-        event = _make_issue_comment_event(body="/ferry apply", delivery_id="delivery-ic-020")
-
-        _mock_installation_token(httpx_mock)
-        _mock_reaction(httpx_mock)
-        _mock_fetch_pr(httpx_mock, head_sha=head_sha)
-        _mock_ferry_config(httpx_mock, head_sha)
-        _mock_compare(httpx_mock, "main", head_sha, ["services/order-processor/main.py"])
-        _mock_dispatch(httpx_mock)
-        _mock_find_deploy_comment(httpx_mock, found=True, comment_id=200)
-        _mock_update_comment(httpx_mock, comment_id=200)
-        _mock_check_run(httpx_mock)
-
-        from ferry_backend.webhook.handler import handler
-
-        result = handler(event, None)
-        body = json.loads(result["body"])
-        assert body["status"] == "processed"
-        assert body["command"] == "apply"
-
-        # Verify PATCH was used (not POST for the deploy comment)
-        requests = httpx_mock.get_requests()
-        patch_reqs = [r for r in requests if r.method == "PATCH"]
-        assert len(patch_reqs) == 1
-        patched_body = json.loads(patch_reqs[0].content)["body"]
-        assert "Deploying" in patched_body

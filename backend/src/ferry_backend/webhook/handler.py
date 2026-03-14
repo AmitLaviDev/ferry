@@ -17,7 +17,6 @@ import structlog
 from ferry_backend.auth.jwt import generate_app_jwt
 from ferry_backend.auth.tokens import get_installation_token
 from ferry_backend.checks.plan import (
-    extract_sha_from_comment,
     find_deploy_comment,
     format_apply_comment,
     format_apply_status_update,
@@ -262,11 +261,7 @@ def handler(event: dict, context: object) -> dict:
                 deploy_body = format_apply_comment(
                     affected, environment, after_sha, merged_pr["number"]
                 )
-                existing_deploy = find_deploy_comment(github_client, repo, merged_pr["number"])
-                if existing_deploy:
-                    update_pr_comment(github_client, repo, existing_deploy["id"], deploy_body)
-                else:
-                    post_pr_comment(github_client, repo, merged_pr["number"], deploy_body)
+                post_pr_comment(github_client, repo, merged_pr["number"], deploy_body)
 
         # Check Run (always for auto_deploy matched branches, even with no changes)
         create_check_run(github_client, repo, after_sha, affected)
@@ -669,11 +664,7 @@ def _handle_apply_command(
         base_ref=base_branch,
     )
     body = format_apply_comment(affected, environment, head_sha, pr_number)
-    existing = find_deploy_comment(github_client, repo, pr_number)
-    if existing:
-        update_pr_comment(github_client, repo, existing["id"], body)
-    else:
-        post_pr_comment(github_client, repo, pr_number, body)
+    post_pr_comment(github_client, repo, pr_number, body)
     create_check_run(github_client, repo, head_sha, affected)
     log.info("apply_dispatched", affected_count=len(affected))
     return _response(
@@ -759,20 +750,9 @@ def _handle_workflow_run(payload: dict, repo: str) -> dict:
             )
             return _response(200, {"status": "ignored", "reason": "no correlation data"})
 
-        # Find and update deploy comment
-        existing = find_deploy_comment(github_client, repo, pr_number)
+        # Find deploy comment by SHA (each /ferry apply creates a new one)
+        existing = find_deploy_comment(github_client, repo, pr_number, sha=trigger_sha)
         if existing:
-            # Verify trigger_sha matches to avoid race with newer /ferry apply
-            comment_sha = extract_sha_from_comment(existing["body"])
-            if comment_sha and comment_sha != trigger_sha:
-                log.info(
-                    "deploy_comment_sha_mismatch",
-                    comment_sha=comment_sha[:7],
-                    trigger_sha=trigger_sha[:7],
-                    pr_number=pr_number,
-                )
-                return _response(200, {"status": "processed", "conclusion": conclusion})
-
             updated_body = format_apply_status_update(existing["body"], conclusion, run_url)
             update_pr_comment(github_client, repo, existing["id"], updated_body)
             log.info(
