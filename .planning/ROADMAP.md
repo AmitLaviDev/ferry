@@ -8,7 +8,7 @@
 - v1.3 Full-Chain E2E -- Phases 18-21 (shipped 2026-03-10)
 - v1.4 Unified Workflow -- Phases 22-24 (shipped 2026-03-10)
 - v1.5 Batched Dispatch -- Phases 25-28 (shipped 2026-03-11)
-- v2.0 PR Integration -- Phases 29-36 (in progress)
+- v2.0 PR Integration -- Phases 29-36 (shipped 2026-03-14)
 - v2.1 Schema Simplification -- Phase 37 (planned)
 
 ## Phases
@@ -90,7 +90,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 
 </details>
 
-### v2.0 PR Integration (Phases 29-35)
+### v2.0 PR Integration (Phases 29-36) -- SHIPPED 2026-03-14
 
 **Milestone Goal:** Add PR-triggered deployments with a plan/apply model -- preview what will deploy on PR open/update, deploy on merge or explicit `/ferry apply` comment, with user-defined environment mapping and GitHub Environment support.
 
@@ -101,7 +101,7 @@ Full details: [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md)
 - [x] **Phase 33: Action v3 Parsing and Outputs** (1/1 plan) - Setup action parses v3 payload, outputs mode and environment with backward compatibility
 - [x] **Phase 34: Workflow Template and GitHub Environments** (1/1 plan) - Updated ferry.yml template with environment: key, mode guard, and docs
 - [x] **Phase 35: E2E Validation** (1/1 plan) - Full PR lifecycle proven: plan comment, /ferry apply, merge deploy, environment secrets, negative test
-- [ ] **Phase 36: PR Comment UX Polish** (2/2 plans) - Sticky deploy comment with per-resource status table, explicit resource details in plan/apply comments, fix footer text
+- [x] **Phase 36: PR Comment UX Polish** (2/2 plans) - Deploy comment with per-resource status table, collapsible plan comment, tag format, merge deploy visibility
 
 ## Phase Details
 
@@ -242,5 +242,5 @@ Plans:
 | 33. Action v3 Parsing and Outputs | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
-| 36. PR Comment UX Polish | v2.0 | 0/2 | Not started | - |
+| 36. PR Comment UX Polish | v2.0 | 2/2 | Complete | 2026-03-14 |
 | 37. Schema Simplification | v2.1 | 0/0 | Planned | - |

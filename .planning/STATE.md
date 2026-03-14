@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: PR Integration
-status: in_progress
-stopped_at: Phase 35 complete -- E2E validation passed, UX polish remaining
-last_updated: "2026-03-14T12:00:00Z"
-last_activity: 2026-03-14 -- Phase 35 E2E validation executed
+status: complete
+stopped_at: v2.0 milestone complete -- Phase 36 Plan 02 E2E validation passed
+last_updated: "2026-03-14T15:24:00Z"
+last_activity: 2026-03-14 -- Phase 36 E2E validated, v2.0 shipped
 progress:
   total_phases: 8
-  completed_phases: 7
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 8
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v2.0 PR Integration -- Phase 35 E2E complete, Phase 36 UX Polish remaining
+**Current focus:** v2.0 PR Integration -- SHIPPED
 
 ## Current Position
 
-Milestone: v2.0 PR Integration
-Phase: 35 of 36 (E2E Validation) -- COMPLETE
-Next: Phase 36 (PR Comment UX Polish)
-Status: E2E validation passed, UX improvements identified
-Last activity: 2026-03-14 -- Phase 35 E2E validation
+Milestone: v2.0 PR Integration -- COMPLETE
+Phase: 36 of 36 (PR Comment UX Polish) -- COMPLETE
+Plan 01: COMPLETE (code changes deployed)
+Plan 02: COMPLETE (E2E validation passed -- all 6 UX changes validated on PR #4)
+Last activity: 2026-03-14 -- v2.0 shipped
 
 ```
-v2.0 Progress: [█████████░] 88%
+v2.0 Progress: [██████████] 100%
 ```
 
 ## Shipped Milestones
@@ -44,6 +44,7 @@ v2.0 Progress: [█████████░] 88%
 | v1.3 | Full-Chain E2E | 18-21 | 2026-03-10 |
 | v1.4 | Unified Workflow | 22-24 | 2026-03-10 |
 | v1.5 | Batched Dispatch | 25-28 | 2026-03-11 |
+| v2.0 | PR Integration | 29-36 | 2026-03-14 |
 
 ## Accumulated Context
 
@@ -62,13 +63,24 @@ v2.0 Progress: [█████████░] 88%
 - No dispatch for plan mode -- zero GHA runner minutes
 - Check Run conclusion: `success` when resources detected, `neutral` when no changes
 - Draft PRs treated same as regular PRs
-- SHA-specific apply markers: `<!-- ferry:apply:{sha} -->` for targeted status updates
-- Rocket reaction posted before any processing (even on closed PRs)
+- Deploy comments: each /ferry apply creates a NEW comment (not upsert), SHA marker for workflow_run correlation
+- Eyes reaction (not rocket) posted before any processing (even on closed PRs)
 - Fresh head SHA always fetched from GET /pulls/{number} for /ferry apply
 - v1 DispatchPayload now has mode/environment with defaults (backward compatible)
 - ParseResult and GHA outputs extended with mode and environment
 - /ferry apply dispatches against PR head branch (not default branch) for correct checkout
 - GitHub App needs pull_requests:write to comment on PRs via Issues API
+
+### Key Decisions (Phase 36 UX)
+
+- Plan comment: summary counts + collapsible `<details>` table (scales to many resources)
+- Table column order: Type | Resource (Type first)
+- No Details column -- removed function_name/ecr_repo/etc display (schema simplification deferred to Phase 37)
+- Deploy comment: Type | Resource | Status table with per-resource status emoji, Tag bullet with {branch}-{sha4}
+- Merge push handler creates deploy comment on merged PR with tag pr-{N}
+- workflow_run handler correlates via commits->PR API (not dispatch inputs, which return null for GitHub App dispatches)
+- Dedup key for workflow_run includes action (requested vs completed are distinct events)
+- find_merged_pr falls back to state=closed when merged_at not yet propagated (GitHub API race condition)
 
 ### Carry-forward Concerns
 
@@ -81,8 +93,20 @@ v2.0 Progress: [█████████░] 88%
 3. pr_comment_posted logged success on 403
 4. Test mocks missing head.ref
 
+### Phase 36 Bugs Fixed (during E2E)
+
+1. workflow_run dedup: "requested" and "completed" shared same event key (missing action)
+2. workflow_run inputs null: GitHub API returns null inputs for App-dispatched runs; switched to commits->PR API
+3. Deploy comment was upsert per-PR: changed to new comment per /ferry apply, workflow_run updates by SHA marker
+4. Rocket reaction changed to eyes
+5. find_merged_pr race condition: GitHub API returns closed PR without merged_at within seconds of merge
+
 ## Session Continuity
 
 Last session: 2026-03-14
-Stopped at: Phase 35 complete -- E2E validation passed
-Next step: Plan and execute Phase 36 (PR Comment UX Polish)
+Stopped at: v2.0 milestone complete
+
+### What to do next
+
+1. **Phase 37**: Schema Simplification (v2.1) -- `name` becomes the AWS resource name
+2. **Multi-tenant / other orgs** (v2+)
