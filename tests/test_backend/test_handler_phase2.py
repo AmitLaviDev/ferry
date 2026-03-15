@@ -134,6 +134,7 @@ def _make_push_event(
     after: str = "bbb" * 13 + "b",
     default_branch: str = "main",
     delivery_id: str = "delivery-p2-001",
+    head_commit: dict | None = None,
 ) -> dict:
     """Build a Lambda Function URL push event for Phase 2 tests."""
     payload = {
@@ -146,6 +147,8 @@ def _make_push_event(
         },
         "pusher": {"name": "testuser"},
     }
+    if head_commit is not None:
+        payload["head_commit"] = head_commit
     body = json.dumps(payload)
     signature = _make_signature(body)
     return {
@@ -284,6 +287,65 @@ class TestHandlerPhase2:
         # Verify Check Run was created (environment-mapped branch)
         check_reqs = [r for r in requests if "check-runs" in str(r.url)]
         assert len(check_reqs) == 1
+
+    def test_merge_commit_message_fallback_for_pr_number(
+        self,
+        dynamodb_env,
+        httpx_mock,
+        monkeypatch,
+    ):
+        """Merge commit message fallback extracts PR number on API race."""
+        monkeypatch.setattr(
+            "ferry_backend.webhook.handler.generate_app_jwt",
+            lambda app_id, pk: "fake-jwt",
+        )
+
+        before = "a" * 40
+        after = "c" * 40
+        event = _make_push_event(
+            ref="refs/heads/main",
+            before=before,
+            after=after,
+            delivery_id="delivery-merge-msg",
+            head_commit={
+                "message": "Merge pull request #42 from user/feature-branch",
+            },
+        )
+
+        _mock_installation_token(httpx_mock)
+        _mock_ferry_config(httpx_mock, after)
+        _mock_compare(
+            httpx_mock,
+            before,
+            after,
+            ["services/order-processor/main.py"],
+        )
+        # Both PR lookups return empty (API race condition)
+        _mock_prs_for_commit(httpx_mock, after, prs=[])
+        _mock_prs_for_commit(httpx_mock, after, prs=[])
+        _mock_dispatch(httpx_mock)
+        _mock_pr_comment(httpx_mock, 42)
+        _mock_check_run(httpx_mock)
+
+        from ferry_backend.webhook.handler import handler
+
+        result = handler(event, None)
+        body = json.loads(result["body"])
+        assert result["statusCode"] == 200
+        assert body["status"] == "processed"
+
+        # Verify dispatch payload uses pr-42 tag (not main-ccccccc)
+        requests = httpx_mock.get_requests()
+        dispatch_reqs = [r for r in requests if "dispatches" in str(r.url)]
+        assert len(dispatch_reqs) == 1
+        dispatch_body = json.loads(dispatch_reqs[0].content)
+        payload_json = json.loads(dispatch_body["inputs"]["payload"])
+        assert payload_json["deployment_tag"] == "pr-42"
+        assert payload_json["pr_number"] == "42"
+
+        # Verify deploy comment posted on merged PR
+        comment_reqs = [r for r in requests if "/issues/42/comments" in str(r.url)]
+        assert len(comment_reqs) == 1
 
     def test_handler_unmapped_branch_push_silent(
         self,

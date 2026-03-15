@@ -10,6 +10,7 @@ Response format follows Lambda Function URL payload format v2:
 
 import base64
 import json
+import re
 
 import boto3
 import structlog
@@ -239,6 +240,15 @@ def handler(event: dict, context: object) -> dict:
             else:
                 merged_pr = find_merged_pr(github_client, repo, after_sha)
                 pr_number = str(merged_pr["number"]) if merged_pr else ""
+            # Fallback: parse merge commit message when API race
+            # returns empty (push webhook fires before GitHub indexes
+            # the merge commit → PR association).
+            if not pr_number:
+                head_msg = (payload.get("head_commit") or {}).get("message", "")
+                m = re.search(r"Merge pull request #(\d+)\b", head_msg)
+                if m:
+                    pr_number = m.group(1)
+                    log.info("pr_number_from_merge_message", pr_number=pr_number)
             tag = build_deployment_tag(pr_number, branch, after_sha)
             trigger_dispatches(
                 github_client,
@@ -260,12 +270,16 @@ def handler(event: dict, context: object) -> dict:
                 environment=environment.name,
             )
 
-            # Post deploy comment on merged PR (reuse lookup from above)
-            if merged_pr:
+            # Post deploy comment on merged PR (reuse lookup from above,
+            # or from merge message fallback)
+            merged_pr_number = (
+                merged_pr["number"] if merged_pr else int(pr_number) if pr_number else None
+            )
+            if merged_pr_number:
                 deploy_body = format_apply_comment(
-                    affected, environment, after_sha, merged_pr["number"], deployment_tag=tag
+                    affected, environment, after_sha, merged_pr_number, deployment_tag=tag
                 )
-                post_pr_comment(github_client, repo, merged_pr["number"], deploy_body)
+                post_pr_comment(github_client, repo, merged_pr_number, deploy_body)
 
         # Check Run (always for auto_deploy matched branches, even with no changes)
         create_check_run(github_client, repo, after_sha, affected)
