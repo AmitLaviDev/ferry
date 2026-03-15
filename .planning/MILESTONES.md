@@ -1,5 +1,14 @@
 # Project Milestones: Ferry
 
+## v2.1 Schema Simplification (Shipped: 2026-03-15)
+
+**Phases completed:** 8 phases, 9 plans, 6 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.0 MVP (Shipped: 2026-02-28)
 
 **Delivered:** Serverless AWS deployment automation — a GitHub App backend detects changes and dispatches workflows, while a composite GitHub Action builds containers and deploys Lambda, Step Functions, and API Gateway resources.
