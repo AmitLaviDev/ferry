@@ -92,6 +92,12 @@ v2.1 Progress: [##########] 2/2 plans
 - Composite action resource-name input IS the AWS resource name -- function-name and state-machine-name inputs removed
 - Hard removal (not deprecation) of old inputs -- acceptable since no external users yet
 
+### Post-v2.1 Bugfix: Merge commit PR number race condition
+
+- GitHub API /commits/{sha}/pulls returns empty when push webhook fires ~4s after merge (indexing lag)
+- Fix: parse "Merge pull request #N" from head_commit.message in push payload as fallback
+- Also fixed deploy comment to post on merged PR even when pr_number came from message fallback (not API lookup)
+
 ### Carry-forward Concerns
 
 - Python 3.14 arm64 Lambda base image availability (fallback: Python 3.13)
