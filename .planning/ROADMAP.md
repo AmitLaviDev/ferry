@@ -9,7 +9,7 @@
 - v1.4 Unified Workflow -- Phases 22-24 (shipped 2026-03-10)
 - v1.5 Batched Dispatch -- Phases 25-28 (shipped 2026-03-11)
 - v2.0 PR Integration -- Phases 29-36 (shipped 2026-03-14)
-- v2.1 Schema Simplification -- Phase 37 (planned)
+- v2.1 Schema Simplification -- Phase 37 (shipped 2026-03-15)
 
 ## Phases
 
@@ -193,7 +193,7 @@ Plans:
   5. Existing push-to-deploy behavior (no environments configured) still works with the v2.0 codebase
 **Plans**: TBD
 
-### v2.1 Schema Simplification (Phase 37)
+### v2.1 Schema Simplification (Phase 37) -- SHIPPED 2026-03-15
 
 **Milestone Goal:** Eliminate redundant field duplication in ferry.yaml -- `name` becomes the AWS resource name, removing `function_name`, `state_machine_name`, and similar fields.
 
@@ -211,7 +211,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 37-01-PLAN.md -- Schema models, dispatch models, trigger builder, backend/utils tests
-- [ ] 37-02-PLAN.md -- Action parse/deploy, composite actions, docs, action tests, ferry-test-app migration
+- [x] 37-02-PLAN.md -- Action parse/deploy, composite actions, docs, action tests, ferry-test-app migration
 
 ## Progress
 
@@ -246,4 +246,4 @@ Plans:
 | 34. Workflow Template and GitHub Environments | v2.0 | 1/1 | Complete | 2026-03-13 |
 | 35. E2E Validation | v2.0 | 1/1 | Complete | 2026-03-14 |
 | 36. PR Comment UX Polish | v2.0 | Complete    | 2026-03-14 | 2026-03-14 |
-| 37. Schema Simplification | v2.1 | 1/2 | In Progress | - |
+| 37. Schema Simplification | v2.1 | 2/2 | Complete | 2026-03-15 |

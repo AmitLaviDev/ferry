@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Schema Simplification
-status: in_progress
-stopped_at: Completed 37-01-PLAN.md (Schema models and dispatch simplification)
-last_updated: "2026-03-14T20:45:56Z"
-last_activity: 2026-03-14 -- Phase 37 Plan 01 executed
+status: complete
+stopped_at: Completed 37-02-PLAN.md (Action deploy, composite actions, docs, E2E validation)
+last_updated: "2026-03-15T06:27:12Z"
+last_activity: 2026-03-15 -- Phase 37 Plan 02 executed, v2.1 milestone complete
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** When a developer pushes code, every affected serverless resource is automatically detected, built, and deployed -- with full visibility on the PR before merge.
-**Current focus:** v2.1 Schema Simplification
+**Current focus:** v2.1 Schema Simplification -- COMPLETE
 
 ## Current Position
 
-Milestone: v2.1 Schema Simplification
-Phase: 37 (Schema Simplification)
+Milestone: v2.1 Schema Simplification -- COMPLETE
+Phase: 37 (Schema Simplification) -- COMPLETE
 Plan 01: COMPLETE (schema models, dispatch models, trigger builder, tests)
-Plan 02: Pending (action deploy code, composite actions, docs, ferry-test-app)
-Last activity: 2026-03-14 -- Phase 37 Plan 01 executed
+Plan 02: COMPLETE (action deploy code, composite actions, docs, E2E validation)
+Last activity: 2026-03-15 -- Phase 37 Plan 02 executed, v2.1 shipped
 
 ```
-v2.1 Progress: [#####-----] 1/2 plans
+v2.1 Progress: [##########] 2/2 plans
 ```
 
 ## Shipped Milestones
@@ -45,6 +45,7 @@ v2.1 Progress: [#####-----] 1/2 plans
 | v1.4 | Unified Workflow | 22-24 | 2026-03-10 |
 | v1.5 | Batched Dispatch | 25-28 | 2026-03-11 |
 | v2.0 | PR Integration | 29-36 | 2026-03-14 |
+| v2.1 | Schema Simplification | 37 | 2026-03-15 |
 
 ## Accumulated Context
 
@@ -88,7 +89,8 @@ v2.1 Progress: [#####-----] 1/2 plans
 - StepFunctionConfig.name IS the AWS state machine name -- no separate state_machine_name field
 - mode="before" backward-compat validators silently strip deprecated fields before extra="forbid" sees them
 - StepFunctionConfig: when name and state_machine_name both present and differ, state_machine_name wins (it is the AWS name)
-- Matrix output still emits function_name/state_machine_name keys (set to name) for composite action compat until Plan 02
+- Composite action resource-name input IS the AWS resource name -- function-name and state-machine-name inputs removed
+- Hard removal (not deprecation) of old inputs -- acceptable since no external users yet
 
 ### Carry-forward Concerns
 
@@ -111,10 +113,10 @@ v2.1 Progress: [#####-----] 1/2 plans
 
 ## Session Continuity
 
-Last session: 2026-03-14
-Stopped at: Completed 37-01-PLAN.md (Schema models and dispatch simplification)
+Last session: 2026-03-15
+Stopped at: Completed 37-02-PLAN.md (Action deploy, composite actions, docs, E2E validation) -- v2.1 milestone complete
 
 ### What to do next
 
-1. **Phase 37 Plan 02**: Action deploy code, composite actions, docs, ferry-test-app migration
-2. **Multi-tenant / other orgs** (v2+)
+1. **Multi-tenant / other orgs** (v2+)
+2. Define next milestone and phases
