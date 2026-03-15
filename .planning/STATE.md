@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: Schema Simplification
-status: complete
-stopped_at: Completed 37-02-PLAN.md (Action deploy, composite actions, docs, E2E validation)
-last_updated: "2026-03-15T06:27:12Z"
-last_activity: 2026-03-15 -- Phase 37 Plan 02 executed, v2.1 milestone complete
+milestone: v2.0
+milestone_name: PR Integration
+status: unknown
+stopped_at: Completed 37-02-PLAN.md (Action deploy, composite actions, docs, E2E validation) -- v2.1 milestone complete
+last_updated: "2026-03-15T06:32:58.081Z"
+last_activity: 2026-03-15 -- Phase 37 Plan 02 executed, v2.1 shipped
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 8
+  completed_phases: 6
+  total_plans: 9
+  completed_plans: 7
 ---
 
 # Project State
